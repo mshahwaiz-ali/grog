@@ -345,7 +345,7 @@ When the user explicitly authorizes the offline R0 build, Grok may complete **M0
 | CL-11 | Naive timestamp/unknown command or mode | Clear validation error, no guessed timezone |
 | CL-12 | Live reference command without MT5 connection | NOT_CONFIGURED, not fabricated live prices |
 
-### 15.2 UI-01..UI-21 — Textual UX
+### 15.2 UI-01..UI-22 — Textual UX
 
 | Case | Input / action | Expected behavior |
 | --- | --- | --- |
@@ -370,6 +370,7 @@ When the user explicitly authorizes the offline R0 build, Grok may complete **M0
 | UI-19 | REPLAY ended or paused | Virtual last UTC time, not false live feed |
 | UI-20 | Quit with recorded open position | Explain broker order is untouched, persist state |
 | UI-21 | Trader records a manual XAUUSD entry unrelated to READY or after expired plan | Explicit OFF_PLAN local record, optional historical signal link, no signal resurrection or broker order |
+| UI-22 | REPLAY starts paused after causal pre-roll; press Space, . and +/- controls | Events progress in order, confirmed lookback valid, UI pace does not change outcomes or current wall-clock statuses |
 
 ### 15.3 ST-01..ST-15 — Persistence, costs and recovery
 
@@ -402,7 +403,7 @@ When the user explicitly authorizes the offline R0 build, Grok may complete **M0
 | M04 | S1-01..07/17..20 | S1 frozen pair and state trace |
 | M05 | S1-08..16, SQ-01..18, ST-02/03/09/10 | first executable quote, zero fake confidence |
 | M06 | CL-09/10, MD-18, ADV-04/08, ST-11..14 | identical replay, cost caveats |
-| M07 | UI-01..14/19/20 | Textual Pilot and small terminal tests |
+| M07 | UI-01..14/19/20/22 | Textual Pilot and small terminal tests |
 | M08 | UI-15..18/20/21, ST-01..08/15 | safe local journal/reconciliation |
 | M09 LATER | MD-11/19, CL-12, UI-10 | user-approved read-only demo connection |
 | M10 LATER | I0..I8, walk-forward and paper trial | independent empirical results |
