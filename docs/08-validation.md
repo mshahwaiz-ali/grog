@@ -1,6 +1,6 @@
 # Research Validation, Backtesting, Indicator Comparison and Adversarial Tests
 
-**Topic owner:** All S1 research experiments, quality/performance acceptance criteria, adversarial fixtures, win/loss attribution and overfitting controls. Updated 2026-10-30.  
+**Topic owner:** All S1 research experiments, quality/performance acceptance criteria, adversarial fixtures, win/loss attribution and overfitting controls. Updated 2026-10-31.  
 **Status:** RESEARCH SPECIFICATION ONLY. **No S1 strategy has been backtested, verified profitable, or approved for live trading.** Reference formulas [04](04-analysis-engine.md), signals [06](06-signals-and-scoring.md), S1 setup [05](05-strategies.md), SL/TP economics [07](07-risk-and-monitoring.md). Historical research drafts are [archived](archive/2026-10-30/README.md).
 
 ## 1. Research objectives and what constitutes a useful upgrade
@@ -171,3 +171,77 @@ No claim of "best combo", "90% accurate", profitable backtest or live-trading re
 ## 12. References
 
 Relevant research sources and limitations are in [12 — Research references](12-references.md). Key sources include TradingView's repainting guidance, MetaTrader 5's real-tick testing, Fidelity's ATR guidance, Batten et al. (2018) precious-metals moving-average study, Bailey et al. on backtest overfitting, CME macro-event studies and the World Gold Council's gold OTC/futures market-structure overview. These motivate rigorous tests; none verifies S1 profitability.
+
+## 13. Phase 18 — signal-selection evaluation and quality-score discipline
+
+**Status: TEST PLAN ONLY; not run and not evidence of edge.** Source behavior is the canonical [06 — Signal Engine, Section 10](06-signals-and-scoring.md). All tests must use only as-of-time input and **freeze the candidate and original READY event**, even when later outcomes are known.
+
+### 13.1 Hypotheses to falsify
+
+| Hypothesis | Primary experiment | Rejection criterion |
+| --- | --- | --- |
+| Raw evidence is sufficient before we have a validated score | Compare S1 eligible signals with/without *display-only* M15/context rubric | Any claim of economic gain when actual trade choices unchanged |
+| M15 opposition should veto trades | Soft-context baseline vs veto on **same** S1 entries and costs | Better in-sample loss rate but worse net OOS R, drawdown or opportunity coverage |
+| Near opposing structure materially reduces useful target reward | Compare congestion warning vs **pre-signal** structural-target/ranking rule | No robust gain after cost or removes too many attractive winners |
+| Stronger M5 trigger improves entries | One close/body rule at a time vs unchanged S1 M5 baseline | Added indicator-like rules merely reduce trade count without net gain |
+| Better manual-entry control protects economics | Same signals with measured signal-to-fill delay and frozen vs actual quote/reward | Simulated profits disappear under realistic executable prices |
+| Extra ranking adds value when signals truly conflict | Fixed deterministic transparent display vs *pre-registered* quality rank (only if evidence sufficient) | Ranked variant not reliably better or increase drawdown; no forced rank |
+| Waiting out temporary initial spread anomalies could help | Original first-quote rejection vs explicitly versioned, bounded pending-trigger recovery | Not robust after time-delay, spread normalization and lost fillability |
+
+**Research sequencing:** Use a single pre-registered indicator baseline (initial candidate I1) for Phase 18. **Do not multiply** every signal-filter trial by all I0–I8 indicator variants or quietly optimize countless combinations on the same dataset. Add one independent experiment at a time; log every attempted configuration. Select a fresh untouched evaluation period when new research uses information from a previous final holdout.
+
+### 13.2 Every setup must leave a reconstructible decision trace
+
+Required test artifact per **unique pivot-pair candidate**, not per tick:
+- Candidate identity, source/timeframes and exact as-of-time H1/M15/M5 evidence; detection and first-trigger availability times.
+- Original executable quote BID/ASK, strategy plan, approved safety gates and **all** reason-code outcomes.
+- Whether it was FORMING, READY, blocked, invalidated, expired, skipped, manually entered, paper-filled or actually closed.
+- Subsequent quote updates and block/unblock events recorded separately from **one** original signal.
+- Counterfactual outcomes for valid candidates rejected by each experimental soft filter, using **the same** fill/SL/TP/cost assumptions and full versioned strategy definition; label counterfactual, **not an executed or guaranteed trade**.
+- Outcome attribution by strategy, real market session, available news context, spread, fill delay, volatility and sample count.
+- Clean distinction between **first-issued proposal**, **hypothetical cost-adjusted fill**, and **operator-confirmed realized trade**.
+
+A good experimental filter cannot claim success simply because rejected trades include many losing outcomes. It must account for rejected winners, fillability, market-hours coverage, variance, net return and risk under the same model.
+
+### 13.3 Acceptance fixtures SQ-01 through SQ-18 (synthetic, not executed)
+
+| ID | Fixture / trigger | Expected test assertion |
+| --- | --- | --- |
+| SQ-01 | S1 H1 UP, M15 CORRECTIVE, completed M5 BUY trigger, good quote and approved execution gates | READY BUY **without** numeric score threshold |
+| SQ-02 | Same as SQ-01 but completed M5 trigger absent | FORMING, not READY; evidence says trigger pending |
+| SQ-03 | H1 UNKNOWN / quote stale but unusually high hypothetical rubric | NO READY, independent of score |
+| SQ-04 | M15 OPPOSING but strategy intact; baseline soft-only variant | Warning/evidence, not automatic veto |
+| SQ-05 | M15 OPPOSING, separately *enabled and versioned* strict-veto experiment | No READY; record potential counterfactual if historical fill can be evaluated |
+| SQ-06 | Two market updates with same frozen S1 pair and READY | Exactly one signal ID/trade count; preserve immutable issuance |
+| SQ-07 | READY briefly leaves bid/ask entry band, later reenters before TTL and stop touch | Same signal resumes, block/unblock audit; no fresh signal or reset expiry |
+| SQ-08 | READY underlying structural stop touched before entry | Terminal INVALIDATED, never resurrect same pair |
+| SQ-09 | H1 current unclosed bar turns down but last H1 confirmed UP | No future-data contamination or invented H1 flip |
+| SQ-10 | Signal looks good at mid price but ASK/BID or contract details unavailable | WAIT/no executable recommendation; reason surfaced |
+| SQ-11 | Signal formed on M5 close but next executable quote arrives late/beyond chasing limit | Historical close is **not** counted as filled; MISSED reason |
+| SQ-12 | Score changes only on screen, identical eligibilities and fills | **Identical trade P/L and counts**; no claimed economic improvement |
+| SQ-13 | Hard gate fails but a fictitious score is >90/100 | Hard gate wins, no READY |
+| SQ-14 | Two overlapping/contradictory valid opportunities and no approved exposure policy | Explicit conflict/review; no invented "best" or compounded position |
+| SQ-15 | Score feature is missing M15 context but safety inputs remain valid | Evidence UNKNOWN; no silent zero or manufactured probability; soft unknown not an unapproved veto |
+| SQ-16 | Cost/spread/entry-condition temporary failure on **first post-trigger quote** | Under original baseline NO READY; experimental recovery must be separately versioned, with no backdated issuance |
+| SQ-17 | First quote initially expensive, transient condition clears within experimental bounded grace | Recovery variant may issue **new first** READY at actual valid quote time if all original frozen constraints still pass; never use blocked historical quote as a fill |
+| SQ-18 | New quality rule lowers loss fraction but eliminates a larger net-positive subset of available trades | Reject as unproven improvement when net OOS expectancy/total return/frequency deteriorates |
+
+Each fixture must cover direction reversal, timestamp/expiry boundary and broker-side price convention where relevant. **Tests are documents only until Grok is explicitly authorized to implement them.**
+
+### 13.4 Score design and calibration experiments (future)
+
+- A proposed 100-point quality rubric is **not** an estimated probability. Do not implement numerical display if scoring axes lack frozen sub-feature equations, weights, normalization, missing-data policy and versioned cutoffs.
+- If a score is later used to *rank* trade opportunities, predefine exactly which trade would be selected versus a no-score baseline; replay both with identical quote availability, fills and costs. A mere new sort order with no changed executions has no performance impact.
+- If a true event probability is researched, first define the binary outcome (e.g. **full TP2-before-SL** under an immutable tested exit policy), eligibility universe and sample inclusion. Use chronological training, independent calibration, truly untouched evaluation, reliability diagrams, bin counts and confidence intervals; include net R because even calibrated accuracy does not equal positive expectancy. **No probability** in UI until credible independent calibration and forward paper-trading.
+- Samples from adjacent intraday trades are dependent. Avoid misleading narrow confidence intervals from treating tick observations or overlapping trades as independent; stratify/block by day or session, report distribution of outcomes and regime shifts.
+
+A typical calibration definition is: among forecasts claiming around 0.8 for a precisely defined event, that event should occur around 80% of the time in comparable **unseen** observations. That *illustrates* calibration, not a Grog result. Reference: [scikit-learn Probability calibration](https://scikit-learn.org/stable/modules/calibration).
+
+### 13.5 Required Phase 18 report before promoting a change
+
+Report (a) offered candidates vs unique valid READY vs realistically fillable signals, (b) net R per fill, total net R under equal risk and drawdown, (c) winners and losers removed by every veto, (d) number of eligible trades/day and days with zero opportunity, (e) spread, quoted-vs-actual entry lateness, target feasibility and market regime, (f) uncertainty and untouched evaluation period, and (g) code/data/settings version plus all negative tests.
+
+**Promotion rule (qualitative until data supports numeric approval):** accept only if a change creates a demonstrable *out-of-sample* improvement in executable net economics or risk stability while preserving an agreed practical opportunity rate, including a forward-paper sample. A lower loss fraction, a higher nominal quality score or a marketing win-rate claim is **not** enough. No hidden feature-growth or live-account automation.
+
+**External research notes:** [Bailey et al. on backtest overfitting](https://scholarworks.wmich.edu/math_pubs/42/) and [scikit-learn probability calibration](https://scikit-learn.org/stable/modules/calibration) explain risks in selecting overfit strategies and interpreting probability claims. Neither validates an S1 trading edge or tells us an optimal ranking threshold.
+
