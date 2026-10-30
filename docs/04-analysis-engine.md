@@ -20,3 +20,6 @@ Tick freshness; spread/estimated slippage; broker hours; known event risk; nearb
 Each input has value, time, timeframe, data provenance and threshold; signals explain major positive/negative conditions and hard vetoes. Avoid subjective labels such as 'smart money detected'.
 ## Multi-timeframe causality and trade-decision mapping
 The detailed as-of timestamps, closed-bar synchronization, H1 directional bias, M15 correction/contradiction context, M5 setup, optional M1 test and expected decision snapshots are in [14 — MTF and S1 detailed research spec](14-multi-timeframe-S1-trend-pullback.md). The multi-timeframe concept is agreed; numeric settings and strategy thresholds remain experiments, not validated performance.
+
+## S1 current research baseline and indicator selection
+The currently specified deterministic S1 candidate is [16 — refined test contract](16-S1-refined-test-contract.md); [17 — indicator combinations](17-indicator-combination-research.md) defines a bounded comparison of EMA/ATR variants and whether M15 opposition should be a warning or experimental veto. Do not assume EMA/ATR alone create an actionable signal; research parameters are neither frozen for production nor profitable by claim.
