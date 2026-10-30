@@ -61,7 +61,7 @@ Authoritative Textual API references: https://github.com/Textualize/textual/blob
 **Synthetic REPLAY screen** (values intentionally fictional; do not interpret as a trade):
 
 ```text
- GROG / GOLD WORKSTATION               XAUUSD   REPLAY • PROXY            2026-10-31 09:37:15 UTC
+ GROG / GOLD WORKSTATION               XAUUSD   REPLAY • SYNTHETIC            2026-10-31 09:37:15 UTC
  Source: SAMPLE_TICKS [OK]             BID 4000.00  ASK 4000.20          Spread 0.20  Updated 0.2s
  ───────────────────────────────────────────────────────────────────────────────────────────────────
  MARKET CONTEXT                           OPPORTUNITIES FORMING
@@ -95,7 +95,7 @@ Two vertically separated tables by **state**, not one mixed table:
 ```text
  SIGNAL S1-014 / BUY   READY (INDICATIVE)   Source: MT5_DEMO [REFERENCE]
  Created 09:37:15 UTC / Expires 09:40:00 UTC / Valid entry quote age 0.2s
- H1: UP [09:00-10:00? see confirmed bar id]    M15: CORRECTIVE     M5: Closed trigger confirmed
+ H1: UP [08:00-09:00 UTC closed]     M15: CORRECTIVE     M5: Closed trigger confirmed
  First entry ASK: 4000.20    Current ASK: 4000.25    Valid band: [3999.99 - 4000.62]
  SL BID: 3998.00   TP1 BID: 4002.40   TP2 BID: 4004.60   Gross target: 2.0R
  Net risk/return: UNKNOWN (execution broker fees not confirmed)
@@ -104,7 +104,7 @@ Two vertically separated tables by **state**, not one mixed table:
  No automatic broker order is created.
 ```
 
-**Example values are illustrative;** the displayed price band must be computed by [06](06-signals-and-scoring.md) using actual frozen ATR and quote; timestamps must be consistent with actual snapshots. The example's `H1 [09:00-10:00?]` is a **placeholder for a correctly finalized confirmed bar**, and must be replaced in the implementation with its actual finalized UTC time (not the uncertain literal label). Never fabricate available M15 pivots.
+**Example values are illustrative;** the displayed price band must be computed by [06](06-signals-and-scoring.md) using actual frozen ATR and quote; timestamps must be consistent with actual snapshots. In the example, H1 was last confirmed at 09:00 UTC. A later unclosed H1 bar may be displayed as provisional but cannot be used for READY. Never fabricate available M15 pivots.
 
 A numeric quality percentage is **NOT** part of MVP: [06](06-signals-and-scoring.md) explicitly forbids uncalibrated '85% probability' labels. Show **why** the setup is ready and what would invalidate it.
 
