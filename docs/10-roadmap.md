@@ -17,3 +17,15 @@ The active research specifications are consolidated by **topic**, not by sequent
 **Before Grok writes the S1 engine**: freeze exact numeric assumptions, broker-matched BID/ASK and costs, missing data behavior, source/event policies, signal TTL/entry-band settings, executable stop/target details and a non-overfitting trial plan in [11 — Decisions](11-decisions.md). Start with independently approved **non-trading data/replay modules** before strategy/risk/position logic. Preserve each module's tests and acceptance results.
 
 Every requested change must first answer: *What exact error in Gold trading does it reduce? How will we measure net improvement on unseen data?* If not demonstrable, don't add the feature.
+
+## Source readiness gate before strategy implementation — 2026-10-31
+
+**Documentation stage complete for market-data research, not for live market connectivity.**
+
+1. User chooses actual **manual execution platform/broker** or authorizes offline-only development without selecting one.
+2. If live source selected, validate real quote permissions, data coverage, BID/ASK timeliness, symbol metadata and market-hours rules in [03](03-market-data.md). No trading credentials or order privileges in Grog.
+3. Independently authorize **one** non-trading data module at a time: source importer → quote normalization/clock → closed-bar aggregation → historical replay. Use [08](08-validation.md) MD-01..MD-22 tests, then decide whether to construct a read-only local/live adapter.
+4. Agree actual execution/cost conventions, manual-entry delay ranges and source-specific trade restrictions in [07](07-risk-and-monitoring.md). Until then, no trustworthy sized actionable trade can be claimed.
+5. Only after repeatable quote processing, allow Grok to implement already-approved indicator/strategy modules with as-of-time tests; verify S1 with broker-matched real tick history and forward paper trading.
+
+GitHub **Contents API** commits to `main` do not require **GitHub Actions**. No CI workflow run or external implementation task is authorized by this plan. Avoid new top-level numbered planning files; update canonical topic owners only.
