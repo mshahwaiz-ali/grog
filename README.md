@@ -25,6 +25,14 @@ Grog is **rule-based software**, not GPT/Claude/LLM, an AI agent, an auto-trader
 
 Proposed strategies/indicator periods have **not** been tested; an attractive quality score is **not** a win probability. Phase 18 specifies evidence-first signals and tests. **MT5 is now the preferred reference-price adapter**, regardless of the eventual execution broker. First build broker-neutral offline BID/ASK parsing, causal MTF analysis and replay; then connect an MT5 demo data source when separately approved. The actual broker/server and live feed are not selected or installed. Numerical ranking remains experimental.
 
+## One-message Grok launch (only when you want implementation to begin)
+
+**Grok's entrypoint:** [AGENTS.md](AGENTS.md), followed by [docs/00-index.md](docs/00-index.md), [docs/11-decisions.md](docs/11-decisions.md), [docs/09-architecture.md](docs/09-architecture.md) and [docs/10-roadmap.md](docs/10-roadmap.md). All specific rules, terminal wireframes, CLI/SQLite contracts, test cases and progress format are already documented. M00–M08 can be built **offline, without an execution broker or GitHub Actions**. MT5 demo connection and credible profitability testing are later separate milestones.
+
+> Start Grog implementation from the existing GitHub main repository. Follow AGENTS.md and all canonical docs, especially docs/10-roadmap.md. Implement M00–M08 sequentially with local tests and one clear commit/report per milestone. Work offline without waiting for a broker, do not use GitHub Actions, do not add trading automation or unrelated features, and stop only for actual outside permissions or contradictions.
+
+**The above is a future instruction for Grok. The application is not yet built, and no claims of strategy accuracy have been verified.**
+
 ## Active documentation — single source of truth
 
 Start with [docs/00-index.md](docs/00-index.md) for the full canonical topic map.
