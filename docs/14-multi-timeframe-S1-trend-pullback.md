@@ -151,6 +151,10 @@ Test on chronological unseen broker-matched bid/ask ticks, including sessions an
 
 **No cited material proves this S1 strategy is profitable.** Source-backed points concern timing, data realism and testing pitfalls; S1 formula and thresholds are deliberately proposed hypotheses.
 
+## Important follow-up: S1 failure-mode audit
+
+See [15 — S1 failure modes and robustness](15-S1-failure-modes-and-robustness.md) for specific false-breakout, regime reversal, execution/spread, late-entry, news and over-filtering scenarios, proposed adversarial fixtures T01–T20, comparative tests, and unresolved rule ambiguities from this document. **Draft 14 is a hypothesis, not a final implementation contract.** In particular, pivot pairing, target conventions, trigger-bar stop references, full entry band and suspended-state semantics remain OPEN. Implementing them without explicit decisions would contradict our planning-first policy.
+
 ## 13. Grok handoff rules
 
 This file is a *research specification*, not an instruction to implement now. Before creating code, the implementation prompt must:
