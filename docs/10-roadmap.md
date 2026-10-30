@@ -91,7 +91,7 @@ When the user tells Grok: **"Start Grog. Follow AGENTS.md and docs/00-index.md, 
 **Read:** [02](02-workflows-and-ux.md) all twelve sections; [06](06-signals-and-scoring.md); [09](09-architecture.md).  
 **Implement:** terminal shell and five views (Live, Signals, Positions, Journal, Diagnostics), responsive dark palette, source/time badge, H1/M15/M5 panel, FORMING vs READY separation, event strip, exact keyboard actions for navigation/details, compact terminal fallback and status/empty/error states. Use **real engine snapshots from synthetic replay**; never hardcode a winning 'demo signal' as output or display '85% confidence'.
 
-**Tests:** Textual Pilot/navigation, stale/empty/replay-ended, 120×34 and 80×24 layouts, focused input prevents global hotkeys, no UI refresh changes expiry, no broker orders.  
+**Tests:** Textual Pilot/navigation, stale/empty/replay-ended, **REPLAY starts paused and pre-rolls real historical lookback without lookahead**, Space/. play/step and +/- event-rate controls, 120×34 and 80×24 layouts, focused input prevents global hotkeys, no UI refresh changes expiry, no broker orders.  
 **Done:** `grog ui --mode replay --source-id ID` provides working interactive workstation; command performs no broker writes. **Commit:** `feat(ui): ship responsive offline research workstation`.
 
 ### M08 — Local manual-fill journal, position monitoring and restart recovery
