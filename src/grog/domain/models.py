@@ -65,3 +65,32 @@ class NormalizedQuote:
     def spread(self) -> Decimal:
         """ASK minus BID in quote units (diagnostic only)."""
         return self.ask - self.bid
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteSource:
+    """Catalog identity of one quote source; immutable once recorded (docs/09 Section 7)."""
+
+    source_id: str
+    kind: SourceOrigin
+    symbol: str
+    metadata_json: str
+    created_at_ms: int
+
+
+@dataclass(frozen=True, slots=True)
+class ImportBatch:
+    """One committed, checksummed, immutable quote batch (docs/09 Section 7)."""
+
+    batch_id: str
+    source_id: str
+    sha256: str
+    origin: SourceOrigin
+    format_version: str
+    path: str
+    min_provider_ms: int
+    max_provider_ms: int
+    quote_count: int
+    status: str
+    imported_at_ms: int
+    stats_json: str
