@@ -22,6 +22,12 @@
 | [12 — References](12-references.md) | Source links and technical research context |
 | [13 — Competitor Research](13-competitor-research.md) | Reference research only, NOT automatically approved features |
 
+## Implementation entry point for Grok
+
+When the user tells Grok to **start**, the sole external agent instructions are at [AGENTS.md](../AGENTS.md). It leads to [11 — Decisions](11-decisions.md) and the ordered [10 — Roadmap](10-roadmap.md). This is **not** a Grog application agent or feature. The first independent offline release M00–M08 requires **no execution broker**. MT5 demo bridge and performance qualification are later permission/evidence-gated milestones. Terminal wireframes/keyboard/modal behavior reside in [02 — UX](02-workflows-and-ux.md); storage/data contracts in [09 — Architecture](09-architecture.md); test IDs and milestone coverage in [08 — Validation](08-validation.md).
+
+**Implementation readiness:** Docs are ready for offline engineering handoff, but **no source code, live feed or performance test has yet been run**. Approved engineering direction does not make S1 strategy thresholds validated or profitable.
+
 ## Source precedence
 
 1. **Explicitly approved scope/direction:** [11 — Decisions](11-decisions.md).
