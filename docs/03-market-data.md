@@ -128,4 +128,6 @@ Evaluate a representative broker **demo/read-only** XAUUSD connection during ord
 9. Long inactive period with *no ticks* versus dead connection: use separate heartbeat/market-session state, not price age alone.
 10. Source historical tick window is partially returned: paginate/retry/check coverage, never treat truncated data as complete.
 
-**Handoff:** [07](07-risk-and-monitoring.md) owns the trade-economics calculation contract; [08](08-validation.md) owns exact data-feed test fixtures. No trade algorithm or broker write operation is authorized by this research.
+**Implementation-ready offline input:** The single normalized BID/ASK **CSV v1 header, timestamp units, Decimal string and file identity/strict-rejection format** are defined in [09 — Architecture, Section 6](09-architecture.md); source validity/availability belongs here. The user does **not** need to choose a broker to build/test this importer. SYNTHETIC fixtures may declare their own price increment for examples; never infer real broker stop/tick or trade economics from it.
+
+**Handoff:** [07](07-risk-and-monitoring.md) owns the trade-economics calculation contract; [08](08-validation.md) owns exact data-feed test fixtures. No broker order-write operation is authorized by this research.
