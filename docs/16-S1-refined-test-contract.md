@@ -16,7 +16,7 @@ Our only goal: help a person choose **better XAUUSD scalping trades**, with tran
 - Bars: UTC half-open windows for M1/M5/M15/H1. A completed bar is available **only on a valid subsequent quote after the bar closes**, if no disqualifying feed gap. Never calculate READY on a hypothetical exact candle-close fill.
 - Confirmed-bar and pivot events must carry both `event_time` and `available_at`. Every decision uses the **information set actually available** at that decision time. Replaying ticks must give the same output.
 - Bar gaps, no valid subsequent quote, missing broker precision/cost metadata, insufficient indicator warm-up or stale feed => insufficient information / no actionable signal.
-- Research default warm-up: 250 finalized H1 bars for EMA50 stability, at least 50 M15 bars for recent level context, and >= 30 M5 bars for ATR and pivots. Exact sufficiency must later be verified against initialization convergence; these values are **candidate requirements**, not market facts.
+- Research default warm-up: 250 finalized H1 bars for EMA50 stability (**>=450 H1 bars for the slower EMA90 research variant**), at least 50 M15 bars for recent level context, and >= 30 M5 bars for ATR and pivots. An absent M15 pivot after sufficient warm-up yields context UNKNOWN as a **soft** condition, not an invented level or forced veto. Exact sufficiency must later be verified against initialization convergence; these values are **candidate requirements**, not market facts.
 
 ## 2. Indicators and structures (minimal, complementary)
 
@@ -43,7 +43,7 @@ On last confirmed H1 bar t:
 - NEUTRAL: sufficient data, neither UP nor DOWN.
 - UNKNOWN: missing or stale input.
 
-S1 candidate long requires UP, short requires DOWN. Signal must reference exact H1 bar and EMA values. Do not use a running/unclosed H1 candle for an actionable signal. If H1 changes during FORMING, reassess; if it reverses after READY and before manual entry, invalidate. **No claim this specific EMA filter is optimal**.
+The proposed full S1 candidate long requires UP, short requires DOWN. **I0 in document 17 is a diagnostic exception** that deliberately disables the H1 bias gate to measure its incremental benefit; it is not an alternate production rule. Signal must reference exact H1 bar and EMA values. Do not use a running/unclosed H1 candle for an actionable signal. If H1 changes during FORMING, reassess; if it reverses after READY and before manual entry, invalidate. **No claim this specific EMA filter is optimal**.
 
 ## 4. M15 context — deterministic experimental classification
 
