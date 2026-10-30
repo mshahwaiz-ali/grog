@@ -42,6 +42,6 @@
 - Before Grok implementation, provide exact source documents, frozen testable behavior, expected positive/negative tests and explicit OPEN blockers.
 - In this planning stage do **not** claim an accurate/profitable trading product or paper-trading results.
 
-**Latest research milestones:** Phase 18 refined evidence-first signal decisions in [06](06-signals-and-scoring.md) and SQ-01..SQ-18 in [08](08-validation.md). Market-data and execution research now defines MT5/cTrader/Dukascopy suitability, quote integrity and read-only source trials in [03](03-market-data.md), real bid/ask economics in [07](07-risk-and-monitoring.md), and MD-01..MD-22 test cases in [08](08-validation.md). Unapproved choices are logged in [11](11-decisions.md). No new active topic file was created.
+**Latest research milestones:** Phase 18 refined evidence-first signal decisions in [06](06-signals-and-scoring.md) and SQ-01..SQ-18 in [08](08-validation.md). Market-data research now **selects MT5 as the preferred read-only reference adapter** while leaving real-money broker selection optional for early development, as recorded in [11](11-decisions.md). Feed integrity, demo-server requirements and offline replay are in [03](03-market-data.md), real bid/ask economics in [07](07-risk-and-monitoring.md), and MD-01..MD-22 test cases in [08](08-validation.md). Unapproved choices are logged in [11](11-decisions.md). No new active topic file was created.
 
 This is our documentation structure; no code has been written.
