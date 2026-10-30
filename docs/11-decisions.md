@@ -65,7 +65,7 @@ The former top-level research drafts **14–17 were consolidated into their topi
 - Candidate 100-point quality rubric with five broad axes in [06](06-signals-and-scoring.md) is **not implementable yet**: normalization, exact subpoint formulas, cutoffs and probability calibration remain OPEN. Do **not** display invented 85%-type accuracy claims.
 - Python modular local implementation, SQLite journal, possible Textual/Rich terminal UI and a read-only feed adapter are PROPOSED, not selected dependencies.
 
-## 6. Blocking OPEN decisions (before S1 implementation, not necessarily before isolated replay utilities)
+## 6. OPEN decisions — blockers for broker-verified live execution, NOT for offline R0 M00–M08
 
 1. **Later live execution validation (NOT a blocker for broker-neutral development):** eventual XAUUSD execution broker, actual BID/ASK tick data/history rights, precision, contract size/lot limits, stop execution, server times and fees/slippage. A temporary MT5 demo reference server and offline data source still require concrete availability/terms checks; their details are not assumed.
 2. **Data-health thresholds:** stale quote duration, first-post-M5-close maximum quote delay, acceptable gap/reorder, market-hours/downtime policy.
@@ -112,7 +112,7 @@ No code has been implemented; no trade win rate or profitability verified by the
 - **Still OPEN:** broker/feed and contract metadata, quote age/latency and spread/cost limits, event restrictions, precise usable quality score, score cutoffs, multi-position handling, real-world frequency/return acceptance thresholds, and forward-paper evaluation criteria.
 - **No GitHub Actions needed:** direct GitHub Contents API file commits suffice for documentation edits. GitHub Actions runner minutes are not required.
 
-**Next most valuable decision after Phase 18 research:** select realistic XAUUSD market-data/broker constraints and freeze *non-trading* data/time/indicator test contracts before asking Grok to implement the first module. Do not code the S1 signal engine until the unresolved trading-policy inputs are approved.
+**Phase 18 historical note, now superseded by D-013 and Section 12:** S1 live-broker claims and risk gates require actual market-data/broker evidence. Offline **research S1 code** is explicitly permitted under user START after the causal data/indicator milestones pass, with SIMULATED labeling and no guessed live policy. The earliest next code module is M00, not broker selection.
 
 ## 10. Market-data and execution research — 2026-10-31
 
