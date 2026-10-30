@@ -323,3 +323,87 @@ Report distributions of spread in price/R units, manual-delay lost R, offered vs
 When the user authorizes *only* the offline data module, a narrow implementation brief can reference [03](03-market-data.md), [04](04-analysis-engine.md), and these MD fixtures. **Do not ask Grok to invent a live broker connection or an EA, download third-party code, install Wine/MT5, pull live credentials, send broker orders or build a full signal engine** until the relevant source and behavior are explicitly approved.
 
 **Reference documentation:** MT5 `CopyTicksRange` and `OnTick` event semantics, cTrader historical quote data + `hasMore`, Dukascopy historical BID/ASK widget, MQL5 symbol properties, and MT5 real-vs-generated ticks. Cite links in [12 — References](12-references.md). These prove API capabilities/limitations, **not** S1 trade profitability.
+
+## 15. R0 implementation acceptance: CLI, terminal, journal and persistence
+
+**Status: SPECIFIED, NOT EXECUTED.** Complements MD-01..22, S1-01..20, SQ-01..18, ADV and I0-I8. Use Python 3.11, isolated pytest `tmp_path`, synthetic XAUUSD BID/ASK and virtual UTC clock. Textual's `App.run_test()` and `Pilot` support keyboard/responsive tests: https://textual.textualize.io/guide/testing/
+
+### 15.1 CL-01..CL-12 — CLI and data
+
+| Case | Input / operation | Required result |
+| --- | --- | --- |
+| CL-01 | Fresh checkout with resolved `uv.lock` | Locked install and CLI help/version work |
+| CL-02 | `grog doctor` with empty test state | Read-only, no broker/network |
+| CL-03 | Valid CSV with distinct same-millisecond quotes | Correct event count/order/Decimal prices |
+| CL-04 | Reimport identical source and SHA256 | Idempotent, no duplicate batch |
+| CL-05 | Missing header, NaN, negative BID, crossed quote, bad UTC ms | Clear row/field error, no partial commit |
+| CL-06 | Identical quotes from two source IDs | Kept distinct, never merged |
+| CL-07 | Single invalid row inside valid batch | Strict whole batch reject |
+| CL-08 | Import crashes before transaction commit | Retry/recovery without phantom batch |
+| CL-09 | Identical replay/config twice | Same signals/events and deterministic result |
+| CL-10 | Report nonexistent run ID | Explicit NOT_FOUND, nonzero exit |
+| CL-11 | Naive timestamp/unknown command or mode | Clear validation error, no guessed timezone |
+| CL-12 | Live reference command without MT5 connection | NOT_CONFIGURED, not fabricated live prices |
+
+### 15.2 UI-01..UI-20 — Textual UX
+
+| Case | Input / action | Expected behavior |
+| --- | --- | --- |
+| UI-01 | 120x34 REPLAY screen | Five views, quote/context/forming/ready/positions readable |
+| UI-02 | 80x24 screen | Responsive stacking and signal detail SL/TP accessible |
+| UI-03 | 70x18 screen | Scroll/resize guidance, no corrupted critical state |
+| UI-04 | Press 1..5/arrows while market data updates | Correct focus/navigation and retained selection |
+| UI-05 | Help ?, Esc, Enter | Safe overlay and detail, no journal mutation |
+| UI-06 | Type e/s/p/m/x into focused input | No global shortcut activated |
+| UI-07 | Try Record Entry on FORMING candidate | NOT TRADABLE YET, no on-plan local entry |
+| UI-08 | H1 UP/M15 CORRECTIVE, M5 trigger missing | FORMING, exact reason |
+| UI-09 | Simulated READY BUY/SELL | Correct ASK/BID entry, SL/TP sides, TTL, SIMULATED |
+| UI-10 | Read-only MT5 reference connected later | INDICATIVE, verify actual broker, never falsely verified |
+| UI-11 | Quote stale/gap/ATR history insufficient | UNKNOWN/NO TRADE, no invented score |
+| UI-12 | Current H1 bullish but last confirmed H1 bearish | Last confirmed used, provisional labeled |
+| UI-13 | READY blocked and restored before expiry | Same ID/original prices/TTL |
+| UI-14 | Original stop touched or TTL expired | Terminal invalidation/expiry, no resurrection |
+| UI-15 | Record-entry modal | Mandatory actual fill/time/size, Cancel default and risk preview |
+| UI-16 | Partial close quantity exceeds remaining | Reject, DB unchanged |
+| UI-17 | Confirm local manual closure | Only journal updated; no broker action |
+| UI-18 | App restart with recorded open position | RECONCILIATION_REQUIRED |
+| UI-19 | REPLAY ended or paused | Virtual last UTC time, not false live feed |
+| UI-20 | Quit with recorded open position | Explain broker order is untouched, persist state |
+
+### 15.3 ST-01..ST-15 — Persistence, costs and recovery
+
+| Case | Condition | Required invariant |
+| --- | --- | --- |
+| ST-01 | New local SQLite schema | Versioned migrations, foreign keys, no wallet/orders tables |
+| ST-02 | Same candidate/trigger replayed | One original READY signal/issuance event |
+| ST-03 | READY blocked/unblocked | E0/SL/TP/TTL immutable |
+| ST-04 | DB write fails mid-position transaction | No partial position change or false UI success |
+| ST-05 | Duplicate user event submission | Idempotent event ID |
+| ST-06 | Recorded entry reloaded after restart | Reconciliation required |
+| ST-07 | Partial closes and fees | Remaining size/realized costs correct |
+| ST-08 | True ASK/BID trade path | Spread charged once, commissions separate |
+| ST-09 | Broker contract missing | Gross price R in SIMULATED; currency P/L UNKNOWN |
+| ST-10 | Synthetic fixture tick size 0.01 | Correct rounding, never treated as real broker size |
+| ST-11 | Market source changes | Original source attribution preserved |
+| ST-12 | Two events with identical ms | Both retained in ingest order |
+| ST-13 | Reconnect backfill | No retrospective LIVE READY |
+| ST-14 | Same closed M5 bar reprocessed | No duplicate pivot or signal |
+| ST-15 | Additive SQLite schema migration | Historic events preserved |
+
+## 16. Milestone-to-test acceptance matrix
+
+| Milestone | Case groups | Mandatory evidence |
+| --- | --- | --- |
+| M00 | CL-01/02/11 | locked install, CLI, local lint and tests |
+| M01 | CL-03..08, MD-01..05/13/14/19 | import/checksum/idempotency |
+| M02 | MD-06..10/17/20/21/22 | exact causal 4-timeframe bars and gaps |
+| M03 | S1-01..03/17..19 | EMA/ATR/pivot numeric and causal proofs |
+| M04 | S1-01..07/17..20 | S1 frozen pair and state trace |
+| M05 | S1-08..16, SQ-01..18, ST-02/03/09/10 | first executable quote, zero fake confidence |
+| M06 | CL-09/10, MD-18, ADV-04/08, ST-11..14 | identical replay, cost caveats |
+| M07 | UI-01..14/19/20 | Textual Pilot and small terminal tests |
+| M08 | UI-15..18/20, ST-01..08/15 | safe local journal/reconciliation |
+| M09 LATER | MD-11/19, CL-12, UI-10 | user-approved read-only demo connection |
+| M10 LATER | I0..I8, walk-forward and paper trial | independent empirical results |
+
+**R0 PASS** means an offline program passes specified functional tests under documented synthetic/proxy assumptions. It does **NOT** establish profitable S1 signals or verified broker fills. Documented cases are not executed test results: Grok must create tests, run them and report actual pass/fail counts and commit SHAs as required by [10](10-roadmap.md).
