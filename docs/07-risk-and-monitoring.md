@@ -1,6 +1,6 @@
 # Risk, Trade Economics, Stops, Targets and Live Monitoring
 
-**Owner:** All trade economics, actual manual fills, stop/target benchmark rules and held-position monitoring. Updated 2026-10-30. **Status:** Core manual/no-auto execution APPROVED; all percentages, stop/target multipliers, cost and alert rules below remain PROPOSED research hypotheses, not verified profitability.
+**Owner:** All trade economics, actual manual fills, stop/target benchmark rules and held-position monitoring. Updated 2026-10-31. **Status:** Core manual/no-auto execution APPROVED; all percentages, stop/target multipliers, cost and alert rules below remain PROPOSED research hypotheses, not verified profitability.
 
 **Cross-references:** Price calculations → [04](04-analysis-engine.md); S1 structure/triggers → [05](05-strategies.md); READY/expiry/entry band → [06](06-signals-and-scoring.md); testing and full-vs-partial exit comparisons → [08](08-validation.md). Historical drafts → [archive](archive/2026-10-30/README.md).
 
@@ -106,3 +106,86 @@ At startup restore saved positions as **UNVERIFIED/RECONCILIATION_REQUIRED** unt
 [08 — Validation](08-validation.md) owns exact positive/negative fixtures for bid/ask stop/target, same-bar ambiguity, slippage, late entry, partials and restart. Real historical broker-specific ticks, position metadata, latency and fees are necessary to evaluate whether a scalping plan has a positive **net** expectancy.
 
 The strategy/risk plan is exploratory. Grog does not place, modify, close or sync broker orders by itself; no trading profit or safety guarantee is made.
+
+## 10. Broker-matched execution and cost model — 2026-10-31
+
+**Research specification, not a confirmed broker rule.** First read [03 — Market Data](03-market-data.md). Actual tradable symbol specifications/permissions **must** be collected from the chosen broker. Never guess whether 1.00 lot of its Gold product equals a fixed number of ounces, a fixed tick value or a standardized pip. Price *digits* and **tick increment** are different concepts.
+
+### 10.1 Required symbol and account-neutral metadata
+
+| Variable | Meaning | Why it matters |
+| --- | --- | --- |
+| `symbol`, `source_id`, account environment | Exact broker XAUUSD alias (e.g. suffix), DEMO/LIVE metadata context | Prevent trade calculations based on another provider |
+| `price_digits`, `point_size`, `trade_tick_size` | Decimal presentation, displayed point and **minimum valid price increment** | Round SL/TP to executable increments; these values need not be identical |
+| `contract_size`, `profit_calc_mode`, `tick_value_profit/loss`, `profit_currency` | Broker's P/L/contract convention | Correct per-lot move value and currency |
+| `lot_min`, `lot_max`, `lot_step`, `volume_limit` | Valid position sizing | Avoid fabricated position sizes |
+| `trade_mode`, `session_times`, `stop_level`, `freeze_level` | Whether trading is allowed, stop/freeze restrictions | A technically valid price need not be order-valid |
+| `commission_schedule`, `overnight_costs`, `conversion_source` | Fee/currency rules, with as-of timestamps | Net P/L and net reward/risk |
+| `stop/target_trigger_price_side`, `execution_policy` | Broker-specific trigger & market/limit fill rules | Distinguish quote touch from executed order |
+
+Official MT5 symbol property API names such as `SYMBOL_TRADE_TICK_SIZE`, `SYMBOL_TRADE_CONTRACT_SIZE`, `SYMBOL_TRADE_TICK_VALUE_PROFIT/LOSS`, `SYMBOL_VOLUME_MIN/MAX/STEP`, `SYMBOL_TRADE_STOPS_LEVEL` and `SYMBOL_TRADE_FREEZE_LEVEL` can be inspected read-only, **if MT5 is eventually selected**: https://www.mql5.com/en/docs/constants/environment_state/marketinfoconstants
+
+**Metadata versioning:** Snapshot the contract metadata used for *each issued signal*. If symbol specs change during live operation, invalidate pending signal economics requiring recalculation rather than silently retaining stale stop/position-size results.
+
+### 10.2 Price-side P/L, with no spread double-count
+
+The fundamental execution convention for a typical OTC Gold CFD (verify with broker):
+- Long hypothetical market entry = ASK at entry; long mark/exit = BID at exit.
+- Short hypothetical market entry = BID; short mark/exit = ASK.
+- `spread = ASK − BID` (in XAUUSD price units); compute `spread_in_R = spread / initial_price_risk` when denominator positive.
+
+If the historical model **already uses ASK for a BUY and BID for its sale/exit** (and vice versa for SHORT), the spread is **already embedded in the entry-to-exit price difference**. **Do not subtract it again** as an additional fee. Commission, financing, extra slippage and conversion charges are distinct costs.
+
+For a linear one-price-unit value `V` in profit currency per **1.00 lot**, position `q` lots and observed fill prices:
+
+```text
+gross_long_PnL   = (exit_bid_fill − entry_ask_fill) × V × q
+gross_short_PnL  = (entry_bid_fill − exit_ask_fill) × V × q
+net_PnL          = gross_PnL − entry_commission − exit_commission − other_actual_costs
+net_reward_to_TP = modeled_net_winning_currency / modeled_net_stop_loss_currency
+```
+
+**Caution:** `V` is **not** universally equal to a fixed ounce value. Some instrument calculation modes, tick-value currencies and conversion rates differ. If linear valuation is not validated from broker specs, use a verified symbol-specific **read-only** calculation or mark monetary P/L UNAVAILABLE. No trade-order API is authorized. If user's reporting currency differs from the broker profit currency, convert using a traceable contemporaneous quote/fee or display in profit currency only.
+
+**Gross R** on original entry and stop:
+- `R_price_long = original_ask_entry − SL_bid`.
+- `R_price_short = SL_ask − original_bid_entry`.
+- Gross TP2 target based on 2R is **not** guaranteed to deliver 2R net after fees/slippage. Stop fills may be worse than the requested stop.
+
+### 10.3 Execution assumptions must be explicit
+
+For every backtest or live **advisory**:
+1. **Order type assumed:** market on the first eligible actual quote, versus explicit separate limit-order scenario. A limit touch is **not proof of a fill**; queue/partial fill uncertainty must be declared.
+2. **Operator delay:** test at multiple recorded or measured delays from first READY to a possible actual market fill, *taking the quote at that later time*. Do not backfill a favorable earlier price.
+3. **Spread path:** do not use a constant midpoint spread in a "real ticks" test; record contemporaneous BID and ASK. Stress wider spreads, bad ticks, reconnection and thin periods.
+4. **Commission and stop slippage:** include per-lot/per-side fee schedule, potentially variable commission, currency conversion and stop slippage; distinguish estimated from observed. A stop is **not** a guaranteed worst-case exit.
+5. **TP/SL event order:** use actual ordered ticks and broker trigger conventions. An OHLC minute touching both is indeterminate. A touched level alone is not an actual manual/broker fill.
+6. **Signal validity:** at time of **actual** user-reported fill, compare against original band, TTL, structural invalidation and current executable quote; show OFF_PLAN when applicable and recalculate actual net R/R. The historical original record never changes.
+7. **Clock and session status:** if terminal/feed offline, warn user monitoring is not live. Do not imply Grog can close or protect the broker position remotely.
+
+Avoid any user-facing "profit guarantee", "safe stop" or unsupported probability.
+
+### 10.4 Proposed cost-risk diagnostics (not additional hard gates yet)
+
+- `spread_fraction_of_R = spread / gross_initial_risk_price`; log current and historical percentile by session.
+- `fee_fraction_of_R = commissions_and_other_known_fees / original_risk_currency` if broker valuation/currency known.
+- `net_target_reward_R` and `modeled_stop_loss_R`, with spread included through BID/ASK prices **once**.
+- `manual_chase_distance_R = max(0, adverse_move_from_issued_executable_entry) / original_risk_price`.
+- `latency_ms = user_fill_time − first_READY_time` if actual timestamps provided; unknown if user confirms late without an accurate fill time.
+- `stop_distance_vs_ATR = gross_initial_risk_price / ATR_M5` when valid.
+
+**Do not set universal cutoffs** such as spread < a given dollar value, minimum 2R net, maximum two-second latency or one Gold lot equals a specific contract value. Any executable gate or sizing policy needs empirical broker-specific calibration and explicit user approval, with its impact on rejected winners/losses measured in [08](08-validation.md).
+
+## 11. Execution-source evaluation before real-money use
+
+A hypothetical 2R gross target must be backtested with:
+- Broker-matched XAUUSD spread samples by UTC session/rollover and around major release times.
+- Correct ASK/BID side of entry and stop/target trigger.
+- Commission/minimum fees and any conversion to account currency.
+- Delayed manual fills, missed/partial fills, rejected price bands, stop gaps and late entries.
+- Adverse price movement during terminal downtime and delayed post-disconnect first quote.
+- Risk-in-currency for **the chosen broker contract**, including min lot rounding and inability to size below minimum.
+
+**Required output:** explicit net R and modeled realized currency figures *only when sufficient inputs exist*; otherwise keep the numeric account P/L unavailable. Report sensitivity to slippage/spread rather than falsely precise estimates.
+
+**Approval boundaries:** provider/contract/fee model OPEN in [11 — Decisions](11-decisions.md). The calculation framework may be researched offline but no sizing/signals using invented broker values, no wallet or account-management system, and no broker order placement.
