@@ -222,7 +222,7 @@ Single installed entry point: `grog` (equivalent `python -m grog`); implemented 
 | `grog doctor` | Read-only environment, package/version, state-dir existence, data-health/config report; no implicit install/network | No |
 | `grog import-ticks --file PATH --source-id ID --origin SYNTHETIC|HISTORICAL [--state-dir PATH]` | Validate canonical v1 CSV fully, hash, persist one immutable source batch, output counts/gaps/rejections | Local Grog state only |
 | `grog replay --source-id ID [--from ISO_UTC --to ISO_UTC] [--state-dir PATH]` | Run deterministic source replay under frozen research profile; print factual candidate/READY/event summary, no real trades | Research result locally |
-| `grog ui --mode replay --source-id ID [--state-dir PATH]` | Textual workstation fed by deterministic replay; visible REPLAY/SIMULATED | Local UI state/journal only |
+| `grog ui --mode replay --source-id ID [--from ISO_UTC] [--state-dir PATH]` | Textual workstation with pre-roll warm-up; **starts PAUSED**, Space play, `.` step, `+/-` events/s pacing; REPLAY/SIMULATED | Local UI state/journal only |
 | `grog ui --mode reference` | **Later only**: read-only MT5 reference source; until configured give specific error, not mock live quotes | No broker writes |
 | `grog report --run-id ID [--format text|json]` | Summarize recorded run, source fidelity, data gaps, assumptions, win/loss caveats; text default, stable JSON optional | Read-only |
 | `grog version` | Print package, schema/config version | No |
