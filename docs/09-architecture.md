@@ -233,7 +233,7 @@ Single installed entry point: `grog` (equivalent `python -m grog`); implemented 
 
 `config/research.example.toml` documents:
 - `profile = "S1_RESEARCH_V0_2"` using candidate parameter values **owned by docs/04/05/06/07**. Research-specific choices can be frozen for code/tests without being claimed profitable for live use.
-- `mode = "REPLAY"`, `source = "SYNTHETIC"`, `symbol = "XAUUSD"`, `timezone_display = "Asia/Karachi"` (explicit optional UI default), `ui.max_refresh_hz = 4`.
+- `mode = "REPLAY"`, `source = "SYNTHETIC"`, `symbol = "XAUUSD"`, `timezone_display = "Asia/Karachi"` (explicit optional UI default), `ui.max_refresh_hz = 4`. **Fixture-only** `synthetic_tick_size = "0.01"` XAUUSD price units permits deterministic price rounding in synthetic tests; do **not** propagate it as real broker tick size or apply it to unknown third-party data.
 - `market_data.require_bid_ask = true`, strict no-lookahead, `allow_trade_execution = false` (defense in depth, no trade module exists).
 - `risk.contract_metadata = "UNKNOWN"`, `live_numeric_score_enabled = false`, `live_execution_fidelity = "REFERENCE"` only once a real source exists.
 - `live.max_quote_age_ms`, `live.max_first_postclose_delay_ms`, `live.max_spread_cost_r`, `events.blackout_window`, `risk.max_account_risk`: **unset/null by default**. A null **live safety value is not permission for unlimited exposure**; it blocks the corresponding live readiness mode until configured and validated.
