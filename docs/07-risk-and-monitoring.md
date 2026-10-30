@@ -37,7 +37,7 @@ For initial **short** SELL:
 - TP1 at **1R** and TP2 at **2R**, where R is the **original frozen gross price risk**.
 - Long targets are prices reached using **closeable BID**, e.g. `TP1_long = E0_long + R`, `TP2_long = E0_long + 2R`.
 - Short targets use **closeable ASK**, e.g. `TP1_short = E0_short − R`, `TP2_short = E0_short − 2R`.
-- Round target prices only with an **approved broker-specific conservative policy**; this rounding policy is OPEN and must be frozen before implementation.
+- Round target prices using a **source-specific price step**: synthetic fixtures may use their explicitly declared 0.01 XAUUSD price-unit increment **for simulated research only**; for any actual broker-verified output, the broker's conservative valid-price rounding must be documented and approved first. UNKNOWN third-party tick sizes prohibit a false executable-price claim.
 - Log nearby confirmed M15 structural levels as possible congestion **before entry**. A structurally clipped TP is a separate pre-registered experiment, not a post-hoc improvement.
 - Show target/R estimations after spread, commissions and modeled slippage where known. **A gross 2R signal need not yield 2R net.**
 
