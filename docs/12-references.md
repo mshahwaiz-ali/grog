@@ -13,3 +13,21 @@ These are **starting points to verify during research**, not proof that a partic
 - Bailey, Borwein, López de Prado & Zhu, *The Probability of Backtest Overfitting*, peer-reviewed publication abstract: https://scholarworks.wmich.edu/math_pubs/42/
 ## Verification rules
 Source-specific exchange futures volume/order book must not be assumed to measure full OTC XAUUSD spot activity. Do not claim that indicator choices or patterns have verified edge from descriptive sources alone. Cite empirical studies, preserve raw tests and note adverse evidence in strategy research.
+
+## Official market-data and broker-execution research — verified 2026-10-31
+
+These sources document access mechanisms and limits; **none** proves any trading strategy is profitable.
+
+- **MetaTrader 5 official Linux/Wine installation:** https://www.metatrader5.com/en/terminal/help/start_advanced/install_linux
+- **MQL5 historical tick range and `MqlTick` timestamp/flags:** https://www.mql5.com/en/docs/series/copyticksrange
+- **MQL5 `OnTick` callback queue coalescing:** https://www.mql5.com/en/docs/event_handlers/ontick
+- **MQL5 read-only symbol properties and broker contract fields:** https://www.mql5.com/en/docs/constants/environment_state/marketinfoconstants
+- **MT5 real versus generated ticks, floating spread and source-limitations:** https://www.metatrader5.com/en/terminal/help/algotrading/tick_generation
+- **cTrader official live/historical quotes and history window/pagination:** https://help.ctrader.com/open-api/symbol-data/
+- **cTrader authentication and access tokens:** https://help.ctrader.com/open-api/account-authentication/
+- **cTrader API usage rate limits and SDK support:** https://help.ctrader.com/open-api/
+- **Dukascopy official historical BID/ASK export interface:** https://www.dukascopy.com/api/data/get/historical-data-export
+
+**Implementation caveats:** Quote-event callbacks need not be a reliable count of all market ticks; data quality and catch-up must be tested. The actual tradable broker symbol is not standardized across all spot Gold/CFD brokers. Dukascopy historical XAUUSD, cTrader and MT5 historical/live quotes are **not interchangeable** without explicit spread/time/contract fidelity testing. A real bid/ask entry/exit path already embeds spread; do not subtract the same spread again as a separate charge.
+
+The canonical requirements are in [03 — Market Data](03-market-data.md), [07 — Risk & Monitoring](07-risk-and-monitoring.md), and [08 — Validation](08-validation.md). Source access and current capability should be re-verified at the time of implementation.
