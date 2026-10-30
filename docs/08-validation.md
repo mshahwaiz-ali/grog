@@ -18,3 +18,5 @@ Sample count, trades/day by session, win rate, average win/loss, net expectancy 
 90% wins * 0.3R + 10% losses * -3R = -0.03R/trade; 40% wins * 2R + 60% losses * -1R = +0.20R/trade (before costs).
 ## Promotion gates
 No live-capital readiness until data fidelity, deterministic replay, credible out-of-sample profitability, cost robustness, monitoring reliability and forward results satisfy **pre-registered thresholds** (OPEN). Do not change thresholds after inspecting final test outcomes. Losses remain possible.
+## S1-specific failure and overfiltering experiments
+Before implementing S1, review [15 — S1 failure-mode and robustness](15-S1-failure-modes-and-robustness.md), which specifies 16 failure classes, 20 adversarial synthetic fixtures, bid/ask-and-human-latency worked examples, and staged ablation experiments. Do not evaluate rejected trades only by their loss rate: include counterfactual performance of rejected winners, lost net R and reduced signal frequency. Mark all as proposed until broker-matched data and research windows are approved.
