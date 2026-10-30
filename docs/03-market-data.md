@@ -42,21 +42,21 @@ Spot gold/CFD is substantially OTC. **Broker tick volume is not aggregate global
 
 Actual spread/cost gates, price bands and signal TTL live in [06 — Signals](06-signals-and-scoring.md); contract-based SL/TP, position P/L and partials live in [07 — Risk & Monitoring](07-risk-and-monitoring.md). Data provider and risk-event policies are tracked in [11 — Decisions](11-decisions.md).
 
-**No broker/feed has been selected and no live data/backtests have been executed by this specification.**
+**Decision 2026-10-31:** MT5 is the preferred **reference-feed adapter**, but **no actual demo server or live feed is connected**. The eventual manual execution broker is not required for offline data/indicator development. No backtest has been executed.
 
 ## 7. Provider research and first-choice decision — 2026-10-31
 
-**Status: RESEARCH / CONDITIONAL RECOMMENDATION; provider not selected, no software or feed installed.** Grog remains a local, manual-only XAUUSD decision program. An external price source is necessary; this does **not** authorize an AI/LLM API, placing orders, or adding broker-account management.
+**Status: MT5 reference-feed integration DIRECTION APPROVED (2026-10-31); a concrete broker demo server/source is not yet connected; no software or feed installed.** Grog remains a local, manual-only XAUUSD decision program. An external price source is necessary; this does **not** authorize an AI/LLM API, placing orders, or adding broker-account management.
 
 | Candidate | Actual documented access | Advantages | Risks and decision |
 | --- | --- | --- | --- |
-| **MT5 broker-matched feed on Ubuntu** | MT5 terminal runs under Wine; MQL5 `CopyTicksRange` yields timestamped `MqlTick` history and `SymbolInfo*` exposes symbol contract/tick properties | Best **first candidate if the chosen execution broker uses MT5**; prices and symbol rules can match the operator's platform | MT5/Linux Wine runtime, broker history depth and missing ticks need proof. A **tiny read-only MQL5 exporter** may be required; it must NOT call trade/order APIs. No implicit assumption that native Python MetaTrader5 API works directly on Linux |
+| **MT5 broker-matched feed on Ubuntu** | MT5 terminal runs under Wine; MQL5 `CopyTicksRange` yields timestamped `MqlTick` history and `SymbolInfo*` exposes symbol contract/tick properties | **Preferred first implementation adapter regardless of eventual execution broker**; its chosen demo server provides a consistent reference BID/ASK stream | MT5/Linux Wine runtime, broker history depth and missing ticks need proof. A **tiny read-only MQL5 exporter** may be required; it must NOT call trade/order APIs. No implicit assumption that native Python MetaTrader5 API works directly on Linux |
 | **cTrader Open API** | Official live quote and historic tick access; official Python SDK; OAuth account authorization; historical request maximum one week per window and paginated/limited results | Strong alternative **if the execution broker uses cTrader** | Account/app registration/auth, scope and API request limits add complexity. Use **least-privileged access**, no write/order calls. Respect server response `hasMore`, retry/backoff and actual broker XAUUSD availability |
 | **Dukascopy historical bid/ask** | Dukascopy's official historical export offers BID/ASK data | Useful for **offline development/replay and broad scenario coverage** if available for XAUUSD and permitted by terms | **Not** execution-broker data; spreads, trading hours, stop rules and execution can differ. Do NOT infer live-profitability from Dukascopy-only tests; verify date coverage, price precision, completeness and licensing before import |
 
-**Recommended decision tree:** If the user executes XAUUSD in MT5, investigate MT5 read-only feed first; if on cTrader, investigate its documented read-only pricing and historical ticks; if undecided, prototype **offline schema/replay using legally available historical bid/ask** without committing to a broker. Source matching and actual live quote quality matter more than the nominal platform brand.
+**Approved development path:** Build offline historical/synthetic BID/ASK schema and deterministic replay **now, without a broker decision**. MT5 is our preferred subsequent **read-only demo reference quote bridge**. cTrader is merely a possible later alternative, not a parallel integration task. Once a manual execution broker is known, treat its prices/spreads/SL/TP semantics as an execution-validation layer. MT5 is not a universal source of identical XAUUSD quotes.
 
-No real platform or broker is chosen; availability and permission must be verified **without initiating trades**. No application installation is part of this documentation task.
+The **MT5 reference adapter approach is selected**, but a specific MT5 demo server, its permission/availability and the eventual real-money trading broker are not chosen. Access still must be verified **without initiating trades**. No application installation is part of this documentation task.
 
 ### References for this choice
 
