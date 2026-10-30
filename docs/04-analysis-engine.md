@@ -113,4 +113,8 @@ The selected M15 reference can be an imperfect representation of a meaningful le
 
 We want **few complementary measurements**, not five correlated votes derived from the same prices. Initial hypotheses: H1 EMA trend; M15 structure; M5 closed-candle trigger; M5 ATR scaling; actual BID/ASK costs. The alternative EMA/ATR periods and strict M15-veto variants I0–I8 are defined and evaluated **only** in [08 — Validation](08-validation.md). There is no known universal combination profitable in all regimes; S1 should abstain when its conditions are absent.
 
+## 11. Offline implementation version boundary
+
+Once the user explicitly tells Grok to start, the already-defined EMA, ATR, pivot and H1/M15 equations in this document can be implemented as **S1_RESEARCH_V0_2** for synthetic and imported historical replay. This freezes mathematical reproducibility for tests, **not optimality or live use**. The nine I0–I8 alternatives remain controlled tests in [08](08-validation.md); no unreviewed indicator may be added. A fully missing H1 warm-up returns UNKNOWN and blocks S1 simulation READY rather than silently changing EMA periods to fit a short demo fixture.
+
 **Research sources:** [12 — References](12-references.md). Historical originals: [archive index](archive/2026-10-30/README.md).
