@@ -16,6 +16,11 @@ Source-specific exchange futures volume/order book must not be assumed to measur
 
 ## Official market-data and broker-execution research — verified 2026-10-31
 
+- **MetaTrader 5 demo account and selected broker server (MT5 is not a standalone universal feed):** https://www.metatrader5.com/en/terminal/help/startworking/acc_open
+- **MetaTrader 5 OTC BID/ASK quote formation and broker counterparties:** https://www.metatrader5.com/en/terminal/help/trading_advanced/price_data
+- **World Gold Council, decentralized gold OTC trade and negotiated prices:** https://www.gold.org/about-us/what-we-do/market-infrastructure/gold-trading-wholesale-market
+
+
 These sources document access mechanisms and limits; **none** proves any trading strategy is profitable.
 
 - **MetaTrader 5 official Linux/Wine installation:** https://www.metatrader5.com/en/terminal/help/start_advanced/install_linux
