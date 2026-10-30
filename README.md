@@ -39,8 +39,12 @@ Grog is **not** an LLM/AI-agent/chatbot and **never** places, modifies or closes
 - [10 — Build phases and acceptance gates](docs/10-roadmap.md)
 - [11 — Decisions, assumptions and open questions](docs/11-decisions.md)
 - [12 — Research references](docs/12-references.md)
+- [13 — Competitor research and trade-quality lessons](docs/13-competitor-research.md)
 
 ## Boundaries
+
+**Scope lock:** Any upgrade or competitor-inspired idea must directly improve XAUUSD trade selection, timing, validation, risk decisions or live monitoring, with measurable evidence. Reject unrelated product features. See [Decisions](docs/11-decisions.md).
+
 
 - Instrument: **XAUUSD only** at first.
 - Use: educational/research decision support and manual trading; not financial advice.
