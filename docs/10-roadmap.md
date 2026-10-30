@@ -9,3 +9,11 @@
 **Phase 7: S2 and improvements.** Only add S2 when independently justified; compare portfolio effects, not just individual trade quality.
 **Phase 8: Optional production-style use.** Only after robust evidence, explicit trader approval, broker execution plan and realistic risk limits. No order placement by program.
 At each phase update relevant docs, tests, changelog and decision log. Protect existing behavior and do not optimize on the untouched final test split.
+
+## Documentation-consolidation gate (2026-10-30)
+
+The active research specifications are consolidated by **topic**, not by sequential experimental draft number: market/indicators [04](04-analysis-engine.md); S1 strategy [05](05-strategies.md); signal lifecycle [06](06-signals-and-scoring.md); execution/monitoring [07](07-risk-and-monitoring.md); experiments/tests [08](08-validation.md). Superseded S1 research snapshots are [archived](archive/2026-10-30/README.md). This hygiene step **does not** mean strategy rules are approved, profitable, or implementation-ready.
+
+**Before Grok writes the S1 engine**: freeze exact numeric assumptions, broker-matched BID/ASK and costs, missing data behavior, source/event policies, signal TTL/entry-band settings, executable stop/target details and a non-overfitting trial plan in [11 — Decisions](11-decisions.md). Start with independently approved **non-trading data/replay modules** before strategy/risk/position logic. Preserve each module's tests and acceptance results.
+
+Every requested change must first answer: *What exact error in Gold trading does it reduce? How will we measure net improvement on unseen data?* If not demonstrable, don't add the feature.
