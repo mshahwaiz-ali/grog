@@ -51,6 +51,9 @@ Authoritative Textual API references: https://github.com/Textualize/textual/blob
 | `x` | Open **Record Closure** modal on selected position | Local journal update only |
 | `n` | Open **Record Unlinked Manual Entry** from Journal or Positions only | Explicitly OFF_PLAN/unverified; local journal only, **never** a broker order |
 | `r` | Request UI panel refresh using latest already-ingested state | Must not cause duplicate market events |
+| `Space` | **REPLAY only:** pause/resume historical playback | Does not alter actual market timestamps or emit LIVE signals |
+| `.` | **REPLAY paused only:** step one normalized market event | Event-time/available_at advance exactly once |
+| `+` / `-` | **REPLAY only:** switch playback pacing 50 events/s, 500 events/s or FAST (unthrottled) | Engine events are never skipped; only UI redraw throttled |
 | `?` | Compact help overlay with keys and meanings | View only |
 | `q` | Quit local program with informative warning if positions recorded as open | No broker action; persisted positions remain |
 | `Ctrl+P` | OPTIONAL Textual command palette once stable | No new functionalities; shortcuts can expose above actions |
@@ -160,6 +163,15 @@ Record actual externally edited stop/target, UTC effective time, note and curren
 
 ### Close (`x`)
 Mandatory actual exit price, full remaining quantity (default prefilled and validated), UTC time, fees known/unknown, optional notes. Only after user confirms local state moves to CLOSED.
+
+## 9A. REPLAY playback and warm-up behavior
+
+- CLI `grog replay` processes the source as quickly as it can while respecting stable event order and deterministic virtual UTC time. **Never** delay the analysis engine based on UI refresh.
+- Interactive `grog ui --mode replay` first loads the saved source and pre-rolls enough historical events to satisfy valid MTF warm-up **if available**; the resulting market-state snapshot is marked historical, and the UI starts **PAUSED** at the first post-warm-up quote for inspection. If history is too short, show `INSUFFICIENT HISTORY` and permit user to view diagnostics rather than forging an EMA.
+- UI controls: **Space** play/pause, **.** process one quote event when paused, **+/-** cycle through 50 events/s, 500 events/s, FAST. Pacing is **events per second**, not misleading "1x market speed"; UI redraw remains capped independently.
+- An optional `--from ISO_UTC` selects the **visible decision window**; the replay engine must still process preceding valid lookback events as research pre-roll to form historical EMA/ATR/pivots. The source event time and availability must never be rewritten to the current wall clock.
+- At replay end, keep the last snapshot with `REPLAY ENDED`, allow navigation/review/journal but no new quote or fresh signal. A PRE-ROLL/SYNTHETIC label must remain visible; pre-roll generated signals are history, not new live alerts.
+- These controls are **view/test ergonomics only**; no new trading strategy, probability, broker access or automatic execution.
 
 ## 10. Empty, stale, invalid and reconnect states
 
