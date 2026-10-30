@@ -36,3 +36,16 @@ These sources document access mechanisms and limits; **none** proves any trading
 **Implementation caveats:** Quote-event callbacks need not be a reliable count of all market ticks; data quality and catch-up must be tested. The actual tradable broker symbol is not standardized across all spot Gold/CFD brokers. Dukascopy historical XAUUSD, cTrader and MT5 historical/live quotes are **not interchangeable** without explicit spread/time/contract fidelity testing. A real bid/ask entry/exit path already embeds spread; do not subtract the same spread again as a separate charge.
 
 The canonical requirements are in [03 — Market Data](03-market-data.md), [07 — Risk & Monitoring](07-risk-and-monitoring.md), and [08 — Validation](08-validation.md). Source access and current capability should be re-verified at the time of implementation.
+
+## Official developer and terminal UI sources — planning reference 2026-10-31
+
+- Textual Python application widgets/layouts/keyboard integration: https://github.com/Textualize/textual/blob/main/docs/guide/app.md
+- Textual DataTable behavior, row focus and dynamic updates: https://github.com/Textualize/textual/blob/main/docs/widgets/data_table.md
+- Textual official headless testing: `App.run_test()`, `Pilot` and terminal sizes: https://textual.textualize.io/guide/testing/
+- Python package structure and `pyproject.toml`: https://packaging.python.org/en/latest/guides/writing-pyproject-toml/
+- uv project creation, dependency synchronization, lock file: https://docs.astral.sh/uv/guides/projects/
+- Ruff local lint/format commands: https://docs.astral.sh/ruff/
+- pytest isolated temporary test paths: https://pytest.org/en/latest/how-to/tmp_path.html
+- Python `sqlite3` transaction and connection behavior: https://docs.python.org/3/library/sqlite3.html
+
+These references justify implementation choices, **not** future trading profitability. Prefer officially maintained tool documentation and test installed version-specific APIs. They do not authorize creating a web service, running any GitHub Actions, placing broker orders or adding feature bloat.
