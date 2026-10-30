@@ -38,7 +38,7 @@ Hard structural invalidation, a prior stop touch, H1 directional invalidation or
 - Quote used **after** M5 trigger became available, without retroactive candle-close fill.
 - Current entry not already beyond frozen stop; no invalid source/feed status.
 
-**Risk / execution policy gates requiring explicit approval before code:**
+**Risk / execution policy gates requiring explicit approval before BROKER-VERIFIED LIVE readiness:** Offline REPLAY may use explicit fixture-based assumptions and emit labeled SIMULATED proposals with no claimed account risk/monetary P&L. Live risk rules must not default to unlimited values.
 - Maximum acceptable spread/estimated full roundtrip costs (expressed in R and broker units); manual delay; minimum net reward/risk; maximum position risk/exposure; event blackout windows; maximum first-quote delay after closed bar.
 - Treat undefined broker/cost limits as **OPEN**, not as silently invented universal constants. Until the material metadata needed for executable risk is available, display setup analysis but **do not imply an actionable sized trade**.
 - Do not use an indicator's 'confidence' to bypass an approved cost or safety rule.
@@ -216,5 +216,5 @@ To experiment with numeric **trade-quality ranking** later:
 | Two valid but contradictory or overlapping XAUUSD opportunities | **Display conflict**, no unsupported ranking or doubled-risk suggestion | Exposure policy remains OPEN |
 | Strong M5 trigger but H1 neutral or setup not intact | **No S1 READY** | Strategy definition not satisfied |
 
-**Boundary:** No implementation was authorized and these illustrations are not evidence that S1 succeeds. Required adversarial fixtures, rejected-winner analysis and score experiments belong only in [08 — Validation](08-validation.md).
+**Boundary:** This research document alone does not authorize implementation; the human user's explicit START permits offline M00–M08 as described in [10](10-roadmap.md). These illustrations are not evidence that S1 succeeds. Required adversarial fixtures, rejected-winner analysis and score experiments belong only in [08 — Validation](08-validation.md).
 
