@@ -14,7 +14,7 @@ Our only goal: help a person choose **better XAUUSD scalping trades**, with tran
 
 - Source: one broker-consistent, timestamped bid/ask tick feed. Analysis bars use **BID** OHLC; maintain parallel **ASK** extrema for executable-price checks. Provider timestamp, arrival timestamp, symbol, quote source/health and UTC conventions must be stored.
 - Bars: UTC half-open windows for M1/M5/M15/H1. A completed bar is available **only on a valid subsequent quote after the bar closes**, if no disqualifying feed gap. Never calculate READY on a hypothetical exact candle-close fill.
-- Confirmed-bar and pivot events must carry both \`event_time\` and \`available_at\`. Every decision uses the **information set actually available** at that decision time. Replaying ticks must give the same output.
+- Confirmed-bar and pivot events must carry both `event_time` and `available_at`. Every decision uses the **information set actually available** at that decision time. Replaying ticks must give the same output.
 - Bar gaps, no valid subsequent quote, missing broker precision/cost metadata, insufficient indicator warm-up or stale feed => insufficient information / no actionable signal.
 - Research default warm-up: 250 finalized H1 bars for EMA50 stability, at least 50 M15 bars for recent level context, and >= 30 M5 bars for ATR and pivots. Exact sufficiency must later be verified against initialization convergence; these values are **candidate requirements**, not market facts.
 
@@ -28,7 +28,7 @@ Our only goal: help a person choose **better XAUUSD scalping trades**, with tran
 | Volatility | M5 Wilder ATR14, H1 Wilder ATR14 (descriptive) | Normalize movement, stop buffers, speed | Trade direction |
 | Execution | Live bid/ask, spread, known news calendar | Price actually available and known risks | Guaranteed fill |
 
-EMAs: seed with SMA of first N complete bars, then \`alpha=2/(N+1)\` recursion. ATR: initial SMA of N true ranges using a prior close, thereafter Wilder recursion \`ATR_n=(ATR_(n-1)*(N-1)+TR_n)/N\`. Missing/zero ATR => UNKNOWN/no READY. Preserve initialization and data versions in audit records.
+EMAs: seed with SMA of first N complete bars, then `alpha=2/(N+1)` recursion. ATR: initial SMA of N true ranges using a prior close, thereafter Wilder recursion `ATR_n=(ATR_(n-1)*(N-1)+TR_n)/N`. Missing/zero ATR => UNKNOWN/no READY. Preserve initialization and data versions in audit records.
 
 Pivots use **strict** (left=2, right=2) bid highs/lows on **completed M5/M15 bars**. A pivot's bar time is NOT its confirmation time. Ties do not create a pivot. At bar k, pivot high requires H[k] > H[k-2], H[k-1], H[k+1], H[k+2], and is visible only after k+2 closes. Mirror for pivot low. Same-bar high/low pivots may both occur (outside bar); tie-break direction and time deterministically.
 
@@ -65,24 +65,24 @@ Use finalized BID bars and confirmed pivots, processed in event-time order.
 
 ### 5.1 Long impulse selection
 1. When a **new M5 pivot high H becomes confirmed**, find the most recent **confirmed M5 pivot low L** whose pivot_bar_time is strictly before H's. Its confirmation must be available no later than decision time. If none, no pair.
-2. Require \`I = H.bid_high - L.bid_low > 0\`, \`I >= 1.0 * ATR14_M5\` evaluated **when H is confirmed**, and H.pivot_bar_index − L.pivot_bar_index <= 12. \`1.0\` and \`12\` are **preliminary experimental parameters**.
-3. Create \`pair_key = (S1_VERSION, LONG, L.bar_id, H.bar_id)\`. Record \`L/H\` prices, pivot/confirmation times, I and contemporaneous ATR. **Never rewrite them.**
-4. Maintain at most one **FORMING** S1 candidate per direction. When a newer *valid confirmed H* yields a new pair, mark the older still-FORMING pair \`SUPERSEDED\` (reason and timestamp), then activate the new pair. **READY** or manually entered signals remain distinct immutable records, subject to usual expiry/invalidation. Do not regenerate a rejected pair with the same key. This deterministic choice is a design hypothesis, to compare against keeping multiple candidates.
+2. Require `I = H.bid_high - L.bid_low > 0`, `I >= 1.0 * ATR14_M5` evaluated **when H is confirmed**, and H.pivot_bar_index − L.pivot_bar_index <= 12. `1.0` and `12` are **preliminary experimental parameters**.
+3. Create `pair_key = (S1_VERSION, LONG, L.bar_id, H.bar_id)`. Record `L/H` prices, pivot/confirmation times, I and contemporaneous ATR. **Never rewrite them.**
+4. Maintain at most one **FORMING** S1 candidate per direction. When a newer *valid confirmed H* yields a new pair, mark the older still-FORMING pair `SUPERSEDED` (reason and timestamp), then activate the new pair. **READY** or manually entered signals remain distinct immutable records, subject to usual expiry/invalidation. Do not regenerate a rejected pair with the same key. This deterministic choice is a design hypothesis, to compare against keeping multiple candidates.
 5. Do not retroactively issue READY at an earlier pivot bar simply because the H confirmation arrived later.
 
 ### 5.2 Short impulse selection
-When a new confirmed **pivot low L** appears, use most recent confirmed earlier pivot high H, require \`I=H.bid_high-L.bid_low > 0\` and corresponding ATR and age constraints, and form \`(S1_VERSION, SHORT, H.bar_id, L.bar_id)\`. The pair freezes the same way.
+When a new confirmed **pivot low L** appears, use most recent confirmed earlier pivot high H, require `I=H.bid_high-L.bid_low > 0` and corresponding ATR and age constraints, and form `(S1_VERSION, SHORT, H.bar_id, L.bar_id)`. The pair freezes the same way.
 
 ## 6. Pullback formation and invalidation
 
-**Long**: After pivot-high **bar** H (not after its later confirmation), consider completed M5 bars with bar_index > H.bar_index. Initial pullback includes the right-hand bars used to *confirm H* **only after they have actually closed**. Define \`P_bid = MIN(low_bid)\` over this window, updated with each newly closed M5 bar. Require >= 2 completed post-H bars. Define \`depth = (H.bid_high - P_bid)/I\` with original I frozen. Preliminary watch zone \`0.25 <= depth <= 0.75\`.
+**Long**: After pivot-high **bar** H (not after its later confirmation), consider completed M5 bars with bar_index > H.bar_index. Initial pullback includes the right-hand bars used to *confirm H* **only after they have actually closed**. Define `P_bid = MIN(low_bid)` over this window, updated with each newly closed M5 bar. Require >= 2 completed post-H bars. Define `depth = (H.bid_high - P_bid)/I` with original I frozen. Preliminary watch zone `0.25 <= depth <= 0.75`.
 
-- If depth < 0.25: DETECTED/FORMING with reason \`PULLBACK_SHALLOW\`, not READY.
-- If depth > 0.75 or observed BID <= L.bid_low: invalidate pair and record the exact observed time. Equal-to structural break handling: \`BID <= L.bid_low\` counts as broken.
+- If depth < 0.25: DETECTED/FORMING with reason `PULLBACK_SHALLOW`, not READY.
+- If depth > 0.75 or observed BID <= L.bid_low: invalidate pair and record the exact observed time. Equal-to structural break handling: `BID <= L.bid_low` counts as broken.
 - If pullback duration > 12 completed M5 post-H bars: EXPIRED (candidate hypothesis; compare alternative durations).
 - If no post-H bars/invalid ATR: WAIT/UNKNOWN, never fabricate data.
 
-**Short**: After pivot-low bar L, define \`P_bid = MAX(high_bid)\` of subsequent complete M5 bars and \`depth = (P_bid - L.bid_low)/I\`. Need >=2 bars; invalidate on depth > 0.75 or BID >= H.bid_high. Stop for short will use parallel ask extremes, not bid-only P.
+**Short**: After pivot-low bar L, define `P_bid = MAX(high_bid)` of subsequent complete M5 bars and `depth = (P_bid - L.bid_low)/I`. Need >=2 bars; invalidate on depth > 0.75 or BID >= H.bid_high. Stop for short will use parallel ask extremes, not bid-only P.
 
 **Important correction to draft 14:** a trigger bar may create a new, slightly deeper pullback wick yet still close strongly. Do not automatically reject merely because its low/high extends earlier P. Instead include the **completed trigger bar** in P **before** checking depth/invalidation; if the final pullback breaches the frozen L/H thesis or 0.75 bound, reject. This is more inclusive than draft 14's zero-tolerance wick rule and must be A/B tested, not presented as proven superior.
 
@@ -90,8 +90,8 @@ When a new confirmed **pivot low L** appears, use most recent confirmed earlier 
 
 For each just-finalized trigger candidate bar j, and only when the paired pivots are **confirmed by that decision**:
 
-**Long:** \`close_bid[j] > MAX(high_bid[j-1], high_bid[j-2])\` AND \`close_bid[j] > open_bid[j]\`, with pair still active, post-H count >= 2 and final depth in [0.25, 0.75].  
-**Short:** \`close_bid[j] < MIN(low_bid[j-1], low_bid[j-2])\` AND \`close_bid[j] < open_bid[j]\`, mirrored depth.
+**Long:** `close_bid[j] > MAX(high_bid[j-1], high_bid[j-2])` AND `close_bid[j] > open_bid[j]`, with pair still active, post-H count >= 2 and final depth in [0.25, 0.75].  
+**Short:** `close_bid[j] < MIN(low_bid[j-1], low_bid[j-2])` AND `close_bid[j] < open_bid[j]`, mirrored depth.
 
 Use the **two completed prior bars**, never today's high/low in the breakout threshold. Trigger bar P update (Section 6) uses only its just-finalized values, before READY is evaluated. Store both threshold and trigger-bar identity.
 
@@ -100,34 +100,34 @@ This is **only the baseline trigger**. Wick/body quality, one-bar hold, retest o
 ## 8. First executable quote and READY signal
 
 1. On the first **valid, causally subsequent** bid/ask quote after the triggering M5 bar is finalized, check H1 bias, pair validity, stopped/expired signal IDs, news/exposure policies, broker contract and bid/ask feed health.
-2. If the quote is too delayed after bar close (threshold **OPEN until broker latency is known**), record \`MISSED_DATA_GAP\` rather than backdating a READY signal.
-3. Reference prices at first quote: \`E0_long = ASK0\`, \`E0_short = BID0\`. Additional preliminary **no-chase** test: \`E0_long <= trigger_bid_close + 0.20*ATR14_M5\`, short \`E0_short >= trigger_bid_close - 0.20*ATR14_M5\`. If failed, mark \`MISSED_PRICE_CHASE\`, no READY; this specific tolerance must be backtested with spread.
-4. Freeze the original \`E0\`, signal timestamp, triggering bar, reference pivot pair, original stop, benchmark target(s), indicator snapshot, evaluation result and rule version. Each new quote changes **current eligibility**, never the original issued plan.
+2. If the quote is too delayed after bar close (threshold **OPEN until broker latency is known**), record `MISSED_DATA_GAP` rather than backdating a READY signal.
+3. Reference prices at first quote: `E0_long = ASK0`, `E0_short = BID0`. Additional preliminary **no-chase** test: `E0_long <= trigger_bid_close + 0.20*ATR14_M5`, short `E0_short >= trigger_bid_close - 0.20*ATR14_M5`. If failed, mark `MISSED_PRICE_CHASE`, no READY; this specific tolerance must be backtested with spread.
+4. Freeze the original `E0`, signal timestamp, triggering bar, reference pivot pair, original stop, benchmark target(s), indicator snapshot, evaluation result and rule version. Each new quote changes **current eligibility**, never the original issued plan.
 5. Provisional **manual entry band** evaluated against current executable price while READY:
-   - Long ASK in \`[E0 − 0.10*ATR14_M5, E0 + 0.20*ATR14_M5]\`.
-   - Short BID in \`[E0 − 0.20*ATR14_M5, E0 + 0.10*ATR14_M5]\`.
-   Freeze ATR and band boundaries at issuance. The 0.10/0.20 offsets are **experimental**. Require current price to remain on valid side of strategy's historical trigger within an additional \`0.10*ATR\` tolerance (long BID >= trigger_threshold - tolerance; short BID <= trigger_threshold + tolerance); study whether this adds value.
+   - Long ASK in `[E0 − 0.10*ATR14_M5, E0 + 0.20*ATR14_M5]`.
+   - Short BID in `[E0 − 0.20*ATR14_M5, E0 + 0.10*ATR14_M5]`.
+   Freeze ATR and band boundaries at issuance. The 0.10/0.20 offsets are **experimental**. Require current price to remain on valid side of strategy's historical trigger within an additional `0.10*ATR` tolerance (long BID >= trigger_threshold - tolerance; short BID <= trigger_threshold + tolerance); study whether this adds value.
 6. **Expiry:** candidate TTL = first instant of the next M5 bar close after signal issuance (typically up to 5 minutes), independently of UI refresh. This is a hypothesis to stress-test, not established optimal timing.
-7. Quote temporarily outside band, temporarily high spread or price temporarily below a confirmation tolerance => display \`EXECUTION_BLOCKED(reason)\` as **reversible eligibility overlay on a READY record**, not a fresh signal and not an additional durable FSM state. A structural hard invalidation or TTL crossing => terminal EXPIRED/INVALIDATED. If eligibility recovers inside original frozen band and TTL, show READY again with the **same ID** and event history.
+7. Quote temporarily outside band, temporarily high spread or price temporarily below a confirmation tolerance => display `EXECUTION_BLOCKED(reason)` as **reversible eligibility overlay on a READY record**, not a fresh signal and not an additional durable FSM state. A structural hard invalidation or TTL crossing => terminal EXPIRED/INVALIDATED. If eligibility recovers inside original frozen band and TTL, show READY again with the **same ID** and event history.
 8. If BID touches or breaches frozen stop (long) or ASK touches or exceeds frozen stop (short) before entry, original READY is invalid, even if market rebounds. Do not regenerate same pair.
-9. Recorded real operator entry after expiry/band breach is accepted only as a **deviation** in the journal, clearly \`OFF_PLAN\`, with new actual risk; do not rewrite historical signal or imply Grog executed it.
+9. Recorded real operator entry after expiry/band breach is accepted only as a **deviation** in the journal, clearly `OFF_PLAN`, with new actual risk; do not rewrite historical signal or imply Grog executed it.
 
 Two independent policies still OPEN before implementation: precise maximum post-close quote delay; actual broker-valid spread/commission/latency hard limits. Unsupported limits must never be guessed.
 
 ## 9. Structural stops, benchmarks and actual costs
 
 Long:
-- \`P_bid_final = MIN(post-H completed BID lows through trigger)\`
-- \`SL_long = FLOOR_TO_BROKER_TICK(P_bid_final − 0.10*ATR14_M5)\`.
-- Confirm \`SL_long < BID0\` and \`SL_long < E0_long\`.
-- \`R_price_long = E0_long − SL_long > 0\`.
+- `P_bid_final = MIN(post-H completed BID lows through trigger)`
+- `SL_long = FLOOR_TO_BROKER_TICK(P_bid_final − 0.10*ATR14_M5)`.
+- Confirm `SL_long < BID0` and `SL_long < E0_long`.
+- `R_price_long = E0_long − SL_long > 0`.
 - **Benchmark** TP1 (BID close price) = E0_long + 1*R; TP2 (BID close price) = E0_long + 2*R.
 
 Short:
-- \`P_ask_final = MAX(post-L completed ASK highs through trigger)\`
-- \`SL_short = CEIL_TO_BROKER_TICK(P_ask_final + 0.10*ATR14_M5)\`.
-- Confirm \`SL_short > ASK0\` and \`SL_short > E0_short\`.
-- \`R_price_short = SL_short − E0_short > 0\`.
+- `P_ask_final = MAX(post-L completed ASK highs through trigger)`
+- `SL_short = CEIL_TO_BROKER_TICK(P_ask_final + 0.10*ATR14_M5)`.
+- Confirm `SL_short > ASK0` and `SL_short > E0_short`.
+- `R_price_short = SL_short − E0_short > 0`.
 - **Benchmark** TP1 (ASK close price) = E0_short − 1*R; TP2 (ASK close price) = E0_short − 2*R.
 
 Round target prices **towards feasible broker ticks**, using frozen stated rounding policy (OPEN). TP/SL levels are proposals, never guaranteed fills. On BUY, exit valuation is current BID; on SELL it is current ASK. P&L and actual realized risk require contract size, commissions, lot step and execution slippage.
@@ -146,7 +146,7 @@ Separately allow Grog to scan for developing opportunities while monitoring a po
 
 ## 11. Pseudocode-level event ordering (research reference)
 
-\`\`\`text
+```text
 on_valid_tick(tick):
     validate_bid_ask_and_timestamps(tick)
     finalize_eligible_m1_m5_m15_h1_bars_and_confirm_pivots()
@@ -164,7 +164,7 @@ on_valid_tick(tick):
     update_manual_positions_using_current_closeable_bid_ask()
     persist_audit_events_idempotently()
     refresh_terminal_view_at_a_rate_lower_than_tick_processing()
-\`\`\`
+```
 
 Ordering must not accidentally let a pivot confirmed **after** the trigger's decision time authorize a historical trigger. A trigger and confirmation processed in one batch are allowed only if both were genuinely available at that batch's tick timestamp and the event is not backdated.
 
