@@ -25,6 +25,8 @@ Updated 2026-10-31. **This is the authoritative record of agreed scope and unres
 | D-008 | APPROVED | **Only core goal:** choose/monitor **better Gold trades**; avoid over-filtering, low-value indicators and forced signals |
 | D-009 | APPROVED | **Grok is the external coding assistant**, not a Grog software component. Grok implements bounded, explicitly approved requirements and tests, never guesses omitted trading logic |
 | D-010 | APPROVED | Maintain **one active authoritative document per topic**; improve those files instead of adding a new numbered document for each planning iteration. Preserve earlier conflicting drafts under `docs/archive/` |
+| D-011 | APPROVED 2026-10-31 | **Use MT5 as Grog's preferred reference-price adapter for the first implementation**, with a broker-neutral normalized BID/ASK core. An MT5 demo server can provide development quotes; no final execution broker is chosen or required for offline engine implementation. MT5 itself is NOT an independent source of universally identical Gold quotes. |
+| D-012 | APPROVED 2026-10-31 | **Do not block Grog's data, replay, MTF, indicators or offline S1 research on the user's broker choice.** Later broker selection changes executable spreads, cost, symbol specs and price-side SL/TP validation; mark reference-feed signals as indicative until validated against actual execution venue. Manual execution only; no brokerage write APIs. |
 
 ## 3. Scope lock — what upgrades may and may not mean
 
@@ -64,7 +66,7 @@ The former top-level research drafts **14–17 were consolidated into their topi
 
 ## 6. Blocking OPEN decisions (before S1 implementation, not necessarily before isolated replay utilities)
 
-1. **Broker/provider and executable symbol contract:** XAUUSD source, BID/ASK tick data/history rights, quote precision, contract size, lot constraints, server times, actual stop order behavior and commission/slippage assumptions.
+1. **Later live execution validation (NOT a blocker for broker-neutral development):** eventual XAUUSD execution broker, actual BID/ASK tick data/history rights, precision, contract size/lot limits, stop execution, server times and fees/slippage. A temporary MT5 demo reference server and offline data source still require concrete availability/terms checks; their details are not assumed.
 2. **Data-health thresholds:** stale quote duration, first-post-M5-close maximum quote delay, acceptable gap/reorder, market-hours/downtime policy.
 3. **Net execution/risk gates:** maximum spread/cost in R, minimum net reward, position sizing, daily caps and maximum simultaneous correlated exposure. No guessed defaults.
 4. **Event policy:** calendar source with as-of data, refresh/certainty status, high-risk event blackout timing and response to unavailable calendar.
@@ -113,9 +115,9 @@ No code has been implemented; no trade win rate or profitability verified by the
 
 ## 10. Market-data and execution research — 2026-10-31
 
-**Status: RESEARCH DOCUMENTED, NOT IMPLEMENTED OR FEED-VALIDATED.** The live broker/terminal remains unselected; no broker software, account credentials, Python package, Wine runtime, tick data or quote exporter has been installed or accessed.
+**Status: RESEARCH DOCUMENTED, NOT IMPLEMENTED OR FEED-VALIDATED.** The user's eventual execution broker remains undecided; MT5 is now the **approved preferred reference adapter direction**, not a connected live quote provider. No broker software, account credentials, Python package, Wine runtime, tick data or quote exporter has been installed or accessed.
 
-**Conditional recommendation:** if the user's manual XAUUSD platform is **MetaTrader 5**, first research an Ubuntu/Wine-hosted MT5 **read-only quote exporter** and broker-specific tick history. Its MQL5 side must not contain order execution or mutation functions; callback coalescence requires historical tick catch-up and gap evidence. If user's platform is **cTrader**, evaluate read-only Open API live/historical access instead, including authentication and 1-week historical-request batching. Dukascopy BID/ASK may be useful for **offline research only**, not a certified broker-matched fill model. Do not introduce a "universal" XAUUSD feed composed of several brokers.
+**Original conditional comparison (refined by D-011/D-012):** For the MT5 reference feed, first research an Ubuntu/Wine-hosted MT5 **read-only quote exporter** and demo-server tick history. Its MQL5 side must not contain order execution or mutation functions; callback coalescence requires historical tick catch-up and gap evidence. If user's platform is **cTrader**, evaluate read-only Open API live/historical access instead, including authentication and 1-week historical-request batching. Dukascopy BID/ASK may be useful for **offline research only**, not a certified broker-matched fill model. Do not introduce a "universal" XAUUSD feed composed of several brokers.
 
 **Core new correctness rules:**
 - [03 — Market Data](03-market-data.md): canonical quote field contract, provider-vs-local time, BID/ASK updates, source identity, duplicate same-ms quote handling, replay/backfill origin separation, feed health, Linux source trial and due-diligence scorecard.
@@ -123,8 +125,23 @@ No code has been implemented; no trade win rate or profitability verified by the
 - [08 — Validation](08-validation.md): 22 deterministic MD test fixtures and a PASS/CONDITIONAL/FAIL source audit. Passing data-integrity tests is not a claim that the S1 strategy is profitable.
 - [09 — Architecture](09-architecture.md) and [10 — Roadmap](10-roadmap.md): minimal read-only adapter boundary and sequence for quote normalization/replay before S1 strategy implementation.
 
-**OPEN decisions requiring user approval:** actual broker and manual execution platform; demo/readonly access, XAUUSD symbol contract, legal/history coverage, latency budget and actual spread/fee/slippage model; preferred historical research source and local bridge/transport; data sampling tolerance and future forward-paper evaluation conditions.
+**OPEN decisions requiring future evidence, NOT blocking offline engineering:** actual demo-server access, MT5 XAUUSD availability and market-data terms, dataset coverage, latency budget, exact reference symbol contract, historical source and local transport, data sampling tolerance. **Actual execution broker/platform** and its separate contract/cost assumptions are only mandatory before claiming accurate live execution economics, broker-matched signal fills or real-capital readiness.
 
 **Scope/operations:** Updates to GitHub are via the connected **direct GitHub Contents API**, not GitHub Actions; Actions remains unnecessary/disabled. No GitHub Actions workflows were triggered for this documentation research. No trading/broker automation or new active documentation files were created.
 
-**Next actionable phase:** First choose whether Grog is being researched strictly offline or against the same MT5/cTrader/other execution platform the user uses. Do **not** commit the software to MT5 or cTrader based on an unverified user preference.
+**Next actionable phase:** Plan a bounded **broker-neutral offline BID/ASK importer → normalizer → causal MTF bars/replay** implementation for Grok, without installing a terminal or needing an execution broker. Next validate an **MT5 demo reference feed** using a minimal read-only quote adapter; never require that the user's eventual manual trading platform also be MT5. Live broker-specific spread/stop/cost differences remain a validation layer, not a rewrite of the analysis engine.
+
+## 11. Broker-optional MT5 reference-data decision — 2026-10-31
+
+**User decision:** MT5 is the preferred source integration for Grog's initial Gold **reference** data; choosing an eventual real-money broker is **deferred and must not delay development**. This supersedes earlier suggestions that the user's manual execution platform must first be specified. Broker/platform independence applies to analysis and research; **it does not mean executable BID/ASK prices or spreads are identical across brokers**.
+
+**Why:** World Gold Council explains OTC gold trading is bilateral, and official MetaTrader documentation explains OTC Bid/Ask quotes are formed/provided by counterparties and brokers. MT5 is a client terminal connected to a selected **broker/server**; an MT5 demo account can provide market observation with no real-money commitment but still needs some demo-server access. References: https://www.gold.org/about-us/what-we-do/market-infrastructure/gold-trading-wholesale-market and https://www.metatrader5.com/en/terminal/help/trading_advanced/price_data and https://www.metatrader5.com/en/terminal/help/startworking/acc_open.
+
+**Development order without a broker decision:**
+1. Design and independently approve a **normalized BID/ASK quote and timestamp schema**, synthetic fixtures and historical importer (no broker, live account, wallet or secrets required).
+2. Build confirmed M1/M5/M15/H1 bars, causal indicators and reproducible replay. Use marked-offline / PROXY data for research, **not** broker-verified simulated fills.
+3. Investigate a **read-only MT5 demo feed exporter** on Ubuntu/Wine only when the relevant module is approved. Store `source_id`, `reference_venue`, `symbol`, price sides, timestamp and health. MT5/OnTick must use catch-up and gap checks.
+4. Add accurate execution costs, stop conventions, and manual fill reconciliation once the user selects an actual broker. If broker differs from reference feed, Grog shows **indicative quotes** and checks the operator's real executable entry when supplied; do not pretend that the reference feed and actual stop fills are identical.
+
+**Implementation scope:** One reference feed adapter first; no need to implement cTrader, multiple brokers or dynamic source aggregation. The adapter boundary stays modular so this can change without rewriting S1. GitHub Actions are disabled/not needed; documentation commits use direct GitHub Contents API. **No code or live feed configured by this decision alone.**
+
