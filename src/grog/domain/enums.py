@@ -46,3 +46,61 @@ class QuoteFlag(StrEnum):
 
     PROVIDER_TIME_AHEAD_OF_RECEIPT = "PROVIDER_TIME_AHEAD_OF_RECEIPT"
     SAME_MS_AS_PREVIOUS = "SAME_MS_AS_PREVIOUS"
+
+
+class Timeframe(StrEnum):
+    """Bar timeframes with UTC half-open buckets ``[start, start + duration)``."""
+
+    M1 = "M1"
+    M5 = "M5"
+    M15 = "M15"
+    H1 = "H1"
+
+    @property
+    def duration_ms(self) -> int:
+        return _TIMEFRAME_MS[self]
+
+
+_TIMEFRAME_MS = {
+    Timeframe.M1: 60_000,
+    Timeframe.M5: 300_000,
+    Timeframe.M15: 900_000,
+    Timeframe.H1: 3_600_000,
+}
+
+TIMEFRAMES = (Timeframe.M1, Timeframe.M5, Timeframe.M15, Timeframe.H1)
+
+
+class BarQuality(StrEnum):
+    """docs/09 Section 3.2. INVALID is reserved: strict CSV v1 input cannot produce it."""
+
+    COMPLETE = "COMPLETE"
+    GAPPED = "GAPPED"
+    INVALID = "INVALID"
+
+
+class GapKind(StrEnum):
+    """Why a stretch of time had no quotes."""
+
+    DATA_GAP = "DATA_GAP"  # no explanation available: treated as missing data
+    MARKET_CLOSED = "MARKET_CLOSED"  # entirely inside an explicitly declared closure
+
+
+class FinalizationTiming(StrEnum):
+    """Delay between a bar's mathematical end and its first post-close quote."""
+
+    ON_TIME = "ON_TIME"
+    MISSED_DATA_GAP = "MISSED_DATA_GAP"
+    MARKET_CLOSED = "MARKET_CLOSED"
+    NOT_EVALUATED = "NOT_EVALUATED"  # tolerance unset (OPEN): delay is reported only
+
+
+class FeedStatus(StrEnum):
+    """docs/03 Section 3 feed health, plus CLOSED (MD-09) and UNKNOWN for unset policy."""
+
+    FRESH = "FRESH"
+    STALE = "STALE"
+    DEGRADED = "DEGRADED"
+    CLOSED = "CLOSED"
+    NO_DATA = "NO_DATA"
+    UNKNOWN = "UNKNOWN"

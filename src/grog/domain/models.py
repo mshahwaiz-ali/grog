@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
-from grog.domain.enums import SourceOrigin
+from grog.domain.enums import BarQuality, GapKind, SourceOrigin, Timeframe
 from grog.domain.ids import is_valid_source_id
 
 CANONICAL_SYMBOL = "XAUUSD"
@@ -94,3 +94,112 @@ class ImportBatch:
     status: str
     imported_at_ms: int
     stats_json: str
+
+
+@dataclass(frozen=True, slots=True)
+class FinalizedBar:
+    """A confirmed BID/ASK bar (docs/09 Section 3.2, docs/03 Section 2).
+
+    ``bar_id=(source_id, timeframe, start_ms)``. BID OHLC drives indicators; ASK
+    OHLC is kept in parallel for executable short-side checks. The bar became
+    usable only at ``available_at_ms``: the receipt of the first valid quote at or
+    after ``end_ms`` (never earlier than ``end_ms``).
+    """
+
+    source_id: str
+    timeframe: Timeframe
+    start_ms: int
+    end_ms: int
+    open_bid: Decimal
+    high_bid: Decimal
+    low_bid: Decimal
+    close_bid: Decimal
+    open_ask: Decimal
+    high_ask: Decimal
+    low_ask: Decimal
+    close_ask: Decimal
+    tick_count: int
+    first_received_ms: int
+    last_received_ms: int
+    closed_at_received_ms: int
+    closing_event_key: str
+    available_at_ms: int
+    quality: BarQuality
+    missing_m1_buckets: int
+    source_origin: SourceOrigin
+
+    @property
+    def bar_id(self) -> str:
+        return f"{self.source_id}:{self.timeframe.value}:{self.start_ms}"
+
+    @property
+    def finalization_delay_ms(self) -> int:
+        return self.available_at_ms - self.end_ms
+
+
+@dataclass(frozen=True, slots=True)
+class GapRecord:
+    """Missing buckets between two observed bars; nothing is fabricated to fill them."""
+
+    source_id: str
+    timeframe: Timeframe
+    from_ms: int
+    to_ms: int
+    missing_bars: int
+    kind: GapKind
+    detected_at_ms: int
+
+
+@dataclass(frozen=True, slots=True)
+class MarketClosure:
+    """An explicitly supplied UTC closure interval ``[start_ms, end_ms)`` (no guessed hours)."""
+
+    start_ms: int
+    end_ms: int
+
+    def __post_init__(self) -> None:
+        if not (isinstance(self.start_ms, int) and isinstance(self.end_ms, int)):
+            raise ValueError("closure bounds must be int UTC ms")
+        if self.end_ms <= self.start_ms:
+            raise ValueError("closure end must be after start")
+
+
+@dataclass(frozen=True, slots=True)
+class DataHealthPolicy:
+    """Injected data-health thresholds. All OPEN (docs/11 Section 6.2): unset by default.
+
+    Unset values never mean "healthy": they yield UNKNOWN / NOT_EVALUATED.
+    """
+
+    max_quote_age_ms: int | None = None
+    max_first_postclose_delay_ms: int | None = None
+    market_closures: tuple[MarketClosure, ...] = ()
+
+    def __post_init__(self) -> None:
+        for name in ("max_quote_age_ms", "max_first_postclose_delay_ms"):
+            value = getattr(self, name)
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, int) or value <= 0
+            ):
+                raise ValueError(f"{name} must be a positive int or None")
+
+    def covered_by_closures(self, start_ms: int, end_ms: int) -> bool:
+        """True if ``[start_ms, end_ms)`` lies entirely inside declared closures."""
+        if end_ms <= start_ms:
+            return True
+        cursor = start_ms
+        for closure in sorted(self.market_closures, key=lambda c: c.start_ms):
+            if closure.end_ms <= cursor:
+                continue
+            if closure.start_ms > cursor:
+                return False
+            cursor = closure.end_ms
+            if cursor >= end_ms:
+                return True
+        return False
+
+    def closure_at(self, time_ms: int) -> MarketClosure | None:
+        for closure in self.market_closures:
+            if closure.start_ms <= time_ms < closure.end_ms:
+                return closure
+        return None
