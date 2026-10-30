@@ -19,3 +19,6 @@ Deduplicate overlapping signals; apply cooldown only if justified; track total e
 A visible NO TRADE state explains its primary reasons and when reevaluation occurs; never manufacture trades to meet a frequency goal.
 ## Multi-timeframe evidence
 Use H1 bias, M15 structural context and M5 confirmation from [14](14-multi-timeframe-S1-trend-pullback.md) without requiring bullish/bearish unanimity on every timeframe. In the first S1 experiment, only confirmed H1 directional bias is a strategy-specific direction requirement; M15 context is a soft evidence field unless a separately approved hard invalidation applies. Do not let unconfirmed HTF bars contribute to READY scoring. Compare the incremental effectiveness of MTF filters against a simpler M5 baseline.
+
+## S1 deterministic signal issuance (research draft)
+Review [16](16-S1-refined-test-contract.md) for exact candidate pivot-pair identity, earliest observable confirmed trigger, provisional entry band, immutable first-issued values, reversible EXECUTION_BLOCKED overlay, stop-invalidation and expiry semantics. Research variant [17](17-indicator-combination-research.md) distinguishes M15 context merely being displayed from explicitly vetoing OPPOSING cases. Do not describe one display-only score variant as more profitable when it does not change trade selection.
