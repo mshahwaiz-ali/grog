@@ -27,6 +27,7 @@ Updated 2026-10-31. **This is the authoritative record of agreed scope and unres
 | D-010 | APPROVED | Maintain **one active authoritative document per topic**; improve those files instead of adding a new numbered document for each planning iteration. Preserve earlier conflicting drafts under `docs/archive/` |
 | D-011 | APPROVED 2026-10-31 | **Use MT5 as Grog's preferred reference-price adapter for the first implementation**, with a broker-neutral normalized BID/ASK core. An MT5 demo server can provide development quotes; no final execution broker is chosen or required for offline engine implementation. MT5 itself is NOT an independent source of universally identical Gold quotes. |
 | D-012 | APPROVED 2026-10-31 | **Do not block Grog's data, replay, MTF, indicators or offline S1 research on the user's broker choice.** Later broker selection changes executable spreads, cost, symbol specs and price-side SL/TP validation; mark reference-feed signals as indicative until validated against actual execution venue. Manual execution only; no brokerage write APIs. |
+| D-013 | APPROVED DIRECTION 2026-10-31 | **Documentation-first handoff:** when the user expressly tells Grok to start implementation, follow [AGENTS.md](../AGENTS.md) and [10 — Roadmap](10-roadmap.md) through **M00–M08**, one bounded locally tested module at a time, main branch only. No repeated questions for already-specified offline behavior; live MT5 install/demo credentials and real-money broker settings still need separate permission. No GitHub Actions. |
 
 ## 3. Scope lock — what upgrades may and may not mean
 
@@ -145,3 +146,16 @@ No code has been implemented; no trade win rate or profitability verified by the
 
 **Implementation scope:** One reference feed adapter first; no need to implement cTrader, multiple brokers or dynamic source aggregation. The adapter boundary stays modular so this can change without rewriting S1. GitHub Actions are disabled/not needed; documentation commits use direct GitHub Contents API. **No code or live feed configured by this decision alone.**
 
+## 12. Implementation-readiness audit and research-only authorization — 2026-10-31
+
+**Status: ENGINEERING SPECIFICATIONS READY FOR EXPLICIT HANDOFF; SOFTWARE NOT BUILT.** The user requested complete documentation, premium terminal UX, precise technical contracts, tests, and a single Grok starting instruction. We consolidated by canonical topic, with only the **root AGENTS.md** added as the external coding-agent entry, not another S1 research revision.
+
+**Approved architecture and UI direction for implementation once told to START:** Python 3.11, uv lock, pure deterministic quote/MTF/strategy engine, SQLite operational journal, Textual TUI with five minimal screens and an XAUUSD-only scope. No AI/agent runtime, broker-order execution, wallet, generic dashboards, extra instruments or CI Actions workflows.
+
+**Offline-safe research permissions on START:** M00–M08 may implement the precise existing `S1_RESEARCH_V0_2` formulas/parameter values in [04](04-analysis-engine.md), [05](05-strategies.md), [06](06-signals-and-scoring.md), [07](07-risk-and-monitoring.md) **for synthetic and historical REPLAY testing only**. The exact same formulas remain **EXPERIMENTAL and unproven** as profitable live trading rules. Use synthetic fixture tick size 0.01 exclusively within test data; third-party and live broker tick size/fees are UNKNOWN unless supplied and verified.
+
+**External blockers do NOT block R0:** actual trading broker, authenticated MT5 demo server, license-restricted histories, live feed installation, true contract tick value, fee/slippage calibration, real trading risk policy, numerical quality-score calibration and independent forward results. These are not included in the initial start authorization. M09 live reference feed requires separate permission and source audit; M10 live performance qualification requires real data and evidence.
+
+**Documents directly enabling a no-guess offline build:** [02 UX](02-workflows-and-ux.md) gives screens/bindings/input states; [09 Architecture](09-architecture.md) gives Python layout, type contracts, CSV, SQLite and CLI; [10 Roadmap](10-roadmap.md) lists M00–M10 with exact deliverables/tests/commits; [08 Validation](08-validation.md) includes CLI, UI, persistence, MD, S1 and signal cases. [00 Index](00-index.md) resolves precedence. [AGENTS.md](../AGENTS.md) tells Grok exactly how to begin without code or trading automation.
+
+**Completion criterion:** Repo documentation prepared for the user to hand to Grok. No invented win-rate, untested profitability or claim of a working app. Grok must report real tests and commits once it starts.
