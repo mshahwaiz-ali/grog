@@ -17,3 +17,5 @@ Instrument, timestamp, ID, side, strategy/version, timeframe, entry zone and exp
 Deduplicate overlapping signals; apply cooldown only if justified; track total eligible and rejected candidates. Do not optimize away all signals. Respect simultaneously monitored positions and manual status.
 ## No-trade
 A visible NO TRADE state explains its primary reasons and when reevaluation occurs; never manufacture trades to meet a frequency goal.
+## Multi-timeframe evidence
+Use H1 bias, M15 structural context and M5 confirmation from [14](14-multi-timeframe-S1-trend-pullback.md) without requiring bullish/bearish unanimity on every timeframe. In the first S1 experiment, only confirmed H1 directional bias is a strategy-specific direction requirement; M15 context is a soft evidence field unless a separately approved hard invalidation applies. Do not let unconfirmed HTF bars contribute to READY scoring. Compare the incremental effectiveness of MTF filters against a simpler M5 baseline.
