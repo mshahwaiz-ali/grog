@@ -164,7 +164,7 @@ Do not treat overlapping intraday trades as independent for uncertainty: cluster
 
 ## 11. Acceptance gates, scope and escalation
 
-No claim of "best combo", "90% accurate", profitable backtest or live-trading readiness without real evidence. Before Grok codes trading rules, obtain explicit choices for broker/source, market-hours/fee/slippage model, warm-up, maximum quote staleness, cost/risk thresholds, trigger/stop conventions, overlap risk and acceptable signal-frequency/validation thresholds in [11 — Decisions](11-decisions.md). If unclear, implement only independently approved **non-trading foundations** with deterministic fixtures.
+No claim of "best combo", "90% accurate", profitable backtest or live-trading readiness without real evidence. **Offline REPLAY S1 coding (M04–M06) is allowed after the user's explicit START under [10 — Roadmap](10-roadmap.md), using canonical frozen experimental parameters and synthetic fixture contracts.** An actual broker, live staleness/spread/risk cutoffs and empirical performance thresholds are **NOT** prerequisites for those simulated modules, but they **ARE** prerequisites for publishing broker-verified live price/lot sizing, trade readiness and real-money performance claims. Unknown values remain UNKNOWN; no optimistic fill model.
 
 **No code, tests or historical trading results were executed or produced by consolidating this document.**
 
@@ -320,7 +320,7 @@ Report distributions of spread in price/R units, manual-delay lost R, offered vs
 
 ### 14.5 Preflight handoff boundary to Grok
 
-When the user authorizes *only* the offline data module, a narrow implementation brief can reference [03](03-market-data.md), [04](04-analysis-engine.md), and these MD fixtures. **Do not ask Grok to invent a live broker connection or an EA, download third-party code, install Wine/MT5, pull live credentials, send broker orders or build a full signal engine** until the relevant source and behavior are explicitly approved.
+When the user explicitly authorizes the offline R0 build, Grok may complete **M00–M08** in order under [10](10-roadmap.md), including the **simulated research S1 engine** once its independent data/analysis prerequisites pass. This does **NOT** authorize a live broker connection, unapproved EA, Wine/MT5 installation, proprietary dataset access, live credentials, broker orders or any claims of strategy profitability. Build only the read-only abstraction until M09 is separately approved.
 
 **Reference documentation:** MT5 `CopyTicksRange` and `OnTick` event semantics, cTrader historical quote data + `hasMore`, Dukascopy historical BID/ASK widget, MQL5 symbol properties, and MT5 real-vs-generated ticks. Cite links in [12 — References](12-references.md). These prove API capabilities/limitations, **not** S1 trade profitability.
 
