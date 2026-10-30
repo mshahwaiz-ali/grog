@@ -111,3 +111,20 @@ No code has been implemented; no trade win rate or profitability verified by the
 
 **Next most valuable decision after Phase 18 research:** select realistic XAUUSD market-data/broker constraints and freeze *non-trading* data/time/indicator test contracts before asking Grok to implement the first module. Do not code the S1 signal engine until the unresolved trading-policy inputs are approved.
 
+## 10. Market-data and execution research — 2026-10-31
+
+**Status: RESEARCH DOCUMENTED, NOT IMPLEMENTED OR FEED-VALIDATED.** The live broker/terminal remains unselected; no broker software, account credentials, Python package, Wine runtime, tick data or quote exporter has been installed or accessed.
+
+**Conditional recommendation:** if the user's manual XAUUSD platform is **MetaTrader 5**, first research an Ubuntu/Wine-hosted MT5 **read-only quote exporter** and broker-specific tick history. Its MQL5 side must not contain order execution or mutation functions; callback coalescence requires historical tick catch-up and gap evidence. If user's platform is **cTrader**, evaluate read-only Open API live/historical access instead, including authentication and 1-week historical-request batching. Dukascopy BID/ASK may be useful for **offline research only**, not a certified broker-matched fill model. Do not introduce a "universal" XAUUSD feed composed of several brokers.
+
+**Core new correctness rules:**
+- [03 — Market Data](03-market-data.md): canonical quote field contract, provider-vs-local time, BID/ASK updates, source identity, duplicate same-ms quote handling, replay/backfill origin separation, feed health, Linux source trial and due-diligence scorecard.
+- [07 — Risk & Monitoring](07-risk-and-monitoring.md): symbol tick increment vs display digits, contract/lot/profit currency, stop/freeze properties, manual fill timing, BID/ASK P/L and **no spread double-counting** when execution sides already include it.
+- [08 — Validation](08-validation.md): 22 deterministic MD test fixtures and a PASS/CONDITIONAL/FAIL source audit. Passing data-integrity tests is not a claim that the S1 strategy is profitable.
+- [09 — Architecture](09-architecture.md) and [10 — Roadmap](10-roadmap.md): minimal read-only adapter boundary and sequence for quote normalization/replay before S1 strategy implementation.
+
+**OPEN decisions requiring user approval:** actual broker and manual execution platform; demo/readonly access, XAUUSD symbol contract, legal/history coverage, latency budget and actual spread/fee/slippage model; preferred historical research source and local bridge/transport; data sampling tolerance and future forward-paper evaluation conditions.
+
+**Scope/operations:** Updates to GitHub are via the connected **direct GitHub Contents API**, not GitHub Actions; Actions remains unnecessary/disabled. No GitHub Actions workflows were triggered for this documentation research. No trading/broker automation or new active documentation files were created.
+
+**Next actionable phase:** First choose whether Grog is being researched strictly offline or against the same MT5/cTrader/other execution platform the user uses. Do **not** commit the software to MT5 or cTrader based on an unverified user preference.
