@@ -33,7 +33,7 @@ Hard structural invalidation, a prior stop touch, H1 directional invalidation or
 
 **Strict correctness gates (never optional):**
 - Fresh, ordered, trustworthy BID/ASK quotes; enough history and actual confirmed feature availability.
-- Valid contract/broker price precision, relevant metadata, recognized symbol and trading hours; no invalid/zero ATR or impossible stop.
+- Correct source and price-side/price-step validation. In **REPLAY with a declared synthetic quote tick size**, research-only gross entry/SL/TP may be displayed without any real broker contract, explicitly SIMULATED. For actual **broker-verified** live execution or lot sizing, exact contract metadata, trading hours and true broker price increment are mandatory; invalid/zero ATR or impossible stop always blocks.
 - Strategy trigger and thesis valid at decision time, direction consistent with S1 confirmed H1 bias, no already-expired/duplicate pair.
 - Quote used **after** M5 trigger became available, without retroactive candle-close fill.
 - Current entry not already beyond frozen stop; no invalid source/feed status.
@@ -114,6 +114,8 @@ The canonical S1 synthetic fixtures and test IDs are in [08 — Validation](08-v
 - No unsupported win-probability label, confidence formula, trade execution or fabricated quote.
 
 **All proposed numeric bands/TTLs are research settings; production acceptance requires broker-matched bid/ask replay, validation and explicit approval.**
+
+**R0 implementation boundary (2026-10-31):** The explicit user instruction to start Grog authorizes implementing these already-documented S1 parameters as **versioned offline REPLAY experimental code**. It does not validate them or authorize broker-risk thresholds. Simulated READY records remain labeled SIMULATED and have **no real lot sizing, claims of executable broker fills or fake account P/L**. Source fidelity and UI mode follow [09](09-architecture.md) and [02](02-workflows-and-ux.md). The uncalibrated 100-point score remains **NOT IMPLEMENTED**.
 
 ## 10. Phase 18 — signal-quality decision policy (PROPOSED, NOT VALIDATED)
 
