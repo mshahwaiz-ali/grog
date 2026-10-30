@@ -49,6 +49,7 @@ Authoritative Textual API references: https://github.com/Textualize/textual/blob
 | `p` | Open **Record Partial Close** modal on selected held position | Local journal update only |
 | `m` | Open **Record Modification** modal on selected position | Local stop/TP record only |
 | `x` | Open **Record Closure** modal on selected position | Local journal update only |
+| `n` | Open **Record Unlinked Manual Entry** from Journal or Positions only | Explicitly OFF_PLAN/unverified; local journal only, **never** a broker order |
 | `r` | Request UI panel refresh using latest already-ingested state | Must not cause duplicate market events |
 | `?` | Compact help overlay with keys and meanings | View only |
 | `q` | Quit local program with informative warning if positions recorded as open | No broker action; persisted positions remain |
@@ -147,6 +148,10 @@ Validation: no negative/NaN, finite amounts, quantity >0, broker tick size when 
 ### Skip (`s` on READY) and Missed
 Show signal identity, direction, reason (optional), original expiry and `Mark skipped` confirmation. Distinguish `USER_SKIPPED` from system EXPIRED/MISSED. Only status/journal changes.
 
+### Unlinked / off-plan entry (`n`, Journal or Positions only)
+
+The trader may have manually entered a real external XAUUSD position **without a READY recommendation**, or after the recommended band/TTL expired. Allow an explicitly labeled **OFF_PLAN** local position record with side, actual price, qty, UTC fill time and optional broker/notes; optional link to the historical signal ID is informational and **never changes** an EXPIRED/INVALIDATED/FORMING signal into READY. Confirmation dialog states **\"This records your external trade; Grog did not recommend or execute it.\"** The mode and source-fidelity labels still apply; real account monetary P/L remains UNKNOWN without validated contract details.
+
 ### Partial close (`p`)
 Mandatory actual exit-side fill price, positive quantity <= remaining quantity, UTC time, known/unknown fees. Show remaining quantity and estimated realized P/L prior to confirmation. Never auto-reduce the live broker trade.
 
@@ -199,3 +204,43 @@ Use textual labels in addition to color. Error messages must include a practical
 11. Screenshot/terminal recordings, if produced, are **demo-only** and contain no private credentials or broker account identifiers.
 
 **No implementation code is created by this document.**
+## 13. Terminal command output contract — noninteractive CLI
+
+**CLI output should be compact and unambiguous**, suitable for copy/paste into the Grok milestone report. No colored dashboard or interactive spinner required for commands that are not the Textual UI; use plain text summary and stable labeled status. Structured `--format json` may be implemented for deterministic test/report consumers **after** text mode is correct; never introduce a remote API to deliver it.
+
+**Illustrative diagnostic output (fields are placeholders, not a real import):**
+
+```text
+GROG / DOCTOR                                 MODE: REPLAY  VERSION: <package-version>
+Python: <version>        Source configured: NONE
+Local state: <state-dir>  Database: AVAILABLE / NOT INITIALIZED
+Market feed: NOT CONFIGURED [offline mode — expected]
+Live broker: NOT REQUIRED FOR REPLAY
+Trading/orders: DISABLED
+Next: import a synthetic BID/ASK fixture or use an existing source ID.
+```
+
+**Illustrative replay result summary (no fabricated trade claims):**
+
+```text
+GROG / REPLAY REPORT                          FIDELITY: SYNTHETIC
+Source: <source-id>    Range UTC: <start> .. <end>
+Strategy: S1_RESEARCH_V0_2   Config: <sha256-prefix>
+Data: <N> ticks | <N> completed M5 bars | <N> rejected/unknown
+Decisions: <N> DETECTED | <N> FORMING | <N> READY | <N> INVALIDATED | <N> EXPIRED
+Proposed entries: <N> | Fillable simulated: <N> | Actual broker fills: NOT AVAILABLE
+Execution: first observable BID/ASK; contract/fees: UNKNOWN
+Gross hypothetical R: <value or NOT EVALUATED>
+Net broker P/L: NOT AVAILABLE — no verified execution contract
+Warnings: <known gaps/cost assumptions/outcome ambiguity>
+Verdict: OFFLINE FUNCTIONAL TEST ONLY; STRATEGY EDGE NOT VALIDATED
+```
+
+**Error example:**
+`IMPORT_REJECTED line=17 field=ask reason=ASK_BELOW_BID; batch NOT committed; prior data unchanged.`
+
+Report must never display a positive balance, live profitability or numeric confidence when the data cannot justify it. Metrics are produced by the **engine** and formatted by the interface, not recalculated independently in UI components.
+
+## 14. Final UI definition of done
+
+All five screens, two responsive layouts, keyboard controls including off-plan manual recording, lossless (within tested source limits) state visualization, explicit source fidelity, missing data displays and manual entry/partial/close/restart behavior must be validated against [08 — Tests](08-validation.md). Visual acceptance additionally requires: consistent 1-character separators, no overlapping borders in 80-column view, predictable focus and contrast, clipped columns whose full values are available in details, and no repeated tick-notification flood. No extra UI features may be added solely for aesthetics.
