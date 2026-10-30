@@ -41,3 +41,22 @@ The historical [S1 draft archive](archive/2026-10-30/README.md) is **non-authori
 ## Architecture constraint
 
 **Proposed**, not implemented: a deterministic timestamped event pipeline and separate manual-position ledger. Store first-issued signal values immutably, alongside mutable eligibility and user-acknowledged fills. Event-time and actual receive-time are distinct. Terminal redraw frequency must not determine signal expiry or trade-monitoring integrity. No broker write/execution interface, AI inference, agent orchestration or unnecessary external service.
+
+## Provider-agnostic market-feed boundary — research addition 2026-10-31
+
+**Proposed logical interfaces, not yet implemented**. Do not turn the price adapter into a new application or auto-trading bot.
+
+- `QuoteSource` (single read-only adapter interface): declare `source_id`, broker/dataset, symbol aliases, metadata coverage, `subscribe_quotes()` and optional `fetch_history(from,to,cursor)`. `subscribe_quotes` is a market-data subscription, **not** an order or execution call.
+- `QuoteNormalizer`: validate original BID/ASK, timestamps, source flags and precision; preserve original values and produce a typed normalized quote. Same-ms distinct updates must survive; duplicate replays must be idempotent by genuine event identity/cursor, **not by timestamp alone**.
+- `DurableQuoteSink`: append immutable raw quote batches, checkpoint an acknowledged source cursor and restart from overlap; historical backfill is a distinct data-origin event and cannot become a retroactive live READY signal.
+- `FeedHealth`: clock offset/last quote age, known market closure vs disconnection, gap/latency statistics, mixed broker metadata errors and explicit DEGRADED/OFFLINE state.
+- `BarAggregator`: form BID OHLC and parallel ASK extrema using finalized UTC windows; bars/pivots have `available_at`. Its inputs come exclusively from the normalized source, with no synthetic 'universal XAUUSD' mix.
+- `SymbolContract`: read-only, versioned broker tick/lot/value/currency/trading-hours/stop-level metadata; expose only verified known values to risk calculations. No wallet, connected account ledger or trade-writing interface.
+
+**Candidate adapter A (MT5 only if execution broker uses it):** Linux Wine terminal plus a *minimal MQL5 quote exporter* with `CopyTicksRange` catch-up; no MQL5 `OrderSend`/`CTrade`/broker write calls. MT5 `OnTick` event callbacks may be coalesced; never claim exporter is lossless before controlled continuity tests. Native Python MetaTrader5 package access on Ubuntu must not be assumed; evaluate bridge practicality separately.
+
+**Candidate adapter B (cTrader only if user broker supports it):** Python Open API client, limited to documented market-data and tick-history calls; authorization/secret handling separated from repository. Historical requests bounded by one week and partial-response `hasMore` must be handled.
+
+**Candidate importer C (offline research):** Dukascopy historical BID/ASK where licensing and exact coverage allow. Tag source PROXY and HISTORICAL; this is **not** a ready-to-trade broker feed.
+
+Keep the first working version one-process, one-symbol, low-overhead and crash-recoverable on local Ubuntu. No web server, cloud broker bridge, microservice architecture, wallet, AI model or high-frequency signal engine. The finalized source adapter choice is **OPEN** in [11](11-decisions.md), acceptance evidence is specified only in [08](08-validation.md), and canonical source timestamp semantics are specified only in [03](03-market-data.md).
