@@ -1,6 +1,6 @@
 # MTF-01 + S1: Multi-timeframe trend-pullback research specification
 
-**Version:** research draft 0.1 (2026-10-30)  
+**Version:** research draft 0.1 (2026-10-30) — **historical proposal; refined S1 baseline in [16](16-S1-refined-test-contract.md)**  
 **Status:** Multi-timeframe analysis = APPROVED direction. Exact formulas, thresholds, entries and exits below = **PROPOSED / EXPERIMENTAL**, NOT approved or proven profitable. **Documentation only; no implementation authorized by this document.**  
 **Audience:** Grog planning reviewers and Grok implementation assistant.
 
@@ -150,6 +150,10 @@ Test on chronological unseen broker-matched bid/ask ticks, including sessions an
 - Bailey et al., probability of backtest overfitting: https://escholarship.org/uc/item/4w1110bb
 
 **No cited material proves this S1 strategy is profitable.** Source-backed points concern timing, data realism and testing pitfalls; S1 formula and thresholds are deliberately proposed hypotheses.
+
+## Refined research contract and source of truth
+
+For all further S1 research, use [16 — S1 refined test contract](16-S1-refined-test-contract.md) for specific proposed deterministic rules and [17 — indicator combination research](17-indicator-combination-research.md) for restrained indicator comparisons. **Where draft 14 conflicts with draft 16, draft 16 supersedes it as the current proposed S1 research algorithm.** Neither document is validated or ready for live use; unresolved broker, execution and numeric threshold choices must be frozen before implementation.
 
 ## Important follow-up: S1 failure-mode audit
 
