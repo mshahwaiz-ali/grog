@@ -1,6 +1,6 @@
 # Grog Documentation Index — Canonical Specifications
 
-**Updated:** 2026-10-30 · **Project stage:** planning/research, NOT implemented or validated.
+**Updated:** 2026-10-31 · **Project stage:** planning/research, NOT implemented or validated.
 
 ## How to read and change these documents
 
@@ -41,5 +41,7 @@
 - Maintain correct internal links and README index; preserve important superseded drafts only when necessary in archive.
 - Before Grok implementation, provide exact source documents, frozen testable behavior, expected positive/negative tests and explicit OPEN blockers.
 - In this planning stage do **not** claim an accurate/profitable trading product or paper-trading results.
+
+**Latest research milestone:** Phase 18 refined trade eligibility, evidence-driven prioritization and quality-score safeguards in existing [06](06-signals-and-scoring.md), with SQ-01..SQ-18 in [08](08-validation.md). Decision status and unresolved execution inputs are in [11](11-decisions.md). No new active topic file was created.
 
 This is our documentation structure; no code has been written.
