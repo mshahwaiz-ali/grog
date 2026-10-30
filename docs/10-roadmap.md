@@ -97,9 +97,9 @@ When the user tells Grok: **"Start Grog. Follow AGENTS.md and docs/00-index.md, 
 ### M08 — Local manual-fill journal, position monitoring and restart recovery
 
 **Read:** [02](02-workflows-and-ux.md) modal contracts, [07](07-risk-and-monitoring.md), [09](09-architecture.md) SQLite schema.  
-**Implement:** local record-entry, skip, partial, modify, close modals + transactional append-only `position_events`, reopen/reconcile on restart, closeable BID/ASK P/L where metadata complete, correct UNKNOWN states where not, no assumed broker fill on quote touch. UI actions only call validated journal domain services.
+**Implement:** local record-entry (READY and explicitly OFF_PLAN unlinked manual trades), skip, partial, modify, close modals + transactional append-only `position_events`, reopen/reconcile on restart, closeable BID/ASK P/L where metadata complete, correct UNKNOWN states where not, no assumed broker fill on quote touch. UI actions only call validated journal domain services.
 
-**Tests:** duplicate keypress/action idempotency, missing/negative amount, quantity > remaining, late/off-plan fill changes actual R but not original signal, partial/close correct remaining, no fee fabricated, restart shows RECONCILIATION_REQUIRED, DB lock rollbacks.  
+**Tests:** duplicate keypress/action idempotency, missing/negative amount, quantity > remaining, late/off-plan/unlinked manual fill changes actual R but not original signal, partial/close correct remaining, no fee fabricated, restart shows RECONCILIATION_REQUIRED, DB lock rollbacks. Include [08](08-validation.md) UI-21.  
 **Done:** user can manually record simulated/external positions, see clearly labeled metrics and safely reopen program without losing events. **Commit:** `feat(journal): add verified manual-position records and reconciliation`.
 
 ### M09 — Read-only MT5 reference adapter (external access needed later)
