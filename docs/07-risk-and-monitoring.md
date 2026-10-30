@@ -29,7 +29,7 @@ For initial **short** SELL:
 - Short entry reference `E0_short = BID` on first causally subsequent quote.
 - Gross short price risk `R_short = SL_short − E0_short > 0`.
 
-**The stop buffer 0.10 ATR is experimental.** These equations describe tested reference levels, **not guaranteed broker stop fill prices**. Broker-specific trigger conventions, tick precision and stop level constraints are still OPEN. Stops may slip through gaps.
+**The stop buffer 0.10 ATR is experimental.** For **synthetic REPLAY fixtures only**, an explicitly declared synthetic price increment (default fixture example 0.01 XAUUSD price units) may be used to demonstrate directional rounding; it is **not an assumption about any real broker**. For PROXY history without verified tick increment, report theoretical structural stops separately and mark broker-executable stop rounding UNKNOWN. These equations describe tested reference levels, **not guaranteed broker stop fill prices**. Broker-specific trigger conventions, tick precision and stop level constraints are still OPEN. Stops may slip through gaps.
 
 ## 3. Targets and exit-policy alternatives
 
@@ -201,4 +201,4 @@ Keep two distinct economic contexts, not two broker applications:
 
 The same strategy engine must consume a normalized quote contract; the reference quote source and later execution validation stay cleanly separated in data provenance and reports. No additional broker interface, wallet, account-sync service or trade-placing component is authorized.
 
-**No actual feed, broker or demo server is connected by this documentation change.**
+**No actual feed, broker or demo server is connected by this documentation change.** The offline research profile may calculate **gross price R** from declared synthetic quote/stop conventions without an account or contract size; actual currency P/L, lot sizing, fees and broker-specific stop execution stay UNKNOWN until validated. Synthetic results are not account profits.
