@@ -1,7 +1,7 @@
 """Grog command line (docs/09-architecture.md Section 8; output format docs/02 Section 13).
 
-Only finished commands are registered. This build (M00) exposes ``version`` and
-a read-only ``doctor``. There are no buy/sell/trade/order commands, and none will
+Only finished commands are registered: ``version``, a read-only ``doctor`` and
+``import-ticks`` (M01, local state only). There are no buy/sell/trade/order commands, and none will
 be added: Grog never places broker orders.
 """
 
@@ -12,9 +12,13 @@ import os
 import platform
 import sys
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import NoReturn, TextIO
 
 from grog import __version__
+from grog.market_data.batches import CatalogError
+from grog.market_data.import_csv import CsvImportError
 from grog.settings import (
     CONFIG_SCHEMA_VERSION,
     STATE_DB_FILENAME,
@@ -26,8 +30,7 @@ from grog.settings import (
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_CONFIG = 3
-
-STATE_SCHEMA_STATUS = "NOT DEFINED (first migration arrives with M01)"
+EXIT_IMPORT_REJECTED = 4
 
 
 class UsageError(Exception):
@@ -46,7 +49,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "Grog — offline XAUUSD research and manual decision-support terminal. "
             "Rule-based local software: no AI agent, no broker orders, no automated trading."
         ),
-        epilog="Commands available in this build: version, doctor.",
+        epilog="Commands available in this build: version, doctor, import-ticks.",
     )
     sub = parser.add_subparsers(dest="command", metavar="COMMAND", parser_class=_Parser)
 
@@ -75,13 +78,35 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help="isolated local state directory (default: $XDG_DATA_HOME/grog); never created",
     )
+    imp = sub.add_parser(
+        "import-ticks",
+        help="strictly validate and durably import one canonical BID/ASK CSV v1 file",
+        description=(
+            "Validate a canonical CSV v1 file (provider_time_utc_ms,received_time_utc_ms,bid,ask) "
+            "in full, checksum it and persist one immutable source batch in local Grog state. "
+            "Any invalid row rejects the whole file; re-importing identical bytes is a no-op. "
+            "Offline only: no broker, no network."
+        ),
+    )
+    imp.add_argument("--file", required=True, metavar="PATH", help="canonical CSV v1 file")
+    imp.add_argument("--source-id", required=True, metavar="ID", help="explicit source ID")
+    imp.add_argument(
+        "--origin", required=True, choices=["SYNTHETIC", "HISTORICAL"], help="source origin"
+    )
+    imp.add_argument(
+        "--state-dir",
+        metavar="PATH",
+        help="isolated local state directory (default: $XDG_DATA_HOME/grog)",
+    )
     return parser
 
 
 def _cmd_version(out: TextIO) -> int:
     out.write(f"grog {__version__}\n")
     out.write(f"Config schema: {CONFIG_SCHEMA_VERSION}\n")
-    out.write(f"State schema: {STATE_SCHEMA_STATUS}\n")
+    from grog.journal.store import LATEST_SCHEMA_VERSION
+
+    out.write(f"State schema: {LATEST_SCHEMA_VERSION}\n")
     return EXIT_OK
 
 
@@ -106,8 +131,47 @@ def _cmd_doctor(args: argparse.Namespace, env: Mapping[str, str], out: TextIO) -
         "(live readiness blocked until configured)",
         "Contract metadata: UNKNOWN  Numeric score: DISABLED",
         "Trading/orders: DISABLED",
-        "Next: quote import (grog import-ticks) is not available in this build yet (M01).",
+        "Next: import a synthetic BID/ASK fixture: grog import-ticks --file PATH "
+        "--source-id ID --origin SYNTHETIC|HISTORICAL [--state-dir PATH]",
     ]
+    out.write("\n".join(lines) + "\n")
+    return EXIT_OK
+
+
+def _fmt_utc(ms: int) -> str:
+    stamp = datetime.fromtimestamp(ms / 1000, tz=UTC)
+    return stamp.strftime("%Y-%m-%d %H:%M:%S.") + f"{ms % 1000:03d} UTC"
+
+
+def _cmd_import_ticks(args: argparse.Namespace, env: Mapping[str, str], out: TextIO) -> int:
+    from grog.domain.clock import SystemClock
+    from grog.journal.store import Store
+    from grog.market_data.batches import import_parsed, read_and_parse
+
+    state_dir, _origin = resolve_state_dir(args.state_dir, env)
+    # Validate the whole file before touching local state at all.
+    parsed, data = read_and_parse(Path(args.file), source_id=args.source_id, origin=args.origin)
+    with Store.open(state_dir / STATE_DB_FILENAME, SystemClock()) as store:
+        result = import_parsed(parsed, data, state_dir=state_dir, catalog=store)
+    b, st = result.batch, result.stats
+    lines = [
+        f"GROG / IMPORT    STATUS: {result.status}  FIDELITY: {b.origin.value}",
+        f"Source: {b.source_id}  Origin: {b.origin.value}  Symbol: XAUUSD",
+        f"File: {args.file}",
+        f"SHA256: {b.sha256}",
+        f"Batch: {b.batch_id}",
+        f"Rows: {st.row_count} accepted | 0 rejected (strict whole-file validation)",
+        f"Range UTC (provider): {_fmt_utc(st.min_provider_ms)} .. {_fmt_utc(st.max_provider_ms)}",
+        f"Same-ms distinct quotes retained: {st.same_ms_quote_count}",
+        f"Provider time ahead of receipt: {st.provider_ahead_count} quotes "
+        f"(max {st.max_provider_ahead_ms} ms; skew logged, not treated as latency)",
+        f"Gaps: NOT EVALUATED (gap threshold OPEN); largest provider interval "
+        f"{st.max_provider_interval_ms} ms",
+        "Data fidelity: BID+ASK every row; contract/fees: UNKNOWN; broker-verified: NO",
+        f"Stored: {result.stored_path}",
+    ]
+    if result.status == "ALREADY_IMPORTED":
+        lines.append("Already imported: identical checksum for this source; nothing changed.")
     out.write("\n".join(lines) + "\n")
     return EXIT_OK
 
@@ -141,6 +205,19 @@ def main(
             return _cmd_version(out)
         if args.command == "doctor":
             return _cmd_doctor(args, env, out)
+        if args.command == "import-ticks":
+            return _cmd_import_ticks(args, env, out)
+    except CsvImportError as exc:
+        err.write(f"{exc.describe()}; batch NOT committed; prior data unchanged.\n")
+        err.write("Next: fix the named line/field or import another file.\n")
+        return EXIT_IMPORT_REJECTED
+    except CatalogError as exc:
+        err.write(
+            f"IMPORT_REJECTED line=0 field=--source-id reason={exc.reason.value} "
+            f"detail={exc.detail}; batch NOT committed; prior data unchanged.\n"
+        )
+        err.write("Next: use a distinct source ID or a non-overlapping file.\n")
+        return EXIT_IMPORT_REJECTED
     except ConfigError as exc:
         err.write(f"GROG ERROR {exc}\n")
         err.write(

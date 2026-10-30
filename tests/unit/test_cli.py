@@ -43,8 +43,8 @@ def test_help_lists_only_finished_commands(capsys: pytest.CaptureFixture[str]) -
     assert main(["--help"]) == EXIT_OK
     text = capsys.readouterr().out
     listed = re.findall(r"^    (\S+)\s{2,}", text, flags=re.MULTILINE)
-    assert listed == ["version", "doctor"]
-    for unavailable in ("import-ticks", "replay", "buy", "sell", "close-broker-order"):
+    assert listed == ["version", "doctor", "import-ticks"]
+    for unavailable in ("replay", "buy", "sell", "close-broker-order"):
         assert unavailable not in text
 
 
@@ -62,7 +62,7 @@ def test_version(isolated_env: dict[str, str]) -> None:
     code, out, err = run(["version"], isolated_env)
     assert code == EXIT_OK and err == ""
     assert out.splitlines()[0] == f"grog {grog.__version__}"
-    assert "Config schema: 1" in out and "State schema:" in out
+    assert "Config schema: 1" in out and "State schema: 1" in out
 
 
 # ---------------------------------------------------------------- doctor
@@ -129,7 +129,9 @@ def test_doctor_output_is_deterministic(tmp_path: Path, isolated_env: dict[str, 
 # ---------------------------------------------------------------- errors (CL-11)
 
 
-@pytest.mark.parametrize("argv", [["buy"], ["trade"], ["import-ticks"], ["replay"], ["doctorr"]])
+@pytest.mark.parametrize(
+    "argv", [["buy"], ["trade"], ["import-ticks"], ["replay"], ["report"], ["ui"], ["doctorr"]]
+)
 def test_unknown_or_unimplemented_command_fails_clearly(
     argv: list[str], isolated_env: dict[str, str]
 ) -> None:

@@ -17,18 +17,19 @@ from pathlib import Path
 from grog.domain.clock import Clock
 from grog.domain.enums import ImportRejectReason, SourceOrigin
 from grog.domain.models import ImportBatch, QuoteSource
+from grog.market_data.batches import CatalogError
 
 STATE_DB_FILENAME = "state.sqlite3"
 BUSY_TIMEOUT_MS = 5000
 
-
-class CatalogError(RuntimeError):
-    """A catalog write was refused; the transaction was rolled back and nothing changed."""
-
-    def __init__(self, reason: ImportRejectReason, detail: str) -> None:
-        self.reason = reason
-        self.detail = detail
-        super().__init__(f"reason={reason.value} detail={detail}")
+__all__ = [
+    "BUSY_TIMEOUT_MS",
+    "LATEST_SCHEMA_VERSION",
+    "STATE_DB_FILENAME",
+    "CatalogError",
+    "Store",
+    "available_migrations",
+]
 
 
 def available_migrations() -> list[tuple[int, str]]:
