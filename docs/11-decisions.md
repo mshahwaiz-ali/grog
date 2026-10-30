@@ -29,6 +29,10 @@ Updated 2026-10-30.
 - Five-factor 100-point **quality rubric**, not a calibrated probability.
 - Implementation and validation roadmap in 10.
 
+## Research milestone (not a strategy approval) — 2026-10-30
+- S1 failure-mode analysis, realistic manual-entry slippage, false-continuation categories and anti-overfiltering tests are documented in [15 — S1 failure-mode and robustness](15-S1-failure-modes-and-robustness.md).
+- No live profitability, strategy parameters, new indicators, exclusion thresholds or changes to trading execution have been approved from this research. Grok must not implement these research proposals as finished logic without explicit specification freeze.
+
 ## OPEN
 - Actual broker/platform and XAUUSD feed, historical bid/ask tick availability, licensing, and symbol specs.
 - How to ingest macro-event times without unreliable availability, preferred timezone.
