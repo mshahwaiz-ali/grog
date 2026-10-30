@@ -123,7 +123,7 @@ The strategy/risk plan is exploratory. Grog does not place, modify, close or syn
 | `commission_schedule`, `overnight_costs`, `conversion_source` | Fee/currency rules, with as-of timestamps | Net P/L and net reward/risk |
 | `stop/target_trigger_price_side`, `execution_policy` | Broker-specific trigger & market/limit fill rules | Distinguish quote touch from executed order |
 
-Official MT5 symbol property API names such as `SYMBOL_TRADE_TICK_SIZE`, `SYMBOL_TRADE_CONTRACT_SIZE`, `SYMBOL_TRADE_TICK_VALUE_PROFIT/LOSS`, `SYMBOL_VOLUME_MIN/MAX/STEP`, `SYMBOL_TRADE_STOPS_LEVEL` and `SYMBOL_TRADE_FREEZE_LEVEL` can be inspected read-only, **if MT5 is eventually selected**: https://www.mql5.com/en/docs/constants/environment_state/marketinfoconstants
+Official MT5 symbol property API names such as `SYMBOL_TRADE_TICK_SIZE`, `SYMBOL_TRADE_CONTRACT_SIZE`, `SYMBOL_TRADE_TICK_VALUE_PROFIT/LOSS`, `SYMBOL_VOLUME_MIN/MAX/STEP`, `SYMBOL_TRADE_STOPS_LEVEL` and `SYMBOL_TRADE_FREEZE_LEVEL` can be inspected read-only in the **selected MT5 reference-adapter approach**, once its actual demo source is available: https://www.mql5.com/en/docs/constants/environment_state/marketinfoconstants
 
 **Metadata versioning:** Snapshot the contract metadata used for *each issued signal*. If symbol specs change during live operation, invalidate pending signal economics requiring recalculation rather than silently retaining stale stop/position-size results.
 
@@ -189,3 +189,16 @@ A hypothetical 2R gross target must be backtested with:
 **Required output:** explicit net R and modeled realized currency figures *only when sufficient inputs exist*; otherwise keep the numeric account P/L unavailable. Report sensitivity to slippage/spread rather than falsely precise estimates.
 
 **Approval boundaries:** provider/contract/fee model OPEN in [11 — Decisions](11-decisions.md). The calculation framework may be researched offline but no sizing/signals using invented broker values, no wallet or account-management system, and no broker order placement.
+
+## 12. Broker-neutral research versus execution-broker validation (2026-10-31)
+
+**Decision:** MT5 is Grog's preferred initial **reference quote integration**, while the user has deliberately not chosen a manual execution broker. This **does not block** development or offline backtesting of BID/ASK parsing, MTF indicators, pivot structure, candidate detection, or reference-price-only signals.
+
+Keep two distinct economic contexts, not two broker applications:
+
+- **REFERENCE / PROXY:** quote feed used to study XAUUSD movement and derive hypothetical executable ASK/BID, SL/TP levels, relative R and signal timing. Record its server/source and assumptions. **Do not claim the user could have executed at these exact prices** on an unknown future broker, or display a fabricated real-account position size/P&L.
+- **EXECUTION / BROKER-VERIFIED (later):** when the user selects a broker, obtain actual contract/lot/precision, commissions, stop conventions, spread, execution delays and observed fills. Recalculate *realistic* risk/TP/SL and manual-fill metrics; compare reference signal's first-issued plan versus actual broker prices without rewriting the original strategy signal. Trading platform may differ from MT5.
+
+The same strategy engine must consume a normalized quote contract; the reference quote source and later execution validation stay cleanly separated in data provenance and reports. No additional broker interface, wallet, account-sync service or trade-placing component is authorized.
+
+**No actual feed, broker or demo server is connected by this documentation change.**
