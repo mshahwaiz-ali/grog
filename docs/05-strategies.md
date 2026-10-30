@@ -1,6 +1,9 @@
 # Trading strategies — research hypotheses
 **None proven.** Develop one candidate at a time with deterministic, non-lookahead definitions. Each implements discover(context), form(candidate), confirm(entry), invalidate(candidate), exit_context(position), and emits auditable evidence.
 ## S1: Trend pullback continuation — first research priority
+
+**Detailed research draft:** [14 — Multi-timeframe and S1 trend-pullback specification](14-multi-timeframe-S1-trend-pullback.md). It contains causal multi-timeframe conditions, proposed observable price rules, trigger, stop/target calculations, negative tests and research benchmarks. None of the numeric thresholds is yet approved as a proven live trading rule.
+
 - Eligible when higher-timeframe structure and normalized trend agree and execution costs/volatility acceptable.
 - Detect meaningful impulse, pullback toward prior structure/value area, and price rejection/renewed movement on M5/M1.
 - Trigger only after a declared closed-bar break/reclaim or explicitly defined tick event; calculate actual bid/ask executable entry.
