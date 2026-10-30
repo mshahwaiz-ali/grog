@@ -2,7 +2,7 @@
 **None proven.** Develop one candidate at a time with deterministic, non-lookahead definitions. Each implements discover(context), form(candidate), confirm(entry), invalidate(candidate), exit_context(position), and emits auditable evidence.
 ## S1: Trend pullback continuation — first research priority
 
-**Detailed research draft:** [14 — Multi-timeframe and S1 trend-pullback specification](14-multi-timeframe-S1-trend-pullback.md). It contains causal multi-timeframe conditions, proposed observable price rules, trigger, stop/target calculations, negative tests and research benchmarks. None of the numeric thresholds is yet approved as a proven live trading rule. **Failure-mode research and required negative tests:** [15](15-S1-failure-modes-and-robustness.md).
+**Current proposed S1 research contract:** [16 — S1 refined test contract](16-S1-refined-test-contract.md). **Indicator comparison:** [17 — indicator-combination research](17-indicator-combination-research.md). **Earlier historical draft:** [14 — Multi-timeframe and S1 trend-pullback specification](14-multi-timeframe-S1-trend-pullback.md). It contains causal multi-timeframe conditions, proposed observable price rules, trigger, stop/target calculations, negative tests and research benchmarks. None of the numeric thresholds is yet approved as a proven live trading rule. **Failure-mode research and required negative tests:** [15](15-S1-failure-modes-and-robustness.md).
 
 - Eligible when higher-timeframe structure and normalized trend agree and execution costs/volatility acceptable.
 - Detect meaningful impulse, pullback toward prior structure/value area, and price rejection/renewed movement on M5/M1.
