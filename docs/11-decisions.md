@@ -1,6 +1,6 @@
 # Decisions, Approval Status and Documentation Change Control
 
-Updated 2026-10-30. **This is the authoritative record of agreed scope and unresolved decisions**, not proof of implementation or strategy profitability.
+Updated 2026-10-31. **This is the authoritative record of agreed scope and unresolved decisions**, not proof of implementation or strategy profitability.
 
 ## 1. Status vocabulary
 
@@ -94,3 +94,20 @@ The former top-level research drafts **14–17 were consolidated into their topi
 - 2026-10-30: **Documentation consolidation**: core material organized into canonical 04–08 (plus aligned 02/03), drafts archived for traceability and links cleaned. This is a **documentation-quality milestone only**, **not live strategy validation**.
 
 No code has been implemented; no trade win rate or profitability verified by these planning activities.
+
+## 9. Phase 18 research milestone — 2026-10-31
+
+**Status: PROPOSED SPECIFICATION / TEST PLAN, NOT VALIDATED AND NOT AUTHORIZATION TO IMPLEMENT.** The current **single source of truth** remains [06 — Signals & Scoring](06-signals-and-scoring.md), with all Phase 18 evaluation fixtures in [08 — Validation](08-validation.md). No new top-level numbered document was created.
+
+- **Recommended decision order:** data integrity → existing S1 objective setup and confirmed trigger → actual BID/ASK-based entry/SL/TP plan → approved safety gates → transparent supporting evidence → READY/WAIT/NO TRADE → conflict handling. A quality-score display cannot override a failing data, strategy, execution or risk gate.
+- **Default quality UI:** show explicit H1/M15/M5 evidence, known costs, market levels and reason codes **without** a numeric probability or invented 100-point subscores. The previously proposed 25/25/20/20/10 rubric remains an **unimplemented experimental outline**.
+- **No new automatic filter:** M15 CORRECTIVE continues to be a normal possible pullback; M15 OPPOSING and nearby resistance remain documented soft warnings unless a strictly controlled experiment justifies a veto.
+- **No extra exposures based on fake rank:** duplicate structural pairs deduplicated; contradictory/overlapping opportunities require an explicit operator-risk policy. Grog executes no broker trades.
+- **Phase 18 research plan:** use a frozen S1/indicator baseline first, test proposed score/ranking and one additional filter **separately**, record rejected profitable as well as losing trades, and evaluate realistic after-cost net expectancy, frequency and drawdown on independent data.
+- **18 synthetic tests SQ-01..SQ-18** are added to [08](08-validation.md). All are test specifications; none has been executed.
+- **First-quote transient-spread recovery is OPEN:** existing baseline rejects an initially ineligible quote; a bounded pending-trigger variant can only be tried as a separately approved, fully timestamped experiment. No invented grace period, automatic reissue, retrospective fill or hidden state added.
+- **Still OPEN:** broker/feed and contract metadata, quote age/latency and spread/cost limits, event restrictions, precise usable quality score, score cutoffs, multi-position handling, real-world frequency/return acceptance thresholds, and forward-paper evaluation criteria.
+- **No GitHub Actions needed:** direct GitHub Contents API file commits suffice for documentation edits. GitHub Actions runner minutes are not required.
+
+**Next most valuable decision after Phase 18 research:** select realistic XAUUSD market-data/broker constraints and freeze *non-trading* data/time/indicator test contracts before asking Grok to implement the first module. Do not code the S1 signal engine until the unresolved trading-policy inputs are approved.
+
