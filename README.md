@@ -4,7 +4,7 @@
 
 **State:** documentation/research only; no implemented trading software, live data feed, tests, proven accuracy or profitability.  
 **Repository:** private; default branch `main`.  
-**Last update:** 2026-10-30.
+**Last update:** 2026-10-31.
 
 ## Product mission
 
@@ -23,7 +23,7 @@ Grog is **rule-based software**, not GPT/Claude/LLM, an AI agent, an auto-trader
 7. Monitor bid/ask, thesis changes, stop/TP proximity and position status; journal actions/results, with restart reconciliation and no automatic broker execution.
 8. Replay realistic historical tick data and validate the smallest strategy/indicator combination that shows robust **net** performance, rather than chasing win-rate claims.
 
-Proposed strategies/indicator periods have **not** been tested; an attractive quality score is **not** a win probability.
+Proposed strategies/indicator periods have **not** been tested; an attractive quality score is **not** a win probability. Phase 18 now specifies evidence-first signal selection and negative tests in the **existing** signal/validation documents. Numerical ranking remains experimental.
 
 ## Active documentation — single source of truth
 
