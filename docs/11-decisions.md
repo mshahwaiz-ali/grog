@@ -33,6 +33,11 @@ Updated 2026-10-30.
 - S1 failure-mode analysis, realistic manual-entry slippage, false-continuation categories and anti-overfiltering tests are documented in [15 — S1 failure-mode and robustness](15-S1-failure-modes-and-robustness.md).
 - No live profitability, strategy parameters, new indicators, exclusion thresholds or changes to trading execution have been approved from this research. Grok must not implement these research proposals as finished logic without explicit specification freeze.
 
+## S1 research refinement milestone — 2026-10-30
+- Current **proposed** S1 deterministic research baseline is [16](16-S1-refined-test-contract.md), superseding conflicting exploratory definitions in [14](14-multi-timeframe-S1-trend-pullback.md). It clarifies pivot pairing, M15 reference, trigger-bar pullback, quote-valid entry zone, stop/target benchmarks, signal TTL and terminal eligibility overlays; these are **research hypotheses**.
+- **Requested research priority:** select a robust **minimal complementary indicator combination**, not an imagined universal winning stack. [17](17-indicator-combination-research.md) restricts initial comparisons to I0–I8 and explains how to reject unhelpful indicators without suppressing too many trades.
+- Indicator lengths, scoring thresholds, risk/cost gates and profits are **not approved or verified**. S1 code remains deferred pending explicit strategy/spec approval and broker data constraints; no bot should infer missing settings from these research files.
+
 ## OPEN
 - Actual broker/platform and XAUUSD feed, historical bid/ask tick availability, licensing, and symbol specs.
 - How to ingest macro-event times without unreliable availability, preferred timezone.
