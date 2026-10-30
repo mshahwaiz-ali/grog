@@ -226,3 +226,24 @@ def read_batch_quotes(
     if len(parsed.quotes) != batch.quote_count:
         raise BatchIntegrityError(f"stored batch row count mismatch: {path}")
     return parsed.quotes
+
+
+class SourceReader(Protocol):
+    """Read-only catalog access needed to reload a source's committed quotes."""
+
+    def get_source(self, source_id: str) -> QuoteSource | None: ...
+
+    def list_batches(self, source_id: str | None = None) -> list[ImportBatch]: ...
+
+
+def load_source_quotes(
+    catalog: SourceReader, state_dir: Path, source_id: str
+) -> tuple[NormalizedQuote, ...]:
+    """All committed quotes of one source, batch by batch in provider-time order (verified)."""
+    source = catalog.get_source(source_id)
+    if source is None:
+        raise KeyError(f"source {source_id!r} not found in catalog")
+    quotes: list[NormalizedQuote] = []
+    for batch in catalog.list_batches(source_id):
+        quotes.extend(read_batch_quotes(state_dir, source, batch))
+    return tuple(quotes)
