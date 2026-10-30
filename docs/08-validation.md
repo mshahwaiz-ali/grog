@@ -252,7 +252,7 @@ Report (a) offered candidates vs unique valid READY vs realistically fillable si
 
 ### 14.1 Three evaluation stages (must remain distinct)
 
-1. **Offline importer/replay** — available historical BID/ASK (e.g. Dukascopy after verifying exact dataset/access terms); establishes deterministic parsing and calculation only. It is **not** proof of matched broker execution.
+1. **Broker-neutral offline importer/replay** — synthetic fixtures plus permitted historical BID/ASK (e.g. Dukascopy once verified); establishes deterministic parsing and calculations **without a broker account**. It is **not** proof of broker-matched execution.
 2. **Chosen broker data trial** — read-only demo source, XAUUSD symbol metadata, measured quote continuity/latency, spread profile, full MTF aggregation and restarts; verify limitations transparently. A reliable real-time source is required for actual signal monitoring.
 3. **Broker-matched historical and forward cost validation** — true ordered bid/ask ticks and realistic manual-entry timing. Evidence from another broker remains labeled **PROXY**, not a confirmed live outcome. Only after source integrity and cost validity can S1 performance studies be meaningful.
 
@@ -303,7 +303,7 @@ Record evidence, **not** a marketing-style 90/100 provider rating:
 | Legal/data rights | OK / RESTRICTED / UNKNOWN | Explicit allowed data access and storage use |
 | Read-only safety | PASS / FAIL | No call path that submits, modifies or closes a broker order |
 
-**No universal feed winner is yet approved**. MT5+Wine and a minimal read-only exporter are a conditional first candidate when the user trades MT5. cTrader Open API is another conditional candidate. Dukascopy may support **offline research**, but cannot establish execution-broker realized spread/slippage by itself.
+**Decision 2026-10-31:** MT5+Wine and a minimal read-only exporter are the **preferred reference-feed integration**, independent of which broker the user eventually trades. This does **not** mean a specific MT5 demo server or data source has been approved or connected. A broker-neutral offline importer/replay is the first engineering step and is not blocked on broker selection. cTrader is a future fallback, **not a parallel build**; Dukascopy may support legally permitted offline research but cannot establish execution-broker realized spreads or slippage.
 
 ### 14.4 Execution-cost experiment protocol
 
