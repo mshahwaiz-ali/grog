@@ -18,3 +18,5 @@ Classify TREND_UP, TREND_DOWN, RANGE, TRANSITION/UNCERTAIN, DISRUPTED using comb
 Tick freshness; spread/estimated slippage; broker hours; known event risk; nearby opposing structure; plan's stop distance; trader's risk budget.
 ## E. Explainability
 Each input has value, time, timeframe, data provenance and threshold; signals explain major positive/negative conditions and hard vetoes. Avoid subjective labels such as 'smart money detected'.
+## Multi-timeframe causality and trade-decision mapping
+The detailed as-of timestamps, closed-bar synchronization, H1 directional bias, M15 correction/contradiction context, M5 setup, optional M1 test and expected decision snapshots are in [14 — MTF and S1 detailed research spec](14-multi-timeframe-S1-trend-pullback.md). The multi-timeframe concept is agreed; numeric settings and strategy thresholds remain experiments, not validated performance.
