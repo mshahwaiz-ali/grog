@@ -1,6 +1,6 @@
 # Signal Engine — Eligibility, Lifecycle, Entry Validity and Quality
 
-**Topic owner:** Readiness, observable signal changes, scoring, expiry and conflict handling. Updated 2026-10-30. **Status:** Overall workflow APPROVED; numbers and scoring policy below are RESEARCH HYPOTHESES pending broker data and performance tests.
+**Topic owner:** Readiness, observable signal changes, scoring, expiry and conflict handling. Updated 2026-10-31. **Status:** Overall workflow APPROVED; numbers and scoring policy below are RESEARCH HYPOTHESES pending broker data and performance tests.
 
 **Authority:** Formula for price structure, EMA, ATR, timeframes → [04](04-analysis-engine.md). Strategy setup/trigger → [05](05-strategies.md). BID/ASK SL/TP and position management → [07](07-risk-and-monitoring.md). Test cases/performance → [08](08-validation.md). No archival research document overrides these.
 
@@ -114,3 +114,105 @@ The canonical S1 synthetic fixtures and test IDs are in [08 — Validation](08-v
 - No unsupported win-probability label, confidence formula, trade execution or fabricated quote.
 
 **All proposed numeric bands/TTLs are research settings; production acceptance requires broker-matched bid/ask replay, validation and explicit approval.**
+
+## 10. Phase 18 — signal-quality decision policy (PROPOSED, NOT VALIDATED)
+
+**Single goal:** improve whether Grog proposes a worthwhile manually executable **XAUUSD** trade. This phase **does not** add another indicator, strategy, platform feature, LLM or auto-trading component. Its job is to give the existing S1 evidence a precise selection order, without promoting the unvalidated 100-point rubric into a fictitious success probability.
+
+### 10.1 Ordered decision contract
+
+On each newly available market event, evaluate in this exact order:
+
+1. **Information integrity:** Is the quote source correct, fresh and internally consistent; are all required candles/indicators and pivots *available at decision time*? If not, `DATA_UNAVAILABLE` / WAIT; no new READY.
+2. **Strategy-specific formation:** Has S1 found a causally valid H1 direction, frozen M5 L/H pair, allowable pullback and a completed M5 trigger? If not, DETECTED/FORMING or a terminal invalidation with precise reason. M15 CORRECTIVE by itself is not a veto.
+3. **Plan construction:** Use the first actual executable post-trigger quote and broker price conventions. Compute original entry side, frozen structural SL, TP1/TP2, gross risk/reward and *estimated* net costs if inputs support them. Impossible, incomplete or already-broken plan => do not issue READY.
+4. **Approved safety/eligibility gates:** Apply session/quote/contract, entry validity, signal TTL, known-event restrictions and position/exposure policy. Numerical spread, latency and reward thresholds are **OPEN** until approved. An explicit unsafe state outranks any visual indicator score.
+5. **Supporting evidence:** Record H1 strength, M15 SUPPORTIVE/CORRECTIVE/OPPOSING, M5 geometry/trigger, target congestion, entry distance and roundtrip cost burden. These are **measured observations**, not claims of outcome probability.
+6. **Decision:** If required strategy and safety gates pass, show READY under the versioned S1 rules *without* requiring any arbitrary score cutoff. If a temporary reversible execution condition fails on an **already READY** signal, show the existing `EXECUTION_BLOCKED(reason)` overlay; keep original ID, original prices and original TTL. Hard invalidation and expiry remain terminal.
+7. **Prioritization / allocation (only when needed):** Collapse duplicate same-pair proposals; show any truly distinct valid opportunities with exact reasons. Until an evidence-based conflict/exposure policy is approved, **do not manufacture a numeric "best" ranking, silently open another exposure, or issue contradictory positions as independent recommendations**.
+
+A valid signal is not promised to win; a high-potential-looking forming setup is **not** a recommendation to enter.
+
+### 10.2 Strict versus soft: no indicator voting contest
+
+| Evidence or event | Initial handling | Rationale |
+| --- | --- | --- |
+| Unconfirmed H1/M15 pivot, stale data, unknown execution side | Correctness gate | Cannot trust information or executable prices |
+| H1 UP/DOWN needed for S1 side, M5 trigger closed, fixed pivot thesis intact | Strategy-specific requirement | Defines S1, not an arbitrary extra filter |
+| M15 normal correction against H1 | Soft observation | A correction can be the trade setup |
+| M15 OPPOSING despite H1 bias | Soft warning in baseline; veto only in separately tested variant | Trend conflict may or may not outweigh lost opportunities |
+| Strong/weak M5 candle body or wick | Recorded feature, optional **separate** experiment | Avoid over-filtering via redundant confirmation |
+| Opposing confirmed structural level before TP2 | Target congestion observation, then optional tested target variant | A nearby level may reduce available upside, but is not automatically fatal |
+| Actual spread, quote age, entry lateness, wrong lot/price precision | Objective values; safety thresholds require broker-defined policy | Prevent fictitious fills and unrealistic reward |
+| RSI, ADX, MACD, extra "institutional" indicator | **Not included** | No proven incremental usefulness over price/EMA/ATR baseline |
+
+**No market condition is treated as "manipulation detected".** Grog observes only data available from its chosen feed; order-flow claims need their own valid source.
+
+### 10.3 Trade-quality evidence snapshot (future software contract)
+
+Each candidate, READY and rejection event should have the following **timestamped, versioned** evidence fields (specific schema/type definitions in [09](09-architecture.md) when implementation is authorized):
+
+| Field group | Required observations |
+| --- | --- |
+| Identity | `candidate_id`, `pair_id`, `signal_id` if issued, `strategy_id/version`, `side`, `decision_time_utc`, `available_at` |
+| Context | Last **confirmed** H1/M15/M5 bar IDs; H1 UP/DOWN/NEUTRAL/UNKNOWN; M15 SUPPORTIVE/CORRECTIVE/OPPOSING/UNKNOWN; source and health |
+| Geometry | Frozen L/H prices & pivot-confirmation times; impulse/ATR; retracement fraction; M5 trigger reference and closed-bar timestamp |
+| Execution | Actual BID/ASK snapshot, spread, first eligible quote time, entry-band boundaries, price distance to E0 in ATR/R, original SL, TP1/TP2 |
+| Economics | Gross risk and reward; fee/slippage assumptions, estimated **net** R/R when knowable; structural congestion distance in R |
+| Decision | All evaluated gate results `PASS/FAIL/UNKNOWN/NOT_APPLICABLE`, exact versioned reason codes, current/terminal state, expiry time |
+| Outcome (separate, later) | Whether *offered*, *fillably eligible*, *paper-filled*, *actually manually entered*, *skipped*, *expired* or *closed*; never backfill a previously unknown outcome as an earlier decision feature |
+
+An important missing required input is **UNKNOWN**, not zero and not silently replaced by a best-looking value. **No READY** if execution or source safety cannot be established. Soft M15 UNKNOWN should be disclosed but must not become a hidden mandatory veto.
+
+### 10.4 Reason-code vocabulary and precedence
+
+Provisional stable codes (exact naming/API to freeze with implementation):
+
+- **Data:** `DATA_STALE`, `DATA_GAP`, `QUOTE_INVALID`, `HISTORY_INCOMPLETE`, `CONTRACT_UNDEFINED`.
+- **Setup:** `H1_BIAS_MISMATCH`, `PIVOT_UNCONFIRMED`, `PULLBACK_SHALLOW`, `PULLBACK_INVALID`, `TRIGGER_NOT_CLOSED`, `STRUCTURE_INVALIDATED`.
+- **Execution:** `ENTRY_CHASE`, `SPREAD_OVER_LIMIT`, `COST_UNAVAILABLE`, `QUOTE_DELAY`, `SIGNAL_TTL_EXPIRED`, `PRE_ENTRY_STOP_TOUCH`.
+- **Policy:** `MARKET_CLOSED`, `EVENT_RISK_BLOCK`, `EXPOSURE_REVIEW_REQUIRED`, `DUPLICATE_PAIR`.
+- **Soft context only:** `M15_OPPOSING`, `TARGET_CONGESTED`, `WEAK_TRIGGER_BODY`, `REGIME_TRANSITION`.
+
+Report **all** evaluated reason codes, but show the **highest-priority actionable reason** first: data/unsafe execution > invalidated thesis/expired > approved policy block > missing strategy trigger > soft warnings. This display priority does not alter historical eligibility.
+
+### 10.5 Multiple candidates, overlap and restrained ranking
+
+**S1-only baseline:** One currently FORMING pair per side according to [05](05-strategies.md), and at most one distinct original signal per pivot pair. Multiple quote updates to one READY do not count as separate trade opportunities. Log competing candidate reasons even when a candidate loses a deterministic replacement rule.
+
+**When more than one independently valid idea appears:**
+- Group/deduplicate by the same underlying impulse/pivot pair, direction and overlapping entry risk; don't count repeated price updates as trades.
+- If another *manual* XAUUSD position is known, show conflict/exposure warning and require a separately approved overlapping-position policy. Do not use an arbitrary score to justify doubled risk.
+- If two distinct choices remain and ranking policy is not proven, display their **objective differences** (entry validity, target congestion, costs, M15 context), rather than claiming one has a higher success chance.
+- No minimum number of trades/day. A NO TRADE outcome is valid if no executable, in-scope setup survives.
+
+**First-quote transient spread issue (OPEN research decision):** Current baseline issues no READY when the initial post-trigger quote fails an approved cost gate. Research separately whether preserving a *not-yet-issued* trigger observation for a short, frozen deadline, then allowing its **first** READY only after quote normalization, improves results. Do **not** silently equate this with unblocking an already-issued READY or reset the original trigger timestamp. Until approved, preserve the existing initial-gate rule.
+
+### 10.6 Quality rubric and calibrated probabilities — separate future layers
+
+The proposed five-axis 100-point table in Section 6 is **only a rubric outline**. It has no authorized numeric per-feature formula, calibration or entry threshold. The initial usable Grog design is **reasoned, evidence-based eligibility without a fake score**.
+
+To experiment with numeric **trade-quality ranking** later:
+1. Freeze the data window, normalized inputs, missing-value behavior, candidate features, point formula/weights and the specific decision a score would change (e.g., preference between two valid signals).
+2. Keep core eligibility and execution gates **independent** of the score.
+3. Compare raw-signal baseline vs scored ranking **on the same realistically fillable signals and costs**. Merely changing the display score cannot improve net trade outcomes.
+4. Use chronological out-of-sample and paper-trading data, report realized net expectancy, drawdown, frequency and rejected winning opportunities.
+5. If score adds no robust incremental value, **don't implement or show it**.
+
+**Optional true win probability is an even later problem:** Only define the target outcome precisely (for example, TP2 reached before SL under frozen fill policy), then build/calibrate empirical estimates on proper disjoint data and show sample uncertainty. A score of 85/100 **never** means 85% chance of a profitable trade. A calibrated event probability would still not guarantee attractive net expectancy or large profits.
+
+### 10.7 Worked decision scenarios (illustrations only)
+
+| Scenario at actual decision time | Grog should display | Why |
+| --- | --- | --- |
+| H1 UP, M15 CORRECTIVE, M5 pullback still missing closed trigger | **FORMING** | M15 correction is not wrong; M5 is incomplete |
+| H1 UP, M15 CORRECTIVE, M5 trigger confirmed; first quote valid, plan/cost gates pass | **READY BUY** | Full strategy + executable trade, no artificial 80/100 threshold |
+| H1 UP but current unclosed H1 temporarily turns DOWN | Reassess only using **last confirmed H1** | No repainting/future leak |
+| Only mid-chart prices imply a good stop/TP; ASK/BID costs or metadata unavailable | **WAIT / no actionable entry** | Unexecutable or unsafe plan |
+| READY BUY temporarily moves outside entry band and returns before fixed TTL | **Same signal ID**, temporarily EXECUTION_BLOCKED then READY | No repeated signal/new winning trade counted |
+| READY BUY touches original stop or passes TTL before trader enters | **INVALIDATED/EXPIRED** | Cannot revive historical trade after failure |
+| Two valid but contradictory or overlapping XAUUSD opportunities | **Display conflict**, no unsupported ranking or doubled-risk suggestion | Exposure policy remains OPEN |
+| Strong M5 trigger but H1 neutral or setup not intact | **No S1 READY** | Strategy definition not satisfied |
+
+**Boundary:** No implementation was authorized and these illustrations are not evidence that S1 succeeds. Required adversarial fixtures, rejected-winner analysis and score experiments belong only in [08 — Validation](08-validation.md).
+
