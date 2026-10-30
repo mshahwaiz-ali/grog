@@ -245,3 +245,81 @@ Report (a) offered candidates vs unique valid READY vs realistically fillable si
 
 **External research notes:** [Bailey et al. on backtest overfitting](https://scholarworks.wmich.edu/math_pubs/42/) and [scikit-learn probability calibration](https://scikit-learn.org/stable/modules/calibration) explain risks in selecting overfit strategies and interpreting probability claims. Neither validates an S1 trading edge or tells us an optimal ranking threshold.
 
+
+## 14. Market-data and execution-source acceptance — 2026-10-31
+
+**RESEARCH / TEST SPECIFICATION. No feed, external service or broker has been connected, and no test has been executed.** The canonical data contract is [03 — Market Data](03-market-data.md); SL/TP and P/L conventions are [07 — Risk & Monitoring](07-risk-and-monitoring.md). Do not create a second feed adapter or add more indicators as a substitute for price-data correctness.
+
+### 14.1 Three evaluation stages (must remain distinct)
+
+1. **Offline importer/replay** — available historical BID/ASK (e.g. Dukascopy after verifying exact dataset/access terms); establishes deterministic parsing and calculation only. It is **not** proof of matched broker execution.
+2. **Chosen broker data trial** — read-only demo source, XAUUSD symbol metadata, measured quote continuity/latency, spread profile, full MTF aggregation and restarts; verify limitations transparently. A reliable real-time source is required for actual signal monitoring.
+3. **Broker-matched historical and forward cost validation** — true ordered bid/ask ticks and realistic manual-entry timing. Evidence from another broker remains labeled **PROXY**, not a confirmed live outcome. Only after source integrity and cost validity can S1 performance studies be meaningful.
+
+**Pass criteria are operational, not profitable-trading criteria.** A feed PASS must never promote S1 to VALIDATED or authorize real-money use.
+
+### 14.2 Synthetic feed and time fixtures MD-01..MD-22
+
+| Test | Scenario | Required assertion |
+| --- | --- | --- |
+| MD-01 | Multiple distinct quotes share identical source millisecond | Retain all by stable event sequence/index; no timestamp-only dedup |
+| MD-02 | Replayed range overlaps previous batch at inclusive boundary | Exact prior retransmissions idempotent, distinct same-ms updates kept |
+| MD-03 | BID changes, ASK unchanged per source flags | Carry forward last known ASK with provenance; don't invent identical BID/ASK |
+| MD-04 | ASK < BID or <=0 quote | Invalid source quote quarantined, no READY from invalid tick |
+| MD-05 | Clock offset changes or provider time ahead of receipt | Log skew, no negative fictitious latency or fake freshest status |
+| MD-06 | Local receive timestamp after candle interval end | Bar finalized only on actual subsequent valid event; no backdated READY |
+| MD-07 | New H1/M15 bar is unfinished while M5 trigger closes | Only last finalized H1/M15 used, no higher-timeframe future leakage |
+| MD-08 | Several quote gaps during known active session | Flag affected intervals; block new READY until data integrity restored |
+| MD-09 | Market is legitimately closed with no tick updates | Show CLOSED/OFFLINE distinction using broker hours + heartbeat, not necessarily a false feed outage |
+| MD-10 | App reconnects, fetches pre-disconnect historical ticks | Mark BACKFILL; repair research history, **no retroactive live entry alert** |
+| MD-11 | MT5 callback coalescence during busy handler | Bounded CopyTicksRange catch-up yields detected count/coverage or explicit irrecoverable-gap flag |
+| MD-12 | cTrader tick response hasMore and partial window | Retrieve complete permitted chunks with paging/backoff, not falsely mark completed |
+| MD-13 | Two sources report same XAUUSD with different spreads/prices | Keep source labels; never merge into synthetic "universal broker" quotes |
+| MD-14 | XAUUSD broker symbol suffix/digits/tick_size changes | Metadata version invalidated/reloaded; no old tick rounding or sizing |
+| MD-15 | Broker profit currency != trader reporting currency | Require valid conversion or show native profit currency only, no guessed exchange rate |
+| MD-16 | Bid/ask-price entry and close already contain spread | Net P/L subtracts distinct commissions/slippage **once**, not spread twice |
+| MD-17 | Long stop touched by BID only, short stop touched by ASK only | Assess broker-side touches independently; do not use midpoint |
+| MD-18 | Both stop and TP within one OHLC bar, order not known | INDETERMINATE, never optimistic win without ordered ticks |
+| MD-19 | Quote exporter crashes mid-batch and restarts | Recover from durable cursor/checkpoint without silent data loss or repeated unique market signals |
+| MD-20 | Bar construction crosses broker rollover, weekend or US DST transition | UTC intervals remain correct; session hours/gaps interpreted from broker/IANA metadata |
+| MD-21 | Last M5 close exists but first new quote arrives past measured latency tolerance | No fictitious earlier price or READY; MISSED_DATA_GAP |
+| MD-22 | Two independent replays use identical raw source, broker metadata and adapter config | Bit-for-bit equivalent normalized stream/candles/decision eligibility (within explicitly stated serialization precision) |
+
+Each fixture requires provenance timestamps, exact synthetic ticks, expected rejection/normalization reason codes, negative counterexample and buy/sell price-side coverage where relevant. Test initial cases and failure cases **before** any market-strategy performance analysis.
+
+### 14.3 Feed-candidate research scorecard — avoid arbitrary weighted score
+
+Record evidence, **not** a marketing-style 90/100 provider rating:
+
+| Area | Result field | Minimum evidence for a candidate to be considered |
+| --- | --- | --- |
+| Execution matching | MATCHED / PROXY / UNKNOWN | Same broker/instrument that would execute user's manual trades, or clearly labeled alternative |
+| Data fidelity | FULL BID_ASK / PARTIAL / BARS_ONLY | Ordered executable-side quote history plus precision and coverage metadata |
+| Timeliness | PASS / CONDITIONAL / FAIL | Observed source/receipt latency distribution, disconnect/reconnect behavior, quote-age UI |
+| Recovery | PASS / CONDITIONAL / FAIL | Reconnect catch-up/no duplicates or an explicit DATA_GAP failure state |
+| Contract accuracy | PASS / CONDITIONAL / FAIL | Lot min/max/step, tick size/value, contract/profit currency, trading hours, stop mechanics |
+| Economics | VERIFIED / ESTIMATED / UNKNOWN | Spread by session, commission and execution assumptions with timestamps |
+| Integration complexity | LOW / MEDIUM / HIGH | Ubuntu runtime, credentials/permissions, recoverability, maintenance |
+| Legal/data rights | OK / RESTRICTED / UNKNOWN | Explicit allowed data access and storage use |
+| Read-only safety | PASS / FAIL | No call path that submits, modifies or closes a broker order |
+
+**No universal feed winner is yet approved**. MT5+Wine and a minimal read-only exporter are a conditional first candidate when the user trades MT5. cTrader Open API is another conditional candidate. Dukascopy may support **offline research**, but cannot establish execution-broker realized spread/slippage by itself.
+
+### 14.4 Execution-cost experiment protocol
+
+For the *same frozen S1 signals*, compare:
+- Original idealized M5 close (diagnostic **unexecutable reference**, never published as performance)
+- First valid post-confirmation ASK/BID (replay baseline)
+- Actual delayed manual-entry quote (predefined delay windows)
+- Moderate/extreme widening spread, nonzero commissions, stop slippage and no-fill assumptions
+- Alternative broker-specific contract profiles **only if explicitly available**, labeled separately
+
+Report distributions of spread in price/R units, manual-delay lost R, offered vs fillable signals, unknown SL/TP event ordering, fee/currency data coverage, net expectancy and rejected winning opportunities. A gross 2R output **does not imply** 2R executable after costs.
+
+**Beware spread double-counting:** BID/ASK execution already contains the spread. Never add a separate full-spread charge on top of those execution-side prices. Report spread as a diagnostic and other distinct fees/slippage separately.
+
+### 14.5 Preflight handoff boundary to Grok
+
+When the user authorizes *only* the offline data module, a narrow implementation brief can reference [03](03-market-data.md), [04](04-analysis-engine.md), and these MD fixtures. **Do not ask Grok to invent a live broker connection or an EA, download third-party code, install Wine/MT5, pull live credentials, send broker orders or build a full signal engine** until the relevant source and behavior are explicitly approved.
+
+**Reference documentation:** MT5 `CopyTicksRange` and `OnTick` event semantics, cTrader historical quote data + `hasMore`, Dukascopy historical BID/ASK widget, MQL5 symbol properties, and MT5 real-vs-generated ticks. Cite links in [12 — References](12-references.md). These prove API capabilities/limitations, **not** S1 trade profitability.
