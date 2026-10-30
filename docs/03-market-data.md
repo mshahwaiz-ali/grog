@@ -1,6 +1,6 @@
 # Market Data, Time Availability, Economic Events and Sessions
 
-**Topic owner:** Canonical feed and time-data contract. Updated 2026-10-30. **Status:** A live price source is essential to Grog's approved workflow; provider, latency limits, fees and calendar source remain OPEN.
+**Topic owner:** Canonical feed and time-data contract. Updated 2026-10-31. **Status:** A live price source is essential to Grog's approved workflow; provider, latency limits, fees and calendar source remain OPEN.
 
 ## 1. Feed boundary
 
@@ -43,3 +43,89 @@ Spot gold/CFD is substantially OTC. **Broker tick volume is not aggregate global
 Actual spread/cost gates, price bands and signal TTL live in [06 — Signals](06-signals-and-scoring.md); contract-based SL/TP, position P/L and partials live in [07 — Risk & Monitoring](07-risk-and-monitoring.md). Data provider and risk-event policies are tracked in [11 — Decisions](11-decisions.md).
 
 **No broker/feed has been selected and no live data/backtests have been executed by this specification.**
+
+## 7. Provider research and first-choice decision — 2026-10-31
+
+**Status: RESEARCH / CONDITIONAL RECOMMENDATION; provider not selected, no software or feed installed.** Grog remains a local, manual-only XAUUSD decision program. An external price source is necessary; this does **not** authorize an AI/LLM API, placing orders, or adding broker-account management.
+
+| Candidate | Actual documented access | Advantages | Risks and decision |
+| --- | --- | --- | --- |
+| **MT5 broker-matched feed on Ubuntu** | MT5 terminal runs under Wine; MQL5 `CopyTicksRange` yields timestamped `MqlTick` history and `SymbolInfo*` exposes symbol contract/tick properties | Best **first candidate if the chosen execution broker uses MT5**; prices and symbol rules can match the operator's platform | MT5/Linux Wine runtime, broker history depth and missing ticks need proof. A **tiny read-only MQL5 exporter** may be required; it must NOT call trade/order APIs. No implicit assumption that native Python MetaTrader5 API works directly on Linux |
+| **cTrader Open API** | Official live quote and historic tick access; official Python SDK; OAuth account authorization; historical request maximum one week per window and paginated/limited results | Strong alternative **if the execution broker uses cTrader** | Account/app registration/auth, scope and API request limits add complexity. Use **least-privileged access**, no write/order calls. Respect server response `hasMore`, retry/backoff and actual broker XAUUSD availability |
+| **Dukascopy historical bid/ask** | Dukascopy's official historical export offers BID/ASK data | Useful for **offline development/replay and broad scenario coverage** if available for XAUUSD and permitted by terms | **Not** execution-broker data; spreads, trading hours, stop rules and execution can differ. Do NOT infer live-profitability from Dukascopy-only tests; verify date coverage, price precision, completeness and licensing before import |
+
+**Recommended decision tree:** If the user executes XAUUSD in MT5, investigate MT5 read-only feed first; if on cTrader, investigate its documented read-only pricing and historical ticks; if undecided, prototype **offline schema/replay using legally available historical bid/ask** without committing to a broker. Source matching and actual live quote quality matter more than the nominal platform brand.
+
+No real platform or broker is chosen; availability and permission must be verified **without initiating trades**. No application installation is part of this documentation task.
+
+### References for this choice
+
+- MT5 Linux under Wine: https://www.metatrader5.com/en/terminal/help/start_advanced/install_linux
+- MQL5 history `CopyTicksRange`: https://www.mql5.com/en/docs/series/copyticksrange
+- MQL5 `OnTick` event queue semantics: https://www.mql5.com/en/docs/event_handlers/ontick
+- MQL5 symbol metadata: https://www.mql5.com/en/docs/constants/environment_state/marketinfoconstants
+- cTrader official quote/tick methods: https://help.ctrader.com/open-api/symbol-data/
+- cTrader auth: https://help.ctrader.com/open-api/account-authentication/
+- Dukascopy official export: https://www.dukascopy.com/api/data/get/historical-data-export
+
+## 8. Feed adapter acceptance contract — what the future Grok module must prove
+
+These are **required properties for a correct non-trading data adapter**, not trading edge or selected implementation technology.
+
+**Normalized event** (type/schema finalization belongs to [09](09-architecture.md)):
+
+```text
+source_id, broker_id_or_dataset_id, broker_symbol, canonical_symbol="XAUUSD"
+provider_time_utc_ms, local_received_wall_utc_ms, local_received_monotonic_ns
+source_event_id_or_cursor_if_available, batch_ingest_index, raw_bid, raw_ask
+price_precision, update_flags_if_available, data_origin=LIVE|HISTORICAL|BACKFILL|SYNTHETIC
+source_timezone_definition, data_quality_flags, adapter_version
+```
+
+`local_received_wall_utc_ms` is the earliest Grog ingestion observation; the monotonic clock is for elapsed-time/latency diagnostics, **not** interchangeable with UTC. Provider timestamps may be missing, rounded or skewed: distinguish **quote age**, local clock drift and network/bridge transit latency. Do not claim sub-millisecond precision absent the source's support.
+
+- Preserve the provider's original raw prices/timestamps **unaltered** plus normalized numeric prices. Use Decimal/integer tick counts or another documented non-floating rounding policy for broker-valid prices. Do not assume one XAUUSD pip/tick/lot convention.
+- One **coherent source** must supply both BID and ASK for comparable decision/exit modeling; an update flag may identify only one changed side, with the last known other side carried forward explicitly and tracked as such. Invalid/crossed quotes are quarantined.
+- **Identical timestamps are valid:** several distinct ticks can share `provider_time_ms`; do not deduplicate on timestamp alone. If there is no stable provider event ID, retain stable **ingestion order** and use an auditable overlap/cursor algorithm; distinguish true retransmits from different same-ms quotes.
+- Separate LIVE stream from HISTORICAL/BACKFILL. **Never emit a historical READY as if it were live** after a reconnect. Backfill can repair analysis history and archived research but must not rewrite a missed live decision.
+- Track: dropped or delayed quote callbacks, source heartbeat/last quote, out-of-order timestamps, duplicate rate, time jumps, reconnects, missing bars and missing ASK updates. If a gap cannot be resolved, mark affected signal/monitor intervals DEGRADED/UNKNOWN, never silently fill favorable ticks.
+- **MT5 exporter caution:** `OnTick` events can be coalesced when a prior callback is running. A read-only exporter must use bounded history catch-up (`CopyTicksRange` or equivalent), overlapping inclusive boundaries with safe deduplication, checkpoint/replay after restart and a nonblocking local transfer; don't promise one received callback per market tick. A scripted MQL5 EA used *only* for quotation export is a **data adapter, not a trading bot**, and must have **zero** order-related calls. Installing/authorizing such a helper remains a later explicit decision.
+- **cTrader caution:** historical tick requests cover at most one week per request, may return partial results, and must honor `hasMore` plus actual documented rate limits. Account-specific authorization must not silently grant order rights in Grog's application.
+- **Dukascopy caution:** vendor-supplied historical bid/ask may support offline fixtures, but final S1 assessment needs matched broker feeds/costs and representative forward testing.
+
+**Local transport:** prefer simple append-only, crash-recoverable batches (or another explicitly verified read-only bridge); record checksums, batch IDs, start/end timestamps and committed cursor. **No high-frequency server/database/web dashboard is needed.** File timestamps alone and writing one CSV row per `OnTick` without testing throughput/recovery are not accepted as proven lossless.
+
+## 9. Market-data audit and broker trial — before any live signal
+
+Evaluate a representative broker **demo/read-only** XAUUSD connection during ordinary active hours and spread-sensitive/quiet windows, plus at least one documented known event window *if safe and available*.
+
+| Check | Required audit evidence |
+| --- | --- |
+| Price source | Broker/platform name and XAUUSD symbol alias; product type and terms; no hidden alternative provider |
+| Quote completeness | UTC/ms/arrival timestamps, BID/ASK values, duplicates/gap report, out-of-order handling, broker reconnect proof |
+| Freshness | Distribution of receipt vs provider timestamps; display last-update age and clock skew; no hardcoded "fresh" without measurements |
+| Spread | Historical distribution by UTC time/session: median, upper percentiles, spikes, invalid/crossed quotes, spread-to-stop-risk ratio |
+| Tick continuity | Confirm each exported batch can be caught up/replayed with identical sample counts and no irreversible callbacks loss, given source limitations |
+| Trading contract | Digit precision **versus actual tick size**, contract size, volume min/max/step, tick-value/currency, stop/freeze levels, market hours and commission |
+| Candle consistency | Compare self-aggregated M1/M5/M15/H1 BID candles to source BID conventions; explain differences, don't force undocumented history fills |
+| Market restrictions | Weekend/rollover closures and time-zone/DST mappings; unknown news availability must be explicit |
+| Platform restarts | Suspend new signals during outage; backfill as BACKFILL; reconcile all real/manual positions; never issue retroactive READY |
+| Historical rights | Exact broker history range, coverage/gaps, access terms, reproducible checksum, whether dynamic spread and ASK are really available |
+| Resource stability | Measure CPU/memory/disk throughput on local Ubuntu machine, prevent unbounded buffering, CPU-heavy polling and loss of quote visibility |
+
+**Audit decision:** PASS / CONDITIONAL / FAIL for the specific **data source**, with failure reasons, remediation and evidence. The user must approve a provider and its material limitations before it is elevated from candidate to selected live feed. **Source PASS is not evidence S1 profits.**
+
+## 10. Time and bid/ask edge cases to test
+
+1. Several different quotes share the same provider millisecond; preserve order and don't discard them as duplicates.
+2. One side changes while the other stays fixed; avoid fabricating a zero spread.
+3. Received event order differs from provider time; quarantine/resequence safely or mark unavailable, not redraw earlier signals.
+4. Last M5 candle closes during feed outage; on reconnect, backfill bars without generating a supposed on-time READY.
+5. UTC broker session crosses midnight or US daylight-saving change; use IANA session calendars, not permanent fixed offsets.
+6. BID rises above target but ASK does not: for a long, only BID exit side matters; for a short, only ASK matters.
+7. Historical gap straddles both SL and TP: outcome unknown without valid tick order, not an automatic win.
+8. Broker changes XAUUSD symbol suffix, price digits or contract metadata: pin source metadata version and suspend unsafe calculations.
+9. Long inactive period with *no ticks* versus dead connection: use separate heartbeat/market-session state, not price age alone.
+10. Source historical tick window is partially returned: paginate/retry/check coverage, never treat truncated data as complete.
+
+**Handoff:** [07](07-risk-and-monitoring.md) owns the trade-economics calculation contract; [08](08-validation.md) owns exact data-feed test fixtures. No trade algorithm or broker write operation is authorized by this research.
