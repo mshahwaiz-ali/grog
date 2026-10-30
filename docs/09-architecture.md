@@ -224,7 +224,7 @@ Single installed entry point: `grog` (equivalent `python -m grog`); implemented 
 | `grog replay --source-id ID [--from ISO_UTC --to ISO_UTC] [--state-dir PATH]` | Run deterministic source replay under frozen research profile; print factual candidate/READY/event summary, no real trades | Research result locally |
 | `grog ui --mode replay --source-id ID [--state-dir PATH]` | Textual workstation fed by deterministic replay; visible REPLAY/SIMULATED | Local UI state/journal only |
 | `grog ui --mode reference` | **Later only**: read-only MT5 reference source; until configured give specific error, not mock live quotes | No broker writes |
-| `grog report --run-id ID` | Summarize recorded run, source fidelity, data gaps, assumptions, win/loss caveats | Read-only |
+| `grog report --run-id ID [--format text|json]` | Summarize recorded run, source fidelity, data gaps, assumptions, win/loss caveats; text default, stable JSON optional | Read-only |
 | `grog version` | Print package, schema/config version | No |
 
 **MVP CLI conventions:** nonzero exit on invalid import/config; structured error code and human-readable next step; no interactive broker installation or credential prompts. ISO timestamps require `Z`/offset; reject timezone-naive inputs. `--state-dir` used to isolate tests/demos. The command registry may initially expose only finished milestone commands; `--help` should not lie about unavailable features. No `buy`, `sell`, `trade`, `close-broker-order` CLI commands.
