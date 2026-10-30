@@ -2,7 +2,7 @@
 
 **XAUUSD Gold scalping research and manual trading decision-support software.**
 
-**State:** documentation/research only; no implemented trading software, live data feed, tests, proven accuracy or profitability.  
+**State:** M00 offline project skeleton implemented (`grog --help`, `grog version`, read-only `grog doctor`, validated config; local checks: `uv sync --locked`, `uv run pytest -q`, `uv run ruff check .`, `uv run ruff format --check .`). No quote import, strategy, live data feed, proven accuracy or profitability yet.  
 **Repository:** private; default branch `main`.  
 **Last update:** 2026-10-31.
 

@@ -1,0 +1,38 @@
+# Python / tooling
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+*.egg-info/
+
+# Scratch work
+.scratch/
+
+# Local Grog state, logs and raw quote history (never commit)
+state/
+data/
+market/
+logs/
+*.log
+*.sqlite3
+*.sqlite3-*
+*.db
+*.csv.gz
+
+# Secrets and keys
+.env
+.env.*
+*.key
+*.pem
+*.p12
+secrets/
+credentials*
+
+# User configuration (only the documented example is tracked)
+config/*.toml
+!config/research.example.toml
+config.toml
