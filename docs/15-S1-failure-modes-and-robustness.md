@@ -5,6 +5,10 @@
 **Depends on:** [14 — MTF + S1 specification](14-multi-timeframe-S1-trend-pullback.md), [03 — market data](03-market-data.md), [06 — signal engine](06-signals-and-scoring.md), [08 — validation](08-validation.md).  
 **Product scope:** Better **manual XAUUSD scalping decisions**; no AI agents, wallets, signal-copying, auto-execution, unnecessary indicators or platform features.
 
+## Follow-up refinement
+
+The current proposed deterministic S1 research baseline is [16](16-S1-refined-test-contract.md). This file remains the adversarial/failure-mode test plan. The restricted candidate indicator comparison plan is [17](17-indicator-combination-research.md). If a conflict exists on a provisional rule, use the explicitly versioned doc 16 research specification, and record the conflict for review before implementation.
+
 ## 1. Purpose and falsifiable objective
 
 Find the smallest set of causal conditions that improves S1's **net expectancy after realistically simulated bid/ask costs and manual latency**, while preserving useful trade opportunity frequency.
