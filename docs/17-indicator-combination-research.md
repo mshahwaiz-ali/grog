@@ -67,6 +67,8 @@ Before looking at final holdout performance, compare **one simple diagnostic ben
 | I7 | EMA30/90 | 21 | soft, not a veto | Slower EMA/ATR combination |
 | I8 | EMA30/90 | 21 | veto OPPOSING | Full slow/filter candidate |
 
+**Benchmark exception:** I0 intentionally disables the S1 H1 direction gate from doc 16 so that the incremental effect of H1 can be measured; it does not redefine the proposed production S1. For I5–I8, substitute EMA30/90 for EMA20/50 including its 3-bar fast-EMA slope and ensure sufficient warm-up (provisional >=450 H1 bars for EMA90). Do not let shorter warm-up artificially advantage one candidate.
+
 All other strategy rules, pivot method, entry assumptions and exit rules must remain identical **per paired comparison**, except a parameter that is necessarily transformed by ATR scaling. **Bigger ATR can change both impulse/stop and entry thresholds; record this instead of calling it an isolated indicator test.**
 
 "Soft" means M15 context is reported and available for later ranking, **but does not change a stand-alone S1 entry decision**. Therefore I1 vs I0 measures H1; I1 vs I2 measures the M15 veto. **Do not claim that simply displaying a higher score increased strategy profit.** Scoring thresholds/allocator decisions are a separate later experiment.
