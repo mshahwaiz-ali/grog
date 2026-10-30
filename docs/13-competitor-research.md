@@ -59,3 +59,15 @@ These are **research priorities**, not authorization to change the trading engin
 
 ## Status and change rule
 **No new feature or strategy rule has been approved from this research.** Evaluate and discuss one candidate improvement at a time. Only update approved specs after user agreement and measurable testing criteria.
+
+
+## XAUUSD-specialized signal products (public product descriptions; 2026-10-30)
+- **Gold Treasure Map XAUUSD (MQL5; released 2026-10-16):** vendor describes M5 breakout signals gated by H1 direction, with entry, stop and multiple target prices, and candle-by-candle performance calculations. It states that ambiguous same-candle SL/TP is counted as a loss in its candle-based results. **Lesson:** comparable manual signal software exists; Grog needs precise timing and superior bid/ask tick replay rather than impressive historical labels. No audit of live performance was performed.
+  Source: https://www.mql5.com/en/market/product/201729
+- **Array X Gold Scalp Signal (MQL5; released 2026-10-27):** vendor describes an indicator that **does not place trades**, displaying waiting orders and actual signal-state outcomes, news pauses, and 30-/365-day trade statistics. **Lesson:** compare pending versus entered signal states and reporting conventions; Grog's uniqueness must come from tested quality, not the format. Vendor's EA linkage is **not** justification for adding order execution.
+  Source: https://www.mql5.com/en/market/product/204512
+- **XAUUSD Buy/Sell Alerts with SL & TP (TradingView, open-source):** EMA cross with RSI confirmation and user-defined levels; a useful **simple baseline** to test against sophisticated Grog strategies, provided timing and costs are modeled consistently. Do not copy proprietary code or presume the listed claims have been independently verified.
+  Source: https://www.tradingview.com/script/OMJns4aa-XAUUSD-Buy-Sell-Alerts-with-SL-TP/
+
+### Additional research implication
+Specify at least one simple *benchmark strategy* for experiments. Compare Grog's incremental improvement in **net R expectancy, drawdown, coverage and manual-entry realism**, not just raw signal accuracy. Do not add an extra production strategy unless it earns promotion on unseen data.
