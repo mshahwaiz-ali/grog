@@ -8,6 +8,7 @@ Updated 2026-10-30.
 - No GPT, Claude, chatbot or AI agent **inside the application**; use programmed analysis and strategy modules.
 - **Grok is the implementation assistant**, not part of the Grog trading runtime. Grok must follow approved documentation; when strategy rules are ambiguous, request a decision rather than inventing them.
 - Separate **developing opportunities** from **actionable signals**.
+- Multi-timeframe confirmation belongs in the trade-quality research/design. Do **not** automatically require all timeframes to align: a corrective lower-timeframe move can be part of the setup. Exact timeframes, equations and thresholds are still research proposals documented in [14](14-multi-timeframe-S1-trend-pullback.md).
 - After manual fill confirmation, monitor positions live; journal results.
 - Documentation-first; improve the design during building when supported by testing; don't force trades or overengineer.
 
