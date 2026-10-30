@@ -47,7 +47,7 @@ This explicitly authorizes the **non-trading, local, offline M00–M08 implement
 - **M05** simulated signal eligibility and bid/ask price-side plan (NO uncalibrated score).
 - **M06** deterministic replay and research reports.
 - **M07** Textual UI with five screens and source fidelity; no fake confidence/price or broker orders.
-- **M08** local manual-position record, partial/modify/close forms and restart reconciliation.
+- **M08** local manual-position record (including explicitly OFF_PLAN user-recorded trades), partial/modify/close forms and restart reconciliation.
 - **M09** separate read-only MT5 demo adapter is **not included in the Start instruction**: user permission required to install/connect Wine/MT5/demo service.
 - **M10** independent research validation requires real historical/forward data and cannot be claimed complete based on synthetic tests.
 
