@@ -42,6 +42,8 @@ Grog is **not** an LLM/AI-agent/chatbot and **never** places, modifies or closes
 - [13 — Competitor research and trade-quality lessons](docs/13-competitor-research.md)
 - [14 — Multi-timeframe design and S1 trend-pullback research specification](docs/14-multi-timeframe-S1-trend-pullback.md)
 - [15 — S1 false signals, execution realism and adversarial validation](docs/15-S1-failure-modes-and-robustness.md)
+- [16 — Refined S1 deterministic research contract](docs/16-S1-refined-test-contract.md)
+- [17 — Indicator-combination research and selection](docs/17-indicator-combination-research.md)
 
 ## Boundaries
 
