@@ -1,62 +1,275 @@
-# Proposed local software architecture
-## Principles
-Modular Python on Ubuntu; one local process or small set of supervised components rather than premature microservices. No LLM, cloud AI or trading order placement. Main branch only.
-## Logical modules
-- `feed/`: provider adapters, normalized bid/ask ticks, heartbeat, replay import and quality checks.
-- `market/`: timeframe aggregation, structure levels, indicator math, regime classifier, time/event context.
-- `strategies/`: strategy-specific detect/confirm/invalidate/monitor rules, versioned configs.
-- `signals/`: eligibility gates, candidate FSM, rubric scoring, conflicts, expiry and explanations.
-- `risk/`: contract-aware position risk, stops/targets, exposure restrictions and cost model.
-- `positions/`: manual fill/partial/modify/close, position state, mark-to-market, monitoring suggestions.
-- `research/`: replay, backtester, walk-forward runner, reports and scenario tests.
-- `storage/`: SQLite schema/migrations, event logs and versioned metadata; optional compressed tick files.
-- `ui/`: terminal interactive dashboard/commands (evaluate Textual/Rich); read-only UI plus confirmed local operator input.
-- `tests/`: unit, property, integration, replay, resilience and deterministic fixtures.
-**Do not create this tree yet**; it is a logical proposal and may be refined.
-## Event processing
-Normalized quote → validated bars → market context → strategy candidates → gates/scoring → view/events; operator trade action → position state → monitor on each new quote. Durable append-only audit/event log with transactional state snapshots.
-## Interfaces
-Typed Tick, Candle, ContextSnapshot, StrategyCandidate, Signal, ManualFill, Position, AdviceEvent. Time in UTC; display local timezone separately; every computed value includes data timestamp and rule version.
-## Reliability
-Explicit stale-feed state, restart recovery, DB transactions, duplicate event handling, bounded memory/history, deterministic simulation clock, graceful shutdown. No network-facing listening required for initial version.
-## Config/security
-Typed config, profiles, separate secrets outside Git; broker credentials not required for read-only local file export. No uploaded account statements or historical licensed datasets in repo. Private repo does not replace credential hygiene.
-## Open architecture choices
-Data-feed source, broker metadata adapter, tick store format, UI framework, CLI commands, economic-event provider, concurrency design, retention and resource budgets. Benchmark before selecting.
+# Grog Software Architecture — Canonical Implementation Contract
 
-## Canonical documentation contracts (planning only)
+**Updated:** 2026-10-31  
+**Status:** This is the **approved implementation architecture baseline when the user tells Grok to start**. The strategy's experimental numeric parameters and live execution assumptions retain their research/OPEN statuses in the owning documents. No implementation has been run.
 
-Grok must **read the active topic owner before coding**:
-- User-facing terminal interactions: [02](02-workflows-and-ux.md).
-- Quotes/bar timing, feed health, market/event metadata: [03](03-market-data.md).
-- Indicator mathematics, pivot confirmation, H1/M15/MTF features: [04](04-analysis-engine.md).
-- S1 structural pairing/pullback/trigger and future S2/S3 hypotheses: [05](05-strategies.md).
-- Signal readiness, immutable issuance, reversible block overlay, scoring: [06](06-signals-and-scoring.md).
-- Execution-side SL/TP, actual manual fills, P/L, position monitoring: [07](07-risk-and-monitoring.md).
-- Indicator variants, failure taxonomy, full testing/acceptance: [08](08-validation.md).
-- Approval status, blocker decisions and change control: [11](11-decisions.md).
+**Goal:** local, deterministic, low-maintenance Python Gold (XAUUSD) research/terminal software. Only improve measurable manual trade selection and monitoring. No LLM/agent runtime, wallet, account dashboard, copy trading, remote SaaS, automatic broker execution, or GitHub Actions.
 
-The historical [S1 draft archive](archive/2026-10-30/README.md) is **non-authoritative**. Do not import unresolved assumptions from drafts or build extra product features because competitors offer them.
+This file owns module layout, interfaces, schemas, data persistence, command surfaces, runtime modes, failure semantics and dependency selection. **No duplicate indicator formulas, trading strategy thresholds or precise UI layout** here: [03](03-market-data.md), [04](04-analysis-engine.md), [05](05-strategies.md), [06](06-signals-and-scoring.md), [07](07-risk-and-monitoring.md), [02](02-workflows-and-ux.md) respectively are authoritative. Tests are [08](08-validation.md); implementation order [10](10-roadmap.md); approvals [11](11-decisions.md).
 
-## Architecture constraint
+## 1. Architectural decisions
 
-**Proposed**, not implemented: a deterministic timestamped event pipeline and separate manual-position ledger. Store first-issued signal values immutably, alongside mutable eligibility and user-acknowledged fills. Event-time and actual receive-time are distinct. Terminal redraw frequency must not determine signal expiry or trade-monitoring integrity. No broker write/execution interface, AI inference, agent orchestration or unnecessary external service.
+- **Python:** target Python **3.11** for initial reproducibility on Ubuntu; verify selected libraries support it; no system-wide Python replacement.
+- **Package tool:** `uv` project + `pyproject.toml`, `uv.lock` committed. Use `uv sync --locked` after lock exists; dependency versions come from an actually resolved lockfile, not invented package pins.
+- **TUI:** `textual` (Rich renderables as supported by Textual), style in a single `.tcss`. **The analysis engine must never import Textual, Rich or TUI-specific state.**
+- **Local operations DB:** Python `sqlite3`, migrations in versioned SQL files, WAL mode, foreign keys and proper transactions; no PostgreSQL, web server or cloud.
+- **Raw market data:** immutable, checksummed **local files** divided by source/time batch; metadata and journal in SQLite. Small synthetic fixtures in tests; do not commit large/private third-party datasets.
+- **Calculation numerics:** `decimal.Decimal` for quote/contract prices and money, UTC integer epoch milliseconds for event-time; named explicit rounding policies per broker tick size. Indicator EMA/ATR recurrence can use tested high-precision Decimal and round only at final executable prices. Avoid float-vs-decimal nondeterminism between replay runs.
+- **Pure domain engine:** processing one normalized market event + previous state yields deterministic next state/events. No network, filesystem, sleep or real clock hidden inside indicators/strategy rules. Inject a Clock and DataHealthPolicy.
+- **Threading model:** one process, a controlled ingestion/replay producer and one ordered **market-event consumer**. UI subscribes to state snapshots; high-frequency updates are coalesced for **view only**, never dropped from engine inputs. No premature microservices, brokers, sockets, brokers' order APIs, automated remote monitors.
+- **Main branch only**, direct normal Git commits; GitHub Actions disabled/not required. All code/test execution local to Grog, never on `erp.omchouse.com` or other production systems.
 
-## Provider-agnostic market-feed boundary — research addition 2026-10-31
+Official framework/package guidance: https://github.com/Textualize/textual ; https://docs.astral.sh/uv/guides/projects/ ; https://packaging.python.org/en/latest/guides/writing-pyproject-toml/ ; https://docs.pytest.org/ ; https://docs.astral.sh/ruff/
 
-**Proposed logical interfaces, not yet implemented**. Do not turn the price adapter into a new application or auto-trading bot.
+## 2. Initial source tree — create in increments, not in one giant commit
 
-- `QuoteSource` (single read-only adapter interface): declare `source_id`, broker/dataset, symbol aliases, metadata coverage, `subscribe_quotes()` and optional `fetch_history(from,to,cursor)`. `subscribe_quotes` is a market-data subscription, **not** an order or execution call.
-- `QuoteNormalizer`: validate original BID/ASK, timestamps, source flags and precision; preserve original values and produce a typed normalized quote. Same-ms distinct updates must survive; duplicate replays must be idempotent by genuine event identity/cursor, **not by timestamp alone**.
-- `DurableQuoteSink`: append immutable raw quote batches, checkpoint an acknowledged source cursor and restart from overlap; historical backfill is a distinct data-origin event and cannot become a retroactive live READY signal.
-- `FeedHealth`: clock offset/last quote age, known market closure vs disconnection, gap/latency statistics, mixed broker metadata errors and explicit DEGRADED/OFFLINE state.
-- `BarAggregator`: form BID OHLC and parallel ASK extrema using finalized UTC windows; bars/pivots have `available_at`. Its inputs come exclusively from the normalized source, with no synthetic 'universal XAUUSD' mix.
-- `SymbolContract`: read-only, versioned broker tick/lot/value/currency/trading-hours/stop-level metadata; expose only verified known values to risk calculations. No wallet, connected account ledger or trade-writing interface.
+```text
+grog/
+├── AGENTS.md                      # bot entry contract, no trading logic
+├── README.md
+├── pyproject.toml                 # project entry point: grog
+├── uv.lock                        # generated by uv, commit resolved locks
+├── .python-version                # 3.11
+├── .gitignore                     # exclude .venv, state, data, secrets and exports
+├── docs/                          # existing canonical Markdown specs; archive non-authoritative
+├── config/
+│   └── research.example.toml      # versioned synthetic/replay defaults; NO live credentials
+├── src/grog/
+│   ├── __init__.py
+│   ├── __main__.py                # python -m grog
+│   ├── cli.py                     # argparse, no heavy CLI framework needed
+│   ├── settings.py                # typed validated config + env paths
+│   ├── domain/
+│   │   ├── models.py              # Quote, Bar, Pivot, Context, Candidate, Signal, Position
+│   │   ├── enums.py               # enums/statuses/reason codes
+│   │   ├── clock.py               # injected live vs replay clock
+│   │   └── ids.py                 # stable deterministic identity/canonical serialization
+│   ├── market_data/
+│   │   ├── source.py              # read-only QuoteSource protocol and provenance
+│   │   ├── normalize.py           # quote validation, ordering, field preservation
+│   │   ├── import_csv.py          # strict normalized BID/ASK CSV importer, no broker needed
+│   │   ├── batches.py             # source checksum, durable batch commit and cursor
+│   │   ├── bars.py                # causal BID candles, parallel ASK extrema and gaps
+│   │   └── health.py              # stale/gap/market-closed differentiation
+│   ├── analysis/
+│   │   ├── ema_atr.py             # math strictly from docs/04
+│   │   ├── pivots.py              # 2+2 confirmed pivot & time availability
+│   │   └── contexts.py            # H1 bias, M15 structural classification
+│   ├── strategies/
+│   │   └── s1_pullback.py         # research-only S1 module, exact docs/05
+│   ├── signals/
+│   │   ├── engine.py              # candidates, READY, expiry/invalidation, deduplication
+│   │   └── reasons.py             # versioned reason codes; no guessed confidence score
+│   ├── risk/
+│   │   └── quotes_and_plans.py    # bid/ask, structural SL, TP, R, cost UNKNOWN policy
+│   ├── journal/
+│   │   ├── store.py               # SQLite storage, transactional append-only events
+│   │   ├── migrations/0001.sql    # first schema; later additive migrations separately
+│   │   └── positions.py           # manually entered fills, partials, reconciliation
+│   ├── replay/
+│   │   ├── runner.py              # virtual time, deterministic event order
+│   │   └── report.py              # honest source/fill/result metrics
+│   ├── adapters/
+│   │   └── mt5_reference/         # build LATER after offline foundation and authorization
+│   │       ├── README.md          # runtime/setup guide, no live secrets
+│   │       └── bridge.py          # read-only quote bridge receiver, no trading calls
+│   └── ui/
+│       ├── app.py                 # Textual App shell
+│       ├── grog.tcss              # tokens, responsive layout
+│       ├── screens.py             # five views from docs/02
+│       ├── widgets.py             # quote strip, MTF panel, signals, manual positions
+│       └── forms.py               # local journal entry/partial/close/modify modals
+└── tests/
+    ├── fixtures/                 # small synthetic, legally distributable quote CSV
+    ├── unit/                     # parsing, Decimal, EMA, ATR, pivots, S1 rules, risk
+    ├── integration/              # replay, SQLite, resume, duplicate prevention
+    └── ui/                       # Textual Pilot, rendering and input validation
+```
 
-**Preferred first reference adapter A (MT5, regardless of later execution broker):** Linux Wine terminal plus a *minimal MQL5 quote exporter* with `CopyTicksRange` catch-up; no MQL5 `OrderSend`/`CTrade`/broker write calls. MT5 `OnTick` event callbacks may be coalesced; never claim exporter is lossless before controlled continuity tests. Native Python MetaTrader5 package access on Ubuntu must not be assumed; evaluate bridge practicality separately.
+**No need to pre-create all empty files.** The file tree describes clear logical ownership. Grok creates only the files relevant to the current milestone. Do not add `agents/`, `trade_executor/`, `wallet/`, `exchange/`, `frontend/`, `server/`, `api/` or `cloud/` directories.
 
-**Optional future adapter B (cTrader only if there is a measured need):** Python Open API client, limited to documented market-data and tick-history calls; authorization/secret handling separated from repository. Historical requests bounded by one week and partial-response `hasMore` must be handled.
+## 3. Canonical domain contracts — data types, fields, invariants
 
-**Candidate importer C (offline research):** Dukascopy historical BID/ASK where licensing and exact coverage allow. Tag source PROXY and HISTORICAL; this is **not** a ready-to-trade broker feed.
+Use frozen typed Python `dataclass(slots=True, frozen=True)` for immutable market/domain events, and explicit constructors. Prefer small immutable records; don't pass arbitrary untyped dictionaries between core modules.
 
-Keep the first working version one-process, one-symbol, low-overhead and crash-recoverable on local Ubuntu. No web server, cloud broker bridge, microservice architecture, wallet, AI model or high-frequency signal engine. The **MT5 adapter direction is selected**, but the concrete demo broker server/quote source and its real data quality are **OPEN** in [11](11-decisions.md). Source acceptance evidence is specified in [08](08-validation.md), and canonical source timestamp semantics in [03](03-market-data.md). One adapter is enough initially; do not implement cTrader in parallel.
+### 3.1 NormalizedQuote (market data owner: docs/03)
+
+| Field | Type | Invariant |
+| --- | --- | --- |
+| `source_id` | nonempty str | Identifies a single platform/dataset; never synthetic mixture |
+| `canonical_symbol` | literal `XAUUSD` | Internal name, independent of broker symbol suffix |
+| `raw_symbol` | str | Exactly as supplied by feed |
+| `provider_time_ms` | int | UTC provider ms (if unavailable, reject for initial replay input rather than infer silently) |
+| `received_time_ms` | int | UTC time Grog first ingested event; for offline fixture may be set by explicit recorded fixture policy |
+| `ingest_order` | int | Unique increasing order **within source import/runtime stream**; same-ms distinct events survive |
+| `bid`, `ask` | Decimal | Both >0, `ask>=bid` |
+| `source_origin` | Enum | `SYNTHETIC`, `HISTORICAL`, `BACKFILL`, `REFERENCE_LIVE` |
+| `source_event_key` | str | Stable event identity from batch checksum+row ordinal or provider cursor + index |
+| `flags` | immutable set[str] | E.g. carried ASK/BID side, quality facts |
+
+**Never use source timestamp alone as unique ID.** Quote object includes full source metadata. Original raw input is retained in source file; normalized CSV/JSON serialization uses canonical UTC numbers and exact decimal string, not floats.
+
+### 3.2 FinalizedBar (market data owner: docs/03)
+
+`bar_id=(source_id,timeframe,start_utc_ms)`, `timeframe in {M1,M5,M15,H1}`, `start_ms,end_ms` half-open UTC, `open_bid,high_bid,low_bid,close_bid` Decimal, `open_ask,high_ask,low_ask,close_ask` Decimal if complete, `tick_count` int, `closed_at_received_ms`, `available_at_ms`, `quality` enum (`COMPLETE`, `GAPPED`, `INVALID`).
+
+- A completed bar is usable only if its end was reached and a valid quote finalized it at a genuinely known time. Empty bars are **missing** rather than fabricated OHLC by repeating previous close.
+- Bid bars drive [04] indicator/pivot computations; ask extrema support executable short stops.
+- Missing side or interval gap => `GAPPED/INVALID`; cannot silently join into reliable strategy signal.
+- Engine uses `available_at_ms <= decision_received_time_ms`, never backdates the signal to a historical candle's mathematical end.
+
+### 3.3 AnalysisContext (analysis owner: docs/04)
+
+`source_id, decision_time_ms, last_confirmed_h1_id, last_confirmed_m15_id, last_confirmed_m5_id, h1_bias {UP,DOWN,NEUTRAL,UNKNOWN}, m15_context {SUPPORTIVE,CORRECTIVE,OPPOSING,UNKNOWN}, ema_values, atr_values, confirmed_pivots, relevant_level_ids, quality_flags, calculation_version`.
+
+Indicators emit `UNKNOWN` if warm-up insufficient/zero ATR/invalid bars. Never replace missing values with a flattering zero or threshold PASS.
+
+### 3.4 StrategyCandidate (owner: docs/05)
+
+`candidate_id` deterministic from source, strategy version, side and frozen pivot pair IDs; `strategy_id=S1`, `side=BUY|SELL`, `state`, `pair_id`, `impulse_L/H` and confirmation timestamps, `P`, `depth`, `last_closed_m5_id`, `first_detected_ms`, `last_changed_ms`, `observed_reason_codes`, `parameter_set_hash`, `source_origin`.
+
+Only one FORMING pair per side in provisional S1; newer pair causes explicit `SUPERSEDED`; never mutate original frozen pair. Detect event time and confirmed availability separated.
+
+### 3.5 SignalRecord (owner: docs/06)
+
+`signal_id` derived deterministically from candidate and **first valid trigger bar**, `candidate_id`, `strategy_version`, `side`, `original_source_id`, `first_ready_ms`, `original_bid,original_ask`, `E0,SL0,TP1,TP2`, `frozen_atr`, `entry_low,entry_high`, `expiry_ms`, `execution_fidelity`, `original_risk_price`, `estimated_cost_model_id_or_none`, `evidence_snapshot_json`, `state`.
+
+**Immutability rule:** all `original_*` and frozen plan fields are never overwritten; current quote/eligibility overlay is a **separate read model or event**, not mutation of old signal history. A unique candidate/pair may issue **at most one READY** in S1 baseline.
+
+### 3.6 ManualPosition (owner: docs/07)
+
+`position_id`, `signal_id_or_none` (off-plan allowed with explicit label), `mode`, `side`, `entry_fill_time_ms`, `entry_recorded_ms`, `actual_fill_price`, `original_lots`, `remaining_lots`, `initial_risk_currency_or_unknown`, `current_sl/tp_reported_or_none`, `broker_or_none`, `fees_paid_or_unknown`, `state=MONITORING|RECONCILIATION_REQUIRED|CLOSED`.
+
+Every partial/modify/close is an append-only `PositionEvent` with stable action ID, event/record time, price, quantity, fees and reason; remaining quantity cannot be negative. **This is local journal data, not an account/wallet or broker order.** Position creation/update MUST require an explicit local user confirmation, never price-touch auto-execution.
+
+## 4. Engine input → output contracts
+
+| Module | Input | Output | Forbidden coupling |
+| --- | --- | --- | --- |
+| CSV importer | local file path, explicit source ID, format version | normalized quote stream or structured rejects + report | broker, UI, signal decisions |
+| Quote normalization | raw provider event + source metadata | NormalizedQuote or explicit rejection | guessing spread/point/clock |
+| Bar aggregation | source-scoped ordered normalized ticks | finalized M1/M5/M15/H1 bars with known availability | arbitrary fill assumptions |
+| EMA/ATR/pivots | finalized bars only | timestamped features, confirmed pivot events | current incomplete candles, future bars |
+| H1/M15 context | latest available features, current decision time | AnalysisContext or UNKNOWN | external reference other than input source |
+| S1 candidate engine | context, finalized M5 & price events | Candidate state transitions/trigger observations | UI and lookahead |
+| Signal eligibility | trigger + first valid post-close quote + risk policy | original SignalRecord or explicit gate rejection | unapproved 100-point score or order placement |
+| Risk plan | frozen source quote + S1 levels + contract metadata if known | price-side SL/TP, gross R, optional cost-aware net estimate | pretending missing fees are zero |
+| Replay | immutable quotes + virtual clock + frozen config | same ordered events and deterministic reports each run | real wall-clock scheduling |
+| Journal | operator-confirmed action, position state | append-only event and updated position read model transactionally | brokerage order handling |
+| Textual UI | immutable engine state/observable events | visible formatted screen, journal-action intents to validated service | direct SQL manipulation/engine rule changes |
+| MT5 reference adapter (later) | read-only demo terminal quotes/history | normalized quote batches/cursor, source health | `OrderSend`, trade modification, live orders, LLM |
+
+**Single direction of dependencies:** adapters → market_data → analysis → strategies → signals/risk → journal/replay → UI (UI calls explicit safe local journal command port only). Domain and analysis never import adapters/UI. No circular imports.
+
+## 5. Runtime profiles — implement offline first
+
+`REPLAY`: uses a virtual deterministic UTC clock (next quote timestamp) and historical/synthetic source; no broker connection. All READY/events are labeled **SIMULATED**. Never connect to real broker or notify as if a live trading recommendation.
+
+`REFERENCE_LIVE` (future): reads MT5 demo/source quotes via read-only exporter; source metadata tagged REFERENCE. Positions may be **manually recorded**, but without chosen actual execution broker fees/contracts the UI displays **INDICATIVE** and no invented monetary P/L or position sizing. Require measured heartbeat/quality thresholds before showing fresh live signal.
+
+`EXECUTION_VERIFIED` (future readiness state, not initial build): only when instrument metadata, execution conventions and user-reported fill observations for actual venue are validated. It remains **manual execution**, not a trading API. No automatic mode switch merely because an MT5 demo is connected.
+
+The eventual broker is **NOT required** for `REPLAY` or for researching price structure, indicators or hypothetical S1. Source and execution venue may differ; never silently relabel reference results as broker-verified.
+
+## 6. Simple offline import format v1 — publish fixture and parser
+
+Canonical CSV header (UTF-8, comma, LF, no timezone ambiguity):
+
+```csv
+provider_time_utc_ms,received_time_utc_ms,bid,ask
+1793440000000,1793440000000,4000.00,4000.20
+1793440000300,1793440000310,4000.01,4000.21
+```
+
+The above numbers are **illustrative synthetic data**. The importer requires `--source-id` and `--origin SYNTHETIC|HISTORICAL` flags; it assigns stable `source_event_key=sha256(file_bytes)+"#"+row_ordinal` and increasing `ingest_order`. It may allow an optional extra source sequence field **only when explicitly documented**; no hidden dialect guessing, coercing NaN, guessing seconds vs milliseconds, or treating invalid rows as zero. Source metadata supplies symbol alias; default canonical instrument is XAUUSD for this project.
+
+For a file with invalid header, invalid UTC ms, crossed quote, negative price, inconsistent source or missing column: importer fails with structured line number/reason and **does not partially commit the batch** by default. An explicit `--quarantine-invalid` future option requires its own tests; don't silently skip a subset and call the import complete.
+
+Native vendor formats, bid/ask side-update flags, out-of-order streams and compression are separate adapter-specific transformations which must preserve the normalized contract, not add hidden exceptions to the canonical CSV parser.
+
+## 7. Local persistence, directories and write safety
+
+**Project workspace:** user may clone to `~/data_drive/grog` but never hardcode home folder paths. Use XDG:
+- `\${XDG_CONFIG_HOME:-~/.config}/grog/config.toml` for user settings; secrets/credentials never in repo.
+- `\${XDG_DATA_HOME:-~/.local/share}/grog/state.sqlite3` for journal, signal metadata and import catalog.
+- `\${XDG_DATA_HOME:-~/.local/share}/grog/market/<source_id>/YYYY/MM/DD/<batch_sha256>.csv.gz` for validated immutable quote batches; use temporary file + atomic rename only after full validation; import summary in SQLite.
+- `\${XDG_STATE_HOME:-~/.local/state}/grog/logs/` for rotating structured logs. No broker passwords/API tokens in logs.
+- Tests use pytest `tmp_path` and injected directories, **never** real home state; demo/fixture app may use an isolated `--state-dir` explicitly.
+
+### SQLite tables (initial schema v1, later reversible/additive migrations)
+
+| Table | Minimal fields | Invariant |
+| --- | --- | --- |
+| `schema_migrations` | version PK, applied_at_utc_ms | only applied forward |
+| `quote_sources` | source_id PK, kind, symbol, metadata_json, created_at_ms | source identity immutable for historical dataset |
+| `import_batches` | batch_id PK, source_id FK, SHA256 UNIQUE within source, origin, path, min/max_ms, count, status, imported_at_ms | batch commit atomic/idempotent |
+| `signal_records` | signal_id PK, pair_key UNIQUE, version, side, first_ready_ms, immutable_plan_json, current_state, expires_ms | never rewrite immutable_plan_json |
+| `signal_events` | event_id PK, signal_id FK nullable, event_type, effective_at_ms, recorded_at_ms, reason_codes_json, payload_json, dedupe_key UNIQUE | append only |
+| `manual_positions` | position_id PK, linked_signal_id nullable, side, initial_qty_text, remaining_qty_text, entry_price_text, entry_ms, state, snapshot_json | persisted on every confirmed local action |
+| `position_events` | event_id PK, position_id FK, action_type, effective_at_ms, recorded_at_ms, qty_text, price_text, fees_text nullable, payload_json, dedupe_key UNIQUE | append only; no negative remaining size |
+| `research_runs` | run_id PK, code/config/data hashes, start/end_ms, result_json/path, source_fidelity | metrics reproducible and not intermixed with real trades |
+
+**SQLite policy:** enable foreign keys and WAL where supported; one serialized writer, explicit transaction for event + projection update + cursor/checkpoint, DB busy timeout and checkpoint/backup behavior; no uncontrolled concurrent writes from UI. Store Decimal as exact TEXT, UTC ms as INTEGER, versioned stable JSON with canonical key ordering. Do not use floats for money. Migrations are idempotent and must preserve existing journal rows; back up local DB **before** a migration that could affect persistent user records, and never run destructive changes on production servers.
+
+**Raw files:** keep original hashes, batch source and completeness; only small synthetic fixtures tracked in Git. Do not write broker credentials or full paid market datasets to repository. Partial interrupted writes must be recoverable without corrupting catalog or counting duplicates.
+
+## 8. Command line contract (public command names)
+
+Single installed entry point: `grog` (equivalent `python -m grog`); implemented incrementally, with `--help` on each command.
+
+| Command | MVP behavior | Writes? |
+| --- | --- | --- |
+| `grog doctor` | Read-only environment, package/version, state-dir existence, data-health/config report; no implicit install/network | No |
+| `grog import-ticks --file PATH --source-id ID --origin SYNTHETIC|HISTORICAL [--state-dir PATH]` | Validate canonical v1 CSV fully, hash, persist one immutable source batch, output counts/gaps/rejections | Local Grog state only |
+| `grog replay --source-id ID [--from ISO_UTC --to ISO_UTC] [--state-dir PATH]` | Run deterministic source replay under frozen research profile; print factual candidate/READY/event summary, no real trades | Research result locally |
+| `grog ui --mode replay --source-id ID [--state-dir PATH]` | Textual workstation fed by deterministic replay; visible REPLAY/SIMULATED | Local UI state/journal only |
+| `grog ui --mode reference` | **Later only**: read-only MT5 reference source; until configured give specific error, not mock live quotes | No broker writes |
+| `grog report --run-id ID` | Summarize recorded run, source fidelity, data gaps, assumptions, win/loss caveats | Read-only |
+| `grog version` | Print package, schema/config version | No |
+
+**MVP CLI conventions:** nonzero exit on invalid import/config; structured error code and human-readable next step; no interactive broker installation or credential prompts. ISO timestamps require `Z`/offset; reject timezone-naive inputs. `--state-dir` used to isolate tests/demos. The command registry may initially expose only finished milestone commands; `--help` should not lie about unavailable features. No `buy`, `sell`, `trade`, `close-broker-order` CLI commands.
+
+## 9. Configuration contract — safe offline defaults
+
+`config/research.example.toml` documents:
+- `profile = "S1_RESEARCH_V0_2"` using candidate parameter values **owned by docs/04/05/06/07**. Research-specific choices can be frozen for code/tests without being claimed profitable for live use.
+- `mode = "REPLAY"`, `source = "SYNTHETIC"`, `symbol = "XAUUSD"`, `timezone_display = "Asia/Karachi"` (explicit optional UI default), `ui.max_refresh_hz = 4`.
+- `market_data.require_bid_ask = true`, strict no-lookahead, `allow_trade_execution = false` (defense in depth, no trade module exists).
+- `risk.contract_metadata = "UNKNOWN"`, `live_numeric_score_enabled = false`, `live_execution_fidelity = "REFERENCE"` only once a real source exists.
+- `live.max_quote_age_ms`, `live.max_first_postclose_delay_ms`, `live.max_spread_cost_r`, `events.blackout_window`, `risk.max_account_risk`: **unset/null by default**. A null **live safety value is not permission for unlimited exposure**; it blocks the corresponding live readiness mode until configured and validated.
+
+Config is validated at startup with explicit field-path error, supports a versioned schema and reproducible hash. CLI overrides are logged in run metadata, not silently written into tracked configs. Never use `eval`/dynamic expressions in configuration.
+
+## 10. Error handling and recovery
+
+| Failure | Engine response | Operator response |
+| --- | --- | --- |
+| Malformed tick/negative quote | Reject/quarantine, never invent price | Source code + row/time/field |
+| Duplicate identical imported batch | Idempotent no-op | "Already imported" with checksum |
+| Multiple different ticks same ms | Keep stable original stream order | No duplicate suppression by timestamp |
+| Out-of-order/gapped source | Mark data quality and affected bar UNKNOWN | Feed health degraded; no new actionable signal |
+| Data import interrupted | Atomic file+catalog logic and restart recovery | Clear retry without corruption |
+| Bad broker tick metadata | Monetary sizing unavailable | Explicit missing field, not default to 1 lot |
+| No historical warm-up | Context UNKNOWN; no S1 READY | "Need N valid closed bars" |
+| Reconnect and backfill | Rebuild reliable context, not retrospective live READY | "Backfill processed; live proposals suspended until fresh" |
+| Storage DB locked/fails | Fail closed for journaling, retry bounded or graceful exit | "Position record NOT saved", don't claim it was |
+| UI crash/restart | Journal + signal state restored from durable events | Open manual positions require reconciliation |
+| No broker chosen | REPLAY works; REFERENCE requires MT5 demo source | No demand for actual trading broker |
+| Unknown event calendar | Show unknown; don't claim no news | Policy-specific safety warning |
+| Conflicting candidates | Display uncertainty, suppress duplicate risk | Never auto-pick on unsupported score |
+| Same bar hits stop/TP in OHLC | Indeterminate without tick order | No optimistic win |
+
+**Crash recovery:** processed input watermark and all signal/journal state changes committed consistently; replay input after watermark with idempotent event IDs; restore persisted positions as RECONCILIATION_REQUIRED until operator verifies. No future-lookahead due to delayed data repair.
+
+## 11. Tests, performance and code-review rules
+
+- Use `pytest`, `ruff` (`ruff check` and `ruff format --check`), optional type checker once stable. No internet/paid quote service in unit tests. No GitHub Actions CI required; run checks locally after each bounded module.
+- Test in `tmp_path` with injected clock, quote source and DB path. No access to user's actual `~/.local/share/grog` from tests.
+- Fixed-source deterministic replay must have exactly reproducible sequence, timestamps, pivot confirmations, signal ID/reasons, accounting and reports.
+- No global mutable singleton for markets/clock/feed. Resource caps and graceful Ctrl-C for replay/TUI; bounded UI event buffer; do not drop market engine events.
+- Load/fail gracefully on empty files, malformed rows, 1 quote, no ATR warmup, DST/session boundary, tens of thousands of ordered ticks, untrusted/extreme price decimal strings, simultaneous same-ms events, and restart after interrupted transaction.
+- A test that passes on future H1 candles, guessed mid-price TP fills, arbitrary probability scores, automatic trading APIs or over-credited P/L is **a bug in the test**, not acceptance.
+
+Detailed acceptance case IDs: [08 — Validation](08-validation.md); milestone-specific mapping [10 — Roadmap](10-roadmap.md).
+
+**No production or other ERP project server, service or file is in scope. No automated broker trading. No code has been written merely by committing this specification.**
