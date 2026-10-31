@@ -86,5 +86,5 @@ R0 acceptance means the offline research workstation behaves as specified on syn
 - No live feed: M09 (read-only MT5 reference) BLOCKED on explicit external permission ([10 §9](10-roadmap.md)). No historical real-market data evaluated; M10 prerequisites in [10 §10](10-roadmap.md).
 - OPEN thresholds (quote age, first-quote delay, spread, costs, contract) are unset by default ⇒ no READY with the default config; only the labeled fixture-only demo config declares freshness thresholds for synthetic data.
 - Net R and currency P/L UNKNOWN (no contract/fees); exposure policy OPEN (warnings only); `TP1 APPROACHING` not emitted; SQ-17 grace recovery not implemented; replay models zero-delay entry only; no journal correction event (corrections are new records).
-- Overlap: the 70×18 layout is usable via scrolling but dense; modal action buttons at 70×18 are reached by scrolling/Tab.
+- Small terminals: the 70×18 layout is usable via scrolling but dense; modal action buttons at 70×18 are reached by scrolling/Tab.
 - Textual's button press debounce (~0.2 s) ignores an immediate second press of the same button — harmless (prevents double submit), noted for operators.
