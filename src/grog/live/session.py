@@ -54,6 +54,8 @@ class ReferenceStatus:
     actionable: tuple[str, ...]  # READY signal IDs issued live and actionable now
     historical: tuple[str, ...]  # READY issued from BACKFILL/history: never actionable
     counters: dict[str, int]
+    simulated: tuple[str, ...] = ()  # FIXTURE producer: would-be READY, never actionable
+    blockers: tuple[str, ...] = ()  # why nothing can be actionable right now (empty = none)
 
     @property
     def broker_verified(self) -> bool:
@@ -147,16 +149,18 @@ class ReferenceSession:
             feed = assess_feed(
                 last, agg.gaps, agg.history, max(now, last.received_time_ms), self.policy.health
             )
-        actionable: tuple[str, ...] = ()
-        if link is LinkStatus.LIVE and feed is not None and feed.status is FeedStatus.FRESH:
-            eng = self.pipeline.signals
-            actionable = tuple(
-                sid
-                for sid in sorted(self.live_ready - self.historical_ready)
-                if eng.status[sid].state is SignalState.READY
-                and not eng.status[sid].blocked
-                and eng.signals[sid].expiry_ms > now
-            )
+        blockers = self._blockers(link, feed)
+        eng = self.pipeline.signals
+        candidates = tuple(
+            sid
+            for sid in sorted(self.live_ready - self.historical_ready)
+            if eng.status[sid].state is SignalState.READY
+            and not eng.status[sid].blocked
+            and eng.signals[sid].expiry_ms > now
+        )
+        actionable = candidates if not blockers else ()
+        # A FIXTURE producer's would-be READY is shown only in the simulated lane (docs/09 §5.1).
+        simulated = candidates if blockers == ("FIXTURE_SIMULATED",) else ()
         label = (
             "NOT CONFIGURED"
             if st.producer is None
@@ -173,7 +177,20 @@ class ReferenceSession:
             actionable,
             tuple(sorted(self.historical_ready)),
             dict(st.counters),
+            simulated,
+            blockers,
         )
+
+    def _blockers(self, link: LinkStatus, feed: FeedHealth | None) -> tuple[str, ...]:
+        """Every reason that no READY may be actionable now (fail-closed; docs/09 §5.1)."""
+        out: list[str] = []
+        if link is not LinkStatus.LIVE:
+            out.append(f"LINK_{link.value}")
+        if feed is None or feed.status is not FeedStatus.FRESH:
+            out.append(f"FEED_{feed.status.value if feed is not None else 'NO_DATA'}")
+        if self.reader.state.fixture:
+            out.append("FIXTURE_SIMULATED")
+        return tuple(out)
 
     def _link(self, now: int, hb_age: int | None) -> tuple[LinkStatus, tuple[str, ...]]:
         st = self.reader.state

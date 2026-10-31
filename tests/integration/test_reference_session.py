@@ -93,7 +93,8 @@ def _catch_up(exp: Path, n: int) -> Writer:
     return w
 
 
-def test_live_ready_matches_replay_and_backfill_ready_is_never_actionable(tmp_path: Path) -> None:
+def test_live_ready_matches_replay_and_fixture_ready_is_only_simulated(tmp_path: Path) -> None:
+    """FIXTURE files: the live READY is the REPLAY plan, but only in the simulated lane."""
     exp = tmp_path / "exp"
     qs = synthetic_quotes()
     w = _catch_up(exp, CATCH_UP)
@@ -101,11 +102,14 @@ def test_live_ready_matches_replay_and_backfill_ready_is_never_actionable(tmp_pa
     s = session(exp, clock)
     assert s.poll().link is LinkStatus.LIVE
     seen_actionable: set[str] = set()
+    seen_simulated: set[str] = set()
     for q in qs[CATCH_UP:LIVE_END]:  # live ticks, polled by the timer as they arrive
         clock.now = q.received_time_ms
         w.hb(q.provider_time_ms)
         w.tick(q.provider_time_ms, str(q.bid), str(q.ask))
-        seen_actionable.update(s.poll().actionable)
+        st = s.poll()
+        seen_actionable.update(st.actionable)
+        seen_simulated.update(st.simulated)
     # Exact prices and timestamps reach the engine unchanged.
     last = s.pipeline.aggregator.last_quote
     ref = qs[LIVE_END - 1]
@@ -123,7 +127,8 @@ def test_live_ready_matches_replay_and_backfill_ready_is_never_actionable(tmp_pa
             b.tp2,
             b.expiry_ms,
         )
-    assert seen_actionable and seen_actionable <= live_ids
+    assert seen_actionable == set()  # FIXTURE data is never actionable (docs/11 §15)
+    assert seen_simulated and seen_simulated <= live_ids
     assert s.reader.state.counters.get("TRANSPORT_SEQ_GAP", 0) == 0
     assert s.reader.state.counters["ACCEPTED_LIVE"] == LIVE_END - CATCH_UP
 

@@ -401,6 +401,9 @@ def _cmd_reference_status(
         f"READY actionable now: {', '.join(st.actionable) or 'none'}   "
         f"historical (backfill) READY: {len(st.historical)} (never actionable)\n"
     )
+    if st.simulated:
+        out.write(f"SIMULATED (fixture) READY, never actionable: {', '.join(st.simulated)}\n")
+    out.write(f"Actionable blockers: {', '.join(st.blockers) or 'none'}\n")
     if rs.fixture:
         out.write("FIXTURE files: SIMULATED test data, not reference prices; nothing is sent.\n")
     else:
