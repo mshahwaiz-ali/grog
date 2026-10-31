@@ -458,3 +458,67 @@ Files: `tests/unit/test_reference_format.py`, `tests/integration/test_reference_
 - **Alternative (research only):** H1-OPPOSITE — only a newly confirmed *opposite* H1 bias invalidates; NEUTRAL/UNKNOWN keep READY until TTL or another terminal rule.
 - The alternative is never selectable in the workstation or live session. It may only be evaluated offline as a counterfactual over the same READY set, under the M10 comparison protocol (§18), on real permitted BID/ASK data. No result is claimed.
 
+## 18. M10 research readiness — protocol structure (no data downloaded, no result claimed)
+
+Status: **STRUCTURE DEFINED, every numeric value OPEN for the owner.** Nothing in this section has been executed. No new indicator or strategy is introduced; the only S1 variant under comparison is RQ-H1 (§17). Synthetic data are used for software tests only and are **never** used to fit or choose a parameter.
+
+### 18.1 Real BID/ASK dataset quality checks (run before any evaluation)
+
+| Check | Measure (reported, never silently repaired) | Pass rule |
+| --- | --- | --- |
+| Provenance | source, server, symbol, licence/permission, export tool and version, file sha256 | recorded, permission explicit |
+| Schema | strict CSV v1 / `GROG-MT5-REF/1` import, zero unexplained rejects | rejects listed by code |
+| Time | UTC conversion method and server offset history (DST), monotonic provider time, provider-vs-receipt skew | offset documented per period |
+| Both sides | share of ticks with BID and ASK present; carried-side share | threshold OPEN |
+| Integrity | crossed, zero/negative, duplicate keys, same-ms multiplicity, out-of-order | counts per day |
+| Spread | distribution per hour/session and around rollover | reported; limit OPEN ([11 §6](11-decisions.md)) |
+| Gaps | M1 DATA_GAP vs declared MARKET_CLOSED, longest gap, gaps inside READY/position intervals | affected signals INDETERMINATE |
+| Density | ticks per minute per session; abnormal bursts/spikes flagged (not deleted) | reported |
+| Coverage | calendar span, regimes (trend/range, high/low volatility by ATR terciles of the dev window) | each window non-empty |
+| Cross-check | overlap with the M09 reference feed (if both exist): price/spread differences | reported |
+
+### 18.2 Manual entry-delay scenarios
+
+Replay currently models only `D0 = ZERO_DELAY_AT_FIRST_QUOTE`. M10 adds explicit scenarios, each a separate report (never averaged into one number):
+
+| Scenario | Entry rule | Parameter |
+| --- | --- | --- |
+| D0 | first executable post-trigger quote (current) | — |
+| D1 | first quote at or after READY + `d1` | `d1` OPEN (owner) |
+| D2 | first quote at or after READY + `d2` (> `d1`) | `d2` OPEN |
+| D-obs | empirical delays from the operator journal (forward paper) | measured, not assumed |
+
+A delayed entry outside the frozen band or after TTL is `MISSED` (not filled); fills use the executable side (BUY ASK, SELL BID).
+
+### 18.3 Broker-specific fee and spread modeling inputs
+
+Required per named venue before any net figure: contract size, trade tick size and tick value (from read-only `SymbolInfo*`), volume step/min, commission per lot round-turn, swap/financing rule, stop/freeze level, and slippage scenarios (OPEN). The observed BID/ASK spread is already in the fills and is **never** charged again. Missing input ⇒ net R and currency `UNKNOWN`, gross only.
+
+### 18.4 Development, validation and untouched test windows
+
+Chronological, non-overlapping, declared with exact UTC boundaries **before** any outcome is computed: development (walk-forward folds inside it), validation, and a final untouched test window evaluated **once** after all choices are frozen. An embargo of at least one TTL plus maximum holding time separates windows (length OPEN). Window boundaries, fold count and minimum span are OPEN for the owner.
+
+### 18.5 Objective comparison: H1-STRICT baseline vs H1-OPPOSITE (RQ-H1)
+
+- Same data, costs, delay scenario and READY set; H1-OPPOSITE evaluated as a counterfactual on the signals H1-STRICT invalidated.
+- Paired per-signal outcomes; report count, net expectancy (R), dispersion, max drawdown (R), longest losing run, and how many extra signals each rule creates or removes.
+- Decision rule (pre-registered): adopt the alternative only if on **validation** it improves net expectancy by at least `ΔE` with drawdown no worse than `ΔDD`, and the result holds on the untouched test window; otherwise H1-STRICT remains the baseline. `ΔE`, `ΔDD` OPEN.
+
+### 18.6 Pre-registered net-expectancy and drawdown criteria (values OPEN)
+
+| Criterion | Definition | Value |
+| --- | --- | --- |
+| Minimum sample | evaluable READY signals per window | OPEN |
+| Net expectancy | mean net R per signal; lower bound of a pre-declared confidence interval | OPEN |
+| Max drawdown | peak-to-trough cumulative net R | OPEN |
+| Losing run | longest consecutive net losses | OPEN |
+| Robustness | share of walk-forward folds with positive net expectancy | OPEN |
+| Cost sensitivity | expectancy with spread/commission stressed by a declared factor | OPEN |
+| Delay sensitivity | criteria re-checked under D1/D2 | OPEN |
+
+All criteria are fixed in this document (dated commit) before the validation window is evaluated. Failing any criterion ⇒ S1 stays EXPERIMENTAL / UNVALIDATED.
+
+### 18.7 Forward-paper monitoring
+
+Requires M09-B (authorized reference feed). For a pre-declared period (OPEN): every READY is journaled as ENTERED (paper) or USER_SKIPPED with reason; record actual delay and the reference prices at entry/exit; weekly report comparing forward vs validation distributions (count, net R, drawdown, delay, spread). Stop rules (OPEN): drawdown breach, feed-quality failure rate, or criteria drift ⇒ pause and report. Paper results are labelled PAPER/INDICATIVE, never broker-verified or live-money results.
+

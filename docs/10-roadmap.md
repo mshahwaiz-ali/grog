@@ -212,11 +212,10 @@ External operations (Wine/MT5 installation, demo credentials, downloading propri
 
 ## 10. M10 prerequisites — historical data and forward-paper evaluation (nothing claimed)
 
-No evaluation result exists. M10 may start only when all of the following exist:
+No evaluation result exists. **Research readiness:** the protocol structure is defined in [08 §17–§18](08-validation.md) — dataset quality checks, entry-delay scenarios D0/D1/D2/D-obs, fee/spread inputs, development/validation/untouched-test windows, the H1-STRICT vs H1-OPPOSITE comparison and the criteria table — with **every numeric value OPEN** for the owner. M10 may start only when all of the following exist:
 
-1. **Data:** permitted genuine XAUUSD BID/ASK tick history (source licence/permission recorded), long enough for walk-forward folds plus an untouched final holdout; import passes strict CSV v1 with gap/closure classification and declared freshness thresholds measured on that source.
-2. **Execution assumptions:** declared spread limit, commission/swap and contract size for one named venue (until then net R and currency P/L stay UNKNOWN), and an entry-delay scenario set beyond zero-delay.
-3. **Pre-registration:** frozen S1 parameter set and promotion criteria (net R, drawdown, frequency, minimum sample) written in [08](08-validation.md) before looking at out-of-sample data; the H1-STRICT provisional baseline vs the RQ-H1 alternative compared only under the pre-registered protocol of [08 §17](08-validation.md).
-4. **Forward paper protocol:** M09 reference feed authorized and running; operator journal used for every READY (entered/skipped with reasons); evaluation period and stop rules fixed in advance.
-5. **Reporting rule:** results labelled SIMULATED/PAPER with sample sizes; no win-rate or profitability claim without the pre-registered evidence; if data is missing the status is **UNVALIDATED** with the missing item named.
-
+1. **Data:** permitted genuine XAUUSD BID/ASK tick history (licence/permission recorded) passing [08 §18.1](08-validation.md), long enough for walk-forward folds plus an untouched test window.
+2. **Execution inputs:** [08 §18.3](08-validation.md) declared for one named venue (until then net R and currency P/L stay UNKNOWN) and the delay parameters `d1`, `d2`.
+3. **Pre-registration:** window boundaries, `ΔE`/`ΔDD` and the [08 §18.6](08-validation.md) values committed before the validation window is evaluated.
+4. **Forward paper:** M09-B authorized and running; [08 §18.7](08-validation.md) period and stop rules fixed.
+5. **Reporting rule:** SIMULATED/PAPER labels with sample sizes; no win-rate or profitability claim; missing data ⇒ **UNVALIDATED** with the missing item named. No new indicators/strategies; no fitting to synthetic data.
