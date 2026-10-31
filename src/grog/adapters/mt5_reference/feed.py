@@ -79,6 +79,9 @@ class NormalizerState:
     in_catchup: bool = False
     seg_ms: int | None = None
     seg_counts: dict[str, int] = field(default_factory=dict)
+    # Occurrence counts of the ACCEPTED stream at its last millisecond (all segments).
+    stream_ms: int | None = None
+    stream_counts: dict[str, int] = field(default_factory=dict)
     recent: deque[str] = field(default_factory=lambda: deque(maxlen=RECENT_KEYS))
     counters: dict[str, int] = field(default_factory=dict)
     heartbeat: Heartbeat | None = None
@@ -110,6 +113,8 @@ class NormalizerState:
             "in_catchup": self.in_catchup,
             "seg_ms": self.seg_ms,
             "seg_counts": dict(self.seg_counts),
+            "stream_ms": self.stream_ms,
+            "stream_counts": dict(self.stream_counts),
             "recent": list(self.recent),
             "counters": dict(self.counters),
             "heartbeat": None
@@ -145,6 +150,8 @@ class NormalizerState:
         st.last_bid = None if d["last_bid"] is None else Decimal(d["last_bid"])
         st.last_ask = None if d["last_ask"] is None else Decimal(d["last_ask"])
         st.seg_counts = dict(d["seg_counts"])
+        st.stream_ms = d.get("stream_ms")
+        st.stream_counts = dict(d.get("stream_counts", {}))
         st.recent = deque(d["recent"], maxlen=RECENT_KEYS)
         st.counters = dict(d["counters"])
         st.faults = {k: list(v) for k, v in d.get("faults", {}).items()}
@@ -293,11 +300,22 @@ class ReferenceNormalizer:
         if ask < bid:
             return self._reject("CROSSED", file, t.seq)
 
+        inconsistent = (
+            not t.bid_changed and t.bid is not None and st.last_bid not in (None, t.bid)
+        ) or (not t.ask_changed and t.ask is not None and st.last_ask not in (None, t.ask))
+
         content = f"{t.time_msc}:{bid}:{ask}:{t.flags}"
-        if st.seg_ms != t.time_msc:
-            st.seg_ms, st.seg_counts = t.time_msc, {}
-        n = st.seg_counts.get(content, 0)
-        st.seg_counts[content] = n + 1
+        if t.mode == "B":
+            # Only a catch-up block re-delivers (its inclusive start): count within the block,
+            # so an identical re-delivery reproduces an already-seen key.
+            if st.seg_ms != t.time_msc:
+                st.seg_ms, st.seg_counts = t.time_msc, {}
+            n = st.seg_counts.get(content, 0)
+            st.seg_counts[content] = n + 1
+        else:
+            # The live stream never re-delivers: continue the accepted stream's occurrences,
+            # so a genuine identical same-ms tick after a block is a new key.
+            n = st.stream_counts.get(content, 0) if st.stream_ms == t.time_msc else 0
         key = f"{st.source_id}:{content}:{n}"
         if key in self._recent_set:
             return self._reject("DUPLICATE", file, t.seq)
@@ -318,6 +336,9 @@ class ReferenceNormalizer:
                 return FeedEvent("REJECT", file, t.seq, code="FUTURE_TIME")
         if t.mode == "B":
             flags.add(OFFSET_ASSUMED)  # history converted with an offset observed later
+        if inconsistent:  # an "unchanged" side that changed: never trusted silently
+            flags.add("SIDE_INCONSISTENT")
+            self.fault("SIDE_INCONSISTENT", file, t.seq)
         live = (
             ahead <= 0
             and t.mode == "L"
@@ -343,6 +364,9 @@ class ReferenceNormalizer:
             flags=frozenset(flags),
         )
         st.last_bid, st.last_ask = bid, ask
+        if st.stream_ms != t.time_msc:  # reset only on an accepted tick (never on a reject)
+            st.stream_ms, st.stream_counts = t.time_msc, {}
+        st.stream_counts[content] = max(st.stream_counts.get(content, 0), n + 1)
         st.last_provider_ms, st.last_received_ms = provider, received
         if len(st.recent) == st.recent.maxlen:
             self._recent_set.discard(st.recent[0])

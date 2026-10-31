@@ -341,3 +341,79 @@ def test_malformed_line_and_live_out_of_order_are_latched(tmp_path: Path) -> Non
     r = _reader(tmp_path, StepClock(T0 + 100))
     r.poll()
     assert {"OUT_OF_ORDER", "BAD_INT"} <= set(r.state.faults)
+
+
+# REF-14 / REF-20 ------------------------------------------------------ review #5/#6/#16
+def test_block_start_redelivery_is_dropped_and_distinct_same_ms_ticks_kept(
+    tmp_path: Path,
+) -> None:
+    """Exact count and order: identical content twice in one ms is two ticks; the catch-up
+    block's inclusive start re-delivers them and both copies are dropped."""
+    w = Writer(tmp_path)
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")
+    w.tick(T0, "4000.00", "4000.20")  # genuine identical second tick in the same ms
+    w.tick(T0, "4000.05", "4000.20", flags=2)
+    w.begin(T0)  # reconnect: inclusive re-delivery of the watermark ms
+    w.tick(T0, "4000.00", "4000.20", mode="B")
+    w.tick(T0, "4000.00", "4000.20", mode="B")
+    w.tick(T0, "4000.05", "4000.20", flags=2, mode="B")
+    w.tick(T0 + 1, "4000.10", "4000.20", flags=2, mode="B")
+    w.end(T0 + 1, 4)
+    r = _reader(tmp_path, StepClock(T0 + 100))
+    qs = [e.quote for e in r.poll() if e.kind == "QUOTE"]
+    assert [(q.provider_time_ms - T0, str(q.bid)) for q in qs] == [
+        (0, "4000.00"),
+        (0, "4000.00"),
+        (0, "4000.05"),
+        (1, "4000.10"),
+    ]
+    assert r.state.counters["DUPLICATE"] == 3 and r.state.faults == {}
+
+
+def test_genuine_identical_same_ms_tick_after_catch_up_is_not_dropped(tmp_path: Path) -> None:
+    """review b2: the live poll after E writes only NEW ticks of the watermark ms."""
+    w = Writer(tmp_path)
+    w.begin(T0)
+    w.tick(T0, "4000.00", "4000.20", mode="B")
+    w.end(T0, 1)
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")  # second, genuinely distinct occurrence (live poll)
+    r = _reader(tmp_path, StepClock(T0 + 100))
+    r.poll()
+    assert _accepted(r) == 2 and "DUPLICATE" not in r.state.counters
+
+
+def test_unchanged_side_value_contradicting_state_is_flagged(tmp_path: Path) -> None:  # k1
+    w = Writer(tmp_path)
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")
+    w.tick(T0 + 10, "4000.05", "4000.90", flags=2)  # only BID changed, yet ASK differs
+    r = _reader(tmp_path, StepClock(T0 + 100))
+    q = [e.quote for e in r.poll() if e.kind == "QUOTE"][-1]
+    assert "SIDE_INCONSISTENT" in q.flags and "SIDE_INCONSISTENT" in r.state.faults
+
+
+def test_unchanged_side_with_the_same_value_is_consistent(tmp_path: Path) -> None:
+    w = Writer(tmp_path)
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")
+    w.tick(T0 + 10, "4000.05", "4000.20", flags=2)  # populated, unchanged, equal: fine
+    r = _reader(tmp_path, StepClock(T0 + 100))
+    q = [e.quote for e in r.poll() if e.kind == "QUOTE"][-1]
+    assert "SIDE_INCONSISTENT" not in q.flags and "ASK_CARRIED" not in q.flags
+    assert r.state.faults == {}
+
+
+def test_rejected_older_redelivery_does_not_reset_live_occurrences(tmp_path: Path) -> None:
+    """Counterexample: an old re-delivered tick must not make the next genuine tick a dup."""
+    w = Writer(tmp_path)
+    w.hb(T0)
+    w.tick(T0 + 5, "4000.00", "4000.20")
+    w.begin(T0)
+    w.tick(T0, "3999.00", "3999.20", mode="B")  # older history: dropped
+    w.end(T0, 1)
+    w.tick(T0 + 5, "4000.00", "4000.20")  # genuine second occurrence at T0+5
+    r = _reader(tmp_path, StepClock(T0 + 100))
+    r.poll()
+    assert r.state.counters["ACCEPTED_LIVE"] == 2 and "DUPLICATE" not in r.state.counters
