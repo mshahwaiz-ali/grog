@@ -35,4 +35,5 @@ credentials*
 # User configuration (only the documented example is tracked)
 config/*.toml
 !config/research.example.toml
+!config/synthetic-demo.fixture-only.toml
 config.toml

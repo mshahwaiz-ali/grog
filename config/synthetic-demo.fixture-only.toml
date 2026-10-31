@@ -1,0 +1,56 @@
+# Grog SYNTHETIC DEMO configuration — FIXTURE / TEST-ONLY THRESHOLDS.
+#
+# Identical to research.example.toml except that it DECLARES the two OPEN feed thresholds
+# below so the deterministic synthetic replay can issue SIMULATED READY signals for the
+# R0 operator demo and acceptance test (docs/08, docs/14). These numbers are the same
+# fixture values the test-suite uses (tests/ui_support.py). They are NOT broker values,
+# NOT approved live settings and NOT a recommendation; docs/11 keeps them OPEN.
+# Use only with SYNTHETIC data. Never copy them into a personal/live config.
+#
+# Original header follows.
+# Grog research configuration example — synthetic/offline REPLAY defaults.
+# Contract: docs/09-architecture.md Section 9.
+#
+# * NO secrets, NO broker credentials, NO trade execution. Grog never places orders.
+# * Copy to $XDG_CONFIG_HOME/grog/config.toml (default ~/.config/grog/config.toml)
+#   or pass --config PATH. Personal copies are git-ignored.
+# * Decimal values are quoted strings so no binary float enters the config.
+# * Research parameter values for S1_RESEARCH_V0_2 are owned by docs/04-07 and
+#   are offline experiments only, not validated or profitable live settings.
+
+config_version = 1
+profile = "S1_RESEARCH_V0_2"
+mode = "REPLAY"                  # REPLAY only in this offline build
+source = "SYNTHETIC"             # SYNTHETIC | HISTORICAL for REPLAY
+symbol = "XAUUSD"
+timezone_display = "Asia/Karachi"  # optional secondary UI clock; data time is always UTC
+
+# Fixture-only XAUUSD price units for deterministic rounding in synthetic tests.
+# NOT a real broker tick size; never applied to unknown third-party data.
+synthetic_tick_size = "0.01"
+
+# Defense in depth: no trade module exists. true is rejected.
+allow_trade_execution = false
+
+[ui]
+max_refresh_hz = 4
+
+[market_data]
+require_bid_ask = true
+strict_no_lookahead = true
+
+[risk]
+contract_metadata = "UNKNOWN"
+live_numeric_score_enabled = false
+# live_execution_fidelity = "REFERENCE"   # only once a real reference source exists
+# max_account_risk = "<decimal>"          # UNSET: blocks live readiness until validated
+
+# Live safety values are UNSET by default (TOML has no null; absent = unset).
+# Unset is NOT permission for unlimited exposure: it blocks live readiness.
+[live]
+max_quote_age_ms = 60000              # DEMO/TEST-ONLY fixture value (OPEN in docs/11)
+max_first_postclose_delay_ms = 30000  # DEMO/TEST-ONLY fixture value (OPEN in docs/11)
+# max_spread_cost_r = "<decimal>"
+
+[events]
+# blackout_window = "<OPEN: format not yet decided>"
