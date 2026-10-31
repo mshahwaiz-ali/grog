@@ -6,6 +6,7 @@ Every file here is FIXTURE / synthetic test data; nothing proves real MT5 behavi
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -585,3 +586,99 @@ def test_reference_status_reports_a_corrupt_cursor_without_a_traceback(
     argv = ["reference-status", "--config", str(cfg), "--state-dir", str(state)]
     code = main(argv, env=isolated_env, stdout=out, stderr=err)
     assert code == EXIT_CONFIG and "code=CURSOR_CORRUPT" in err.getvalue()
+
+
+# REF-13..16 exporter source (H1) -------------------------- review #7-#11, #22-#24
+# The exporter is uncompiled and has never run in MT5: these are SOURCE checks of the
+# documented contract, not evidence of runtime behavior (M09-B).
+_MQ5 = Path(__file__).resolve().parents[2] / "mql5" / "GrogReferenceExporter.mq5"
+
+
+def _mq5_code() -> str:
+    text = _MQ5.read_text(encoding="utf-8")
+    return re.sub(r"//[^\n]*", "", text)  # comments stripped: only code counts
+
+
+def _mq5_function(name: str) -> str:
+    code = _mq5_code()
+    m = re.search(rf"\b{name}\([^)]*\)\s*\{{", code)
+    assert m, f"{name} missing"
+    depth, i = 0, m.end() - 1
+    for j in range(i, len(code)):
+        depth += {"{": 1, "}": -1}.get(code[j], 0)
+        if depth == 0:
+            return code[i : j + 1]
+    raise AssertionError(name)
+
+
+def test_exporter_writes_binary_utf8_lf_bytes() -> None:  # review a1/a2
+    code = _mq5_code()
+    assert "FILE_TXT" not in code and "FILE_ANSI" not in code and "FILE_UNICODE" not in code
+    assert "FILE_BIN" in code and "CP_UTF8" in code and "FileWriteArray" in code
+    assert "FileWriteString" not in code and "%%d" not in code  # no nested StringFormat
+
+
+def test_strict_parser_rejects_crlf_and_code_page_bytes(tmp_path: Path) -> None:
+    w = Writer(tmp_path)
+    w.hb(T0)
+    w.raw(f"T,3,L,{srv(T0)},4000.00,4000.20,6\r\n")
+    w.raw(f"T,4,L,{srv(T0)},4000.00,4000.20,6\n")
+    p = w.path
+    p.write_bytes(p.read_bytes() + f"H,5,{srv(T0)},1,OPEN,{OFFSET_S}\n".encode())
+    r = _reader(tmp_path, StepClock(T0 + 100))
+    r.poll()
+    assert "BAD_LINE_END" in r.state.faults
+    q = tmp_path / "cp"
+    q.mkdir()
+    (q / f"{SRC}__20261001T000000Z__000001.grogref").write_bytes(
+        f"M,1,GROG-MT5-REF/1,MQL5_EXPORTER,{SRC},Brökér,XAUUSD,2,{OFFSET_S},v\n".encode("cp1252")
+    )
+    r2 = _reader(q, StepClock(T0 + 100))
+    r2.poll()
+    assert {"BAD_ENCODING", "META_INVALID"} <= set(r2.state.faults)
+
+
+def test_exporter_windows_do_not_overlap() -> None:  # review b1 (root cause: exporter)
+    body = _mq5_function("CatchUpStep")
+    assert re.search(r"to_msc\s*=\s*b\s*-\s*1\s*;", body), "inclusive CopyTicksRange end"
+    assert re.search(r"FetchTicks\(\s*a\s*,\s*to_msc", body)
+
+
+def test_exporter_retries_then_writes_an_explicit_gap() -> None:  # review c (#9)
+    code = _mq5_code()
+    assert re.search(r"#define\s+EXPORT_ATTEMPTS\s+3\b", code)
+    fetch = _mq5_function("FetchTicks")
+    assert "ResetLastError" in fetch and "GetLastError" in fetch and "EXPORT_ATTEMPTS" in fetch
+    step = _mq5_function("CatchUpStep")
+    assert 'WriteRecord("G"' in step
+    assert 'WriteRecord("E"' in step and "g_cu_ticks" in step
+
+
+def test_exporter_checks_writes_and_never_advances_past_unwritten_data() -> None:  # #10
+    write = _mq5_function("WriteRecord")
+    assert re.search(r"FileWriteArray\([^;]*\)\s*!=", write) and "g_write_failed = true" in write
+    save = _mq5_function("SaveState")
+    assert re.search(r"if\s*\(\s*g_write_failed\s*\)\s*return", save)
+    assert "FileMove(" in save and "FILE_REWRITE" in save and ".tmp" in save  # atomic
+    load = _mq5_function("LoadState")
+    assert "return -1" in load
+    init = _mq5_function("OnInit")
+    assert "INIT_PARAMETERS_INCORRECT" in init and "ValidSourceId" in init
+    assert re.search(r"start\s*<\s*0\)[^;]*\{[^}]*INIT_FAILED", init, re.S)
+
+
+def test_exporter_never_reuses_or_truncates_a_file_name() -> None:  # #11
+    open_part = _mq5_function("OpenPart")
+    assert "FileIsExist" in open_part
+    assert "NewSessionStamp" in _mq5_function("OnInit") and "FileIsExist" in _mq5_function(
+        "NewSessionStamp"
+    )
+
+
+def test_exporter_catch_up_is_timer_driven_and_sessions_may_wrap() -> None:  # #22/#23
+    timer = _mq5_function("OnTimer")
+    assert "CatchUpStep" in timer and "Heartbeat" in timer
+    assert "CatchUpStep" not in _mq5_function("OnInit")
+    session = _mq5_function("InSession")
+    assert "previous_day" in session and re.search(r"f\s*<\s*t", session)
+    assert "yday" in _mq5_function("SessionState")
