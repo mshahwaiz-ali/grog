@@ -585,6 +585,8 @@ class RBreakdown:
 def r_breakdown(pos: ManualPosition, mark: Mark | None = None) -> RBreakdown:
     full = pos.initial_risk * pos.initial_qty if pos.initial_risk else None
     realized = pos.realized_r
+    if realized is None and full and pos.remaining_qty == pos.initial_qty:
+        realized = Decimal(0)  # nothing exited yet: realized R is exactly zero, not unknown
     unreal = mark.unrealized_r if mark is not None and mark.closeable is not None else None
     if not pos.is_open:
         unreal = Decimal(0) if full else None

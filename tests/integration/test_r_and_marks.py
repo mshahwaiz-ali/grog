@@ -167,7 +167,8 @@ def test_r_denominators_are_explicit_and_add_up(journal) -> None:
 
 def test_closed_position_total_equals_realized_and_open_without_mark_is_unknown(journal) -> None:
     pos, _ = journal.record_entry(entry())
-    assert r_breakdown(pos, mark_position(pos, None)).total_r is None
+    no_mark = r_breakdown(pos, mark_position(pos, None))
+    assert no_mark.total_r is None and no_mark.realized_r == 0  # no exits yet: zero, known
     closed, _ = journal.record_close(
         new_action_id(), pos.position_id, price=D("4004.60"), qty=D("0.30"), fill_ms=T0 + 60_000
     )
