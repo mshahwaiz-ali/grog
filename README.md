@@ -48,6 +48,15 @@ Workstation keys: `1`–`5` views (Live, Signals, Positions, Journal, Diagnostic
 
 Local checks (no GitHub Actions): `uv run pytest -q`, `uv run ruff check .`, `uv run ruff format --check .`. Screenshot evidence: `uv run python scripts/r0_screenshots.py --out /path/outside/repo` (needs headless Chrome for PNG; SVG otherwise).
 
+## M09-A — read-only MT5 reference feed (offline parts only)
+
+The broker-neutral adapter for a future read-only MT5 demo/reference feed exists and is tested on recorded-format **FIXTURE** files only ([docs/09 §5.1](docs/09-architecture.md)). `mql5/GrogReferenceExporter.mq5` is authored but **has never been compiled or run in MT5**. No terminal, Wine, broker account, credentials or network connection has been used.
+
+```bash
+uv run grog reference-status                       # NOT_CONFIGURED without a [reference] config
+uv run grog reference-status --config my.toml      # read-only status of exporter files (never writes)
+```
+
 ## Working on Grog
 
 Agent/developer entrypoint: [AGENTS.md](AGENTS.md), then [docs/00-index.md](docs/00-index.md), [docs/11-decisions.md](docs/11-decisions.md), [docs/09-architecture.md](docs/09-architecture.md) and [docs/10-roadmap.md](docs/10-roadmap.md). Next milestones (M09 read-only MT5 reference feed, M10 historical-data and forward-paper evaluation) need explicit external permissions listed in [docs/10](docs/10-roadmap.md); nothing beyond R0 is authorized by default.

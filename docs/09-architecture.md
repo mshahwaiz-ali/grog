@@ -90,12 +90,13 @@ grog/
 
 ### 2.1 As built at R0 (differences from the initial tree above)
 
-- `market_data/source.py` / `normalize.py` were not needed: validation lives in `import_csv.py`, reading in `batches.py` (`SourceReader`). `adapters/mt5_reference/` does **not** exist (M09 BLOCKED).
+- `market_data/source.py` / `normalize.py` were not needed: validation lives in `import_csv.py`, reading in `batches.py` (`SourceReader`). `adapters/mt5_reference/` holds the M09-A offline adapter (no terminal connection; M09-B BLOCKED).
 - `signals/pipeline.py` wires bars → analysis → S1 → eligibility for replay and UI; reason codes live in `domain/enums.py`.
 - `replay/`: `session.py` (stepwise UI session, virtual clock, playback states), `service.py` (CLI wiring), `synthetic.py` (deterministic SYNTHETIC generator). `runner.py` derives `code_version = <package>+engine.<12 hex>` from `engine_code_hash()` (SHA-256 over LF-normalized sources of `domain`, `market_data`, `analysis`, `strategies`, `signals`, `risk` and `replay/runner.py`), so engine changes never reuse a stored run ID.
 - `journal/`: `store.py` (catalog, WAL, migrations 0001–0004), `research.py` (research runs/events), `positions.py` (manual journal: every validation inside `BEGIN IMMEDIATE`; `Mark` with `freshness`; `r_breakdown` gross R presentation per [07 §6.1](07-risk-and-monitoring.md)).
 - `ui/`: `app.py` (shell, views, bindings), `panels.py` (header/tabs/key bar, signal/diagnostic/journal text), `lanes.py` (engine state vs operator overlay, exposure warnings — no limit), `manual.py` (positions/marks/journal rows, form models), `forms.py` (sectioned modals, Cancel default), `screens.py` (overlays), `widgets.py` (palette, boxed panels, tables), `format.py`, `grog.tcss` (visual system of [02 §2.1](02-workflows-and-ux.md)).
 - `config/synthetic-demo.fixture-only.toml` declares **demo/test-only** freshness thresholds for the synthetic fixture; `config/research.example.toml` keeps every OPEN threshold unset.
+- M09-A: `adapters/mt5_reference/` (transport parser, normalizer, durable reader), `live/session.py` (ReferenceSession), `mql5/GrogReferenceExporter.mq5` (uncompiled), CLI `reference-status`; see §5.1.
 - `scripts/r0_screenshots.py` renders SVG/PNG evidence outside the repo; `tests/acceptance/` holds the R0 operator journey and error-path tests.
 
 ## 3. Canonical domain contracts — data types, fields, invariants
@@ -187,17 +188,22 @@ Smallest design that satisfies [03 §8](03-market-data.md) without touching the 
 
 ```text
 MT5 terminal (Wine, demo server, one XAUUSD symbol)
-  └─ mql5/GrogReferenceExporter.mq5   read-only: SymbolInfoTick / CopyTicksRange / timer heartbeat
+  └─ mql5/GrogReferenceExporter.mq5   read-only: timer-driven CopyTicksRange polling + heartbeat
         │ append-only rotated text files  (transport GROG-MT5-REF/1)
         ▼
-  market_data/reference_format.py   parse + validate one line → typed record or RecordError(code)
-  market_data/reference_feed.py     ReferenceNormalizer (UTC, side carry-forward, dedup, order)
+  adapters/mt5_reference/format.py  parse + validate one line → typed record or RecordError(code)
+  adapters/mt5_reference/feed.py    ReferenceNormalizer (UTC, side carry-forward, dedup, order)
                                     ReferenceReader (rotation, complete lines only, durable cursor)
   live/session.py                   ReferenceSession: LinkMonitor (heartbeat, injectable clock)
                                     + the unchanged S1ResearchPipeline (bars → analysis → S1 → signals)
         ▼
-  CLI `grog reference-status` (read-only)   ·   `grog ui --mode reference` → NOT_CONFIGURED until wired
+  CLI `grog reference-status` (read-only, never advances the cursor)
+  `grog ui --mode reference` → NOT_CONFIGURED (no config) / NOT_AVAILABLE (view wiring is M09-B)
 ```
+
+`adapters/` and `live/` are outside the replay engine code hash (§2.1), so REPLAY run IDs and outputs are unchanged by M09.
+
+**Exporter behavior (authored, not yet run).** On start it writes `M`, then one catch-up block from its own saved last `time_msc` (first start: `InpWarmupDays`, default 20 days, enough for the H1 warm-up) in `InpChunkMinutes` windows; then every `InpTimerMs` (default 1 s) it polls `CopyTicksRange(COPY_TICKS_INFO)` from the last exported ms, skipping ticks of that ms it already wrote (so the live stream never re-delivers), and writes `H`. `OnTick` is intentionally unused (events coalesce). A reconnect (`TERMINAL_CONNECTED` false→true) triggers an inclusive catch-up block. Session OPEN/CLOSED comes from `SymbolInfoSessionQuote`.
 
 **One source.** One exporter instance = one `source_id`, one demo server, one raw symbol mapped to `XAUUSD`. No aggregation, no second broker.
 
@@ -228,7 +234,7 @@ MT5 terminal (Wine, demo server, one XAUUSD symbol)
 | `NOT_CONFIGURED` | no `[reference]` config / exporter dir |
 | `NO_DATA` | configured, no record read yet |
 | `DISCONNECTED` | latest heartbeat reports `connected=0` |
-| `OFFLINE` | heartbeat age (Grog receive clock) > `reference.max_heartbeat_age_ms` |
+| `OFFLINE` | heartbeat age > `reference.max_heartbeat_age_ms`, where age = max(now − Grog receive time, now − heartbeat server time in UTC) — a backlog of old heartbeat lines can never look live |
 | `UNKNOWN` | `max_heartbeat_age_ms` unset (`HEARTBEAT_THRESHOLD_UNSET`) |
 | `CATCHING_UP` | inside an open `B…E` block |
 | `MARKET_CLOSED` | heartbeat session `CLOSED` (or a declared closure) |
@@ -237,6 +243,8 @@ MT5 terminal (Wine, demo server, one XAUUSD symbol)
 Feed health is the existing `assess_feed` evaluated at clock now (FRESH/STALE/DEGRADED/CLOSED/UNKNOWN). **Actionable** = READY issued on a LIVE-eligible quote **and** link `LIVE` **and** feed `FRESH` now. Reference prices are labeled `REFERENCE · INDICATIVE` (fixture producer: `FIXTURE · SIMULATED`), never broker-verified; P/L stays UNKNOWN.
 
 **Safety.** Prices never create journal records (the session has no journal dependency). Neither side contains order/position/account mutation calls (`OrderSend`, `OrderSendAsync`, `CTrade`, `PositionClose`, `OrderModify`, …); a test scans both sources and checks the session's public API. REPLAY code paths are unchanged.
+
+**Contract metadata.** The reference policy maps no price step (the contract tick size is not verified), so the engine reports `CONTRACT_UNDEFINED` and issues **no** READY from a real reference feed until the owner declares a verified tick size for that symbol — by design, nothing is guessed from `digits`.
 
 **Config (all unset by default).** `[reference] source_id`, `exporter_dir`, `max_heartbeat_age_ms`; freshness still from `[live] max_quote_age_ms`, `max_first_postclose_delay_ms`. Thresholds must be measured on the authorized demo feed ([10 §9](10-roadmap.md)).
 

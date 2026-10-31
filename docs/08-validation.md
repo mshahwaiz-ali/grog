@@ -411,6 +411,25 @@ Executed over the deterministic SYNTHETIC fixture through the real CLI import an
 | ACC-09 | 70×18 terminal | resize notice; keyboard entry still recorded; modal opens at identity with Cancel focused |
 | ACC-10 | Typing in any modal field | never triggers a view/record hotkey |
 
+### 15.5 REF — M09-A reference adapter, offline (recorded-format FIXTURE files only)
+
+Files: `tests/unit/test_reference_format.py`, `tests/integration/test_reference_feed.py`, `tests/integration/test_reference_session.py`, `tests/integration/test_reference_cli.py`, `tests/unit/test_reference_safety.py`, `tests/unit/test_replay_identity.py`; fixture `tests/fixtures/reference/`. Covers MD-11/12/19/22 offline. **Nothing here proves behavior of a real MT5 terminal.**
+
+| ID | Case | Expected |
+| --- | --- | --- |
+| REF-01 | Record parsing | exact Decimal prices from text, precision ≤ digits, strict arity/fields, codes for every rejection |
+| REF-02 | UTC conversion | `time_msc − server_offset`; offset change via heartbeat applies forward only |
+| REF-03 | Several ticks in one ms, incl. identical content | all kept, distinct keys (occurrence index) |
+| REF-04 | BID-only / ASK-only updates | other side carried with `*_CARRIED` flag; unknown side held out (`SIDE_UNKNOWN`) |
+| REF-05 | Invalid, crossed, non-quote, duplicate (catch-up overlap), out-of-order | rejected with code and counted; never fed to the engine |
+| REF-06 | Torn line, rotation, missing `Z`, sequence gap | complete lines only; counters `PARTIAL_LINE_DISCARDED`, `FILE_ENDED_WITHOUT_Z`, `TRANSPORT_SEQ_GAP` |
+| REF-07 | Restart / crash before commit | every tick after the committed cursor delivered exactly once; engine warmed up from retained files |
+| REF-08 | Backfill vs live | catch-up, late backlog and unset freshness ⇒ BACKFILL; READY from BACKFILL never actionable |
+| REF-09 | Timer-driven link/feed | OFFLINE / STALE without any new tick; DISCONNECTED; MARKET_CLOSED; CATCHING_UP; UNKNOWN when heartbeat threshold unset; NO_DATA |
+| REF-10 | Engine compatibility | live READY plan identical to the REPLAY pipeline on the same ticks; replay engine hash and config hash unaffected |
+| REF-11 | No journal / no trade API | prices create no journal record (DB bytes unchanged); runtime imports no journal/broker module; Python + MQL5 scan for order/position/account mutation calls is empty |
+| REF-12 | NOT_CONFIGURED / labels | no `[reference]` ⇒ `NOT_CONFIGURED` in CLI and UI; fixture files read `FIXTURE · SIMULATED`, never `REFERENCE · INDICATIVE`; never broker-verified |
+
 ## 16. Milestone-to-test acceptance matrix
 
 | Milestone | Case groups | Mandatory evidence |
@@ -425,7 +444,8 @@ Executed over the deterministic SYNTHETIC fixture through the real CLI import an
 | M07 | UI-01..14/19/20/22 | Textual Pilot and small terminal tests |
 | M08 | UI-15..18/20/21, ST-01..08/15 | safe local journal/reconciliation |
 | R0 acceptance | ACC-01..10 | executed; counts in [14 §5](14-r0-acceptance-audit.md) |
-| M09 LATER | MD-11/19, CL-12, UI-10 | user-approved read-only demo connection |
+| M09-A | REF-01..12 | offline adapter on FIXTURE files (executed) |
+| M09-B LATER | MD-11/19, CL-12, UI-10, [10 §9](10-roadmap.md) acceptance | user-approved read-only demo connection |
 | M10 LATER | I0..I8, walk-forward and paper trial | independent empirical results |
 
 **R0 PASS** means an offline program passes specified functional tests under documented synthetic/proxy assumptions. It does **NOT** establish profitable S1 signals or verified broker fills. Documented cases are not executed test results: Grok must create tests, run them and report actual pass/fail counts and commit SHAs as required by [10](10-roadmap.md).
