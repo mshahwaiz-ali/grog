@@ -158,13 +158,24 @@ KEYS = {  # docs/02 §3: only keys valid in the current view (+ always-safe glob
 }
 
 
+SHORT_KEY_LABEL = {  # below 80 columns: readable short words, never cut mid-word
+    "details": "open",
+    "details/reconcile": "open",
+    "record fill": "fill",
+    "partial": "part",
+    "modify": "mod",
+    "unlinked": "ext",
+    "refresh": "redraw",
+}
+
+
 def key_bar(view: str, narrow: bool = False) -> Line:
     """Below 80 columns labels shorten to one word so every valid key still fits."""
     keys = [("1-5", "views"), *KEYS[view], ("?", "help"), ("q", "quit")]
     out: Line = []
     for k, label in keys:
         if narrow:
-            label = "" if k in ("1-5", "?", "q") else label.split("/")[0].split(" ")[0][:5]
+            label = "" if k in ("1-5", "?", "q") else SHORT_KEY_LABEL.get(label, label)
             out += [(k, "key"), (f" {label} " if label else " ", "muted")]
         else:
             out += [(k, "key"), (f" {label}  ", "muted")]

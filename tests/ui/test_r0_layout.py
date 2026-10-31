@@ -61,7 +61,9 @@ def test_shell_order_tabs_and_key_bar(tmp_path: Path, size) -> None:
                 assert bar.endswith("[No orders]") and "1-5" in bar
                 assert len(bar) <= size[0] - 2, bar  # one row, nothing clipped
             await pilot.press("2")
-            assert "e reco" in app.query_one("#keys").plain
+            bar = app.query_one("#keys").plain
+            assert ("e fill" if size[0] < 110 else "e record fill") in bar
+            assert "detai " not in bar and "Enter " in bar  # short labels are whole words
             await pilot.press("3")
             bar = app.query_one("#keys").plain
             assert all(f"{k} " in bar for k in ("p", "m", "x", "n")) and "x close" in bar

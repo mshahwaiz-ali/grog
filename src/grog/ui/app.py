@@ -180,7 +180,7 @@ class GrogApp(App[None]):
                 [
                     (
                         f"{self.size.width}x{self.size.height}: enlarge to >=80x24 "
-                        "(120x34 full) · PgDn scrolls · Enter = exact SL/TP",
+                        "· PgDn scrolls · Enter = exact SL/TP",
                         "caution",
                     )
                 ]
