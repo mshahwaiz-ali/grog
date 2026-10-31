@@ -128,7 +128,7 @@ def test_st15_additive_migration_preserves_history_and_backs_up(db: Path) -> Non
         assert store.schema_versions() == [1, 2]
     before = table(db, "quote_sources")
     with Store.open(db, CLOCK) as store:
-        assert store.schema_versions() == [1, 2, 3]
+        assert store.schema_versions() == [1, 2, 3, 4]
     assert table(db, "quote_sources") == before
     backup = db.with_name(f"{STATE_DB_FILENAME}.pre-migration-v2.bak")
     assert backup.is_file()
@@ -139,7 +139,7 @@ def test_st15_additive_migration_preserves_history_and_backs_up(db: Path) -> Non
     finally:
         conn.close()
     with Store.open(db, CLOCK) as store:  # re-open: idempotent, no new backup churn
-        assert store.schema_versions() == [1, 2, 3]
+        assert store.schema_versions() == [1, 2, 3, 4]
 
 
 # --------------------------------------------------------------------------- validation

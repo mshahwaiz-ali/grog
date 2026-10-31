@@ -633,12 +633,30 @@ def _content_hash(kind: str, payload: dict) -> str:
 # --------------------------------------------------------------------------- service
 
 
+_ACTION_FOR_STATUS = {"ENTERED": "ENTERED", "USER_SKIPPED": "USER_SKIPPED"}
+
+
 class PositionJournal:
-    """Validated journal domain service. The UI calls only these methods."""
+    """Validated journal domain service. The UI calls only these methods.
+
+    Concurrency contract (docs/14 F-06): every write runs in one ``BEGIN IMMEDIATE``
+    transaction and repeats **all** of its checks inside it — action-ID idempotency, the
+    signal's first operator action, open state, remaining quantity and event sequence.
+    A second Grog process writing the same database can therefore never interleave a
+    conflicting record between a check and the write. Checks done before the transaction
+    only give early feedback; they never decide.
+    """
 
     def __init__(self, store: Store) -> None:
         self.store = store
         self._conn = store._conn  # single serialized writer owned by the Store
+        self._has_claims = (
+            self._conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='signal_operator_actions'"
+            ).fetchone()
+            is not None
+        )
+        self._inject_failure: str | None = None  # test-only failure point ("after_event")
 
     # ------------------------------------------------------------------ reads
 
@@ -689,14 +707,47 @@ class PositionJournal:
             for r in rows
         ]
 
+    def signal_actions(self, source_id: str) -> dict[str, tuple[str, str | None]]:
+        """``signal_id -> (ENTERED | USER_SKIPPED, position_id or None)`` for one source:
+        the first operator action recorded on each signal (an overlay only; the signal
+        record itself is never changed)."""
+        if self._has_claims:
+            rows = self._conn.execute(
+                "SELECT signal_id, action, position_id FROM signal_operator_actions "
+                "WHERE source_id = ?",
+                (source_id,),
+            )
+            return {r["signal_id"]: (r["action"], r["position_id"]) for r in rows}
+        out: dict[str, tuple[str, str | None]] = {}
+        for r in self._conn.execute(
+            "SELECT signal_id FROM signal_decisions WHERE source_id = ?", (source_id,)
+        ):
+            out[r["signal_id"]] = ("USER_SKIPPED", None)
+        for r in self._conn.execute(
+            "SELECT linked_signal_id, position_id FROM manual_positions WHERE source_id = ? "
+            "AND signal_link = 'PLAN'",
+            (source_id,),
+        ):
+            out.setdefault(r["linked_signal_id"], ("ENTERED", r["position_id"]))
+        return out
+
     def signal_status(self, source_id: str, signal_id: str) -> str | None:
         """``USER_SKIPPED`` / ``ENTERED`` operator status of a signal, if any."""
-        if self._conn.execute(
+        return self._status_in(self._conn, source_id, signal_id)
+
+    def _status_in(self, conn: sqlite3.Connection, source_id: str, signal_id: str) -> str | None:
+        if self._has_claims:
+            row = conn.execute(
+                "SELECT action FROM signal_operator_actions WHERE source_id = ? AND signal_id = ?",
+                (source_id, signal_id),
+            ).fetchone()
+            return None if row is None else row["action"]
+        if conn.execute(
             "SELECT 1 FROM signal_decisions WHERE source_id = ? AND signal_id = ?",
             (source_id, signal_id),
         ).fetchone():
             return "USER_SKIPPED"
-        if self._conn.execute(
+        if conn.execute(
             "SELECT 1 FROM manual_positions WHERE source_id = ? AND linked_signal_id = ? "
             "AND signal_link = 'PLAN'",
             (source_id, signal_id),
@@ -706,10 +757,11 @@ class PositionJournal:
 
     # ------------------------------------------------------------------ helpers
 
-    def _existing(self, action_id: str, content: str) -> bool:
+    def _existing(self, action_id: str, content: str, conn: sqlite3.Connection | None = None):
         """True when this exact action is already saved (idempotent resubmission)."""
+        conn = conn or self._conn
         for table, key in (("position_events", "dedupe_key"), ("signal_decisions", "dedupe_key")):
-            row = self._conn.execute(
+            row = conn.execute(
                 f"SELECT payload_json FROM {table} WHERE {key} = ?", (action_id,)
             ).fetchone()
             if row is not None:
@@ -721,85 +773,130 @@ class PositionJournal:
                 )
         return False
 
+    def _tx(self, work, what: str = "Position record"):
+        """Run ``work(conn)`` in one BEGIN IMMEDIATE transaction. Any exception rolls back
+        everything; SQLite errors are reported as NOT_SAVED, never as success (ST-04)."""
+        try:
+            with self.store.transaction() as conn:
+                return work(conn)
+        except sqlite3.Error as exc:
+            raise JournalError(
+                "NOT_SAVED",
+                f"{what} NOT saved ({exc}); nothing was changed. Close other Grog "
+                "instances or check disk space, then retry.",
+            ) from exc
+
+    def _maybe_fail(self, point: str) -> None:
+        if self._inject_failure == point:
+            raise sqlite3.OperationalError(f"injected failure {point}")
+
     _EVENT_SQL = (
         "INSERT INTO position_events (event_id, position_id, sequence, action_type, "
         "effective_at_ms, recorded_at_ms, qty_text, price_text, fees_text, payload_json, "
         "dedupe_key) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
     )
 
-    def _write(self, ev: PositionEventRecord, fail_after_event: bool = False) -> ManualPosition:
-        """Append one event and update the projection in a single transaction (ST-04).
-        Any failure rolls back both; the caller reports "NOT saved"."""
-        try:
-            with self.store.transaction() as conn:
-                before = None if ev.action is PositionAction.ENTRY else self.get(ev.position_id)
-                new = _apply(before, ev)
-                if new.remaining_qty < 0:
-                    raise JournalError("QTY_EXCEEDS_REMAINING", "negative remaining size")
-                snap = canonical_json(new.to_dict())
-                if ev.action is PositionAction.ENTRY:
-                    conn.execute(
-                        "INSERT INTO manual_positions (position_id, linked_signal_id, "
-                        "signal_link, source_id, mode, source_fidelity, plan_status, side, "
-                        "initial_qty_text, remaining_qty_text, entry_price_text, entry_ms, "
-                        "entry_recorded_ms, state, snapshot_json, updated_at_ms) "
-                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                        (
-                            new.position_id,
-                            new.linked_signal_id,
-                            new.signal_link,
-                            new.source_id,
-                            new.mode,
-                            new.fidelity,
-                            new.plan_status.value,
-                            new.side.value,
-                            _norm(new.initial_qty),
-                            _norm(new.remaining_qty),
-                            str(new.entry_price),
-                            new.entry_ms,
-                            new.entry_recorded_ms,
-                            new.state.value,
-                            snap,
-                            ev.recorded_at_ms,
-                        ),
-                    )
-                conn.execute(self._EVENT_SQL, _event_row_values(ev))
-                if fail_after_event:
-                    raise sqlite3.OperationalError("injected failure after event insert")
-                if ev.action is not PositionAction.ENTRY:
-                    conn.execute(
-                        "UPDATE manual_positions SET remaining_qty_text = ?, state = ?, "
-                        "snapshot_json = ?, updated_at_ms = ? WHERE position_id = ?",
-                        (
-                            _norm(new.remaining_qty),
-                            new.state.value,
-                            snap,
-                            ev.recorded_at_ms,
-                            new.position_id,
-                        ),
-                    )
-        except sqlite3.Error as exc:
-            raise JournalError(
-                "NOT_SAVED",
-                f"Position record NOT saved ({exc}); nothing was changed. Close other Grog "
-                "instances or check disk space, then retry.",
-            ) from exc
-        return new
+    def _get_in(self, conn: sqlite3.Connection, position_id: str) -> ManualPosition | None:
+        row = conn.execute(
+            "SELECT snapshot_json FROM manual_positions WHERE position_id = ?", (position_id,)
+        ).fetchone()
+        return None if row is None else ManualPosition.from_dict(json.loads(row["snapshot_json"]))
 
-    def _open_position(self, position_id: str) -> ManualPosition:
-        pos = self.get(position_id)
+    def _open_in(self, conn: sqlite3.Connection, position_id: str) -> ManualPosition:
+        pos = self._get_in(conn, position_id)
         if pos is None:
             raise JournalError("POSITION_NOT_FOUND", f"no recorded position {position_id}")
         if not pos.is_open:
             raise JournalError("POSITION_CLOSED", f"{position_id} is already CLOSED")
         return pos
 
-    def _next_seq(self, position_id: str) -> int:
-        row = self._conn.execute(
+    @staticmethod
+    def _next_seq_in(conn: sqlite3.Connection, position_id: str) -> int:
+        row = conn.execute(
             "SELECT COALESCE(MAX(sequence), 0) AS s FROM position_events WHERE position_id = ?",
             (position_id,),
         ).fetchone()
         return int(row["s"]) + 1
+
+    def _append(
+        self,
+        conn: sqlite3.Connection,
+        ev: PositionEventRecord,
+        before: ManualPosition | None,
+        fail_after_event: bool = False,
+    ) -> ManualPosition:
+        """Append one event and update the projection (caller owns the transaction)."""
+        new = _apply(before, ev)
+        if new.remaining_qty < 0:
+            raise JournalError("QTY_EXCEEDS_REMAINING", "negative remaining size")
+        snap = canonical_json(new.to_dict())
+        if ev.action is PositionAction.ENTRY:
+            conn.execute(
+                "INSERT INTO manual_positions (position_id, linked_signal_id, "
+                "signal_link, source_id, mode, source_fidelity, plan_status, side, "
+                "initial_qty_text, remaining_qty_text, entry_price_text, entry_ms, "
+                "entry_recorded_ms, state, snapshot_json, updated_at_ms) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    new.position_id,
+                    new.linked_signal_id,
+                    new.signal_link,
+                    new.source_id,
+                    new.mode,
+                    new.fidelity,
+                    new.plan_status.value,
+                    new.side.value,
+                    _norm(new.initial_qty),
+                    _norm(new.remaining_qty),
+                    str(new.entry_price),
+                    new.entry_ms,
+                    new.entry_recorded_ms,
+                    new.state.value,
+                    snap,
+                    ev.recorded_at_ms,
+                ),
+            )
+        conn.execute(self._EVENT_SQL, _event_row_values(ev))
+        if fail_after_event:
+            raise sqlite3.OperationalError("injected failure after event insert")
+        self._maybe_fail("after_event")
+        if ev.action is not PositionAction.ENTRY:
+            conn.execute(
+                "UPDATE manual_positions SET remaining_qty_text = ?, state = ?, "
+                "snapshot_json = ?, updated_at_ms = ? WHERE position_id = ?",
+                (
+                    _norm(new.remaining_qty),
+                    new.state.value,
+                    snap,
+                    ev.recorded_at_ms,
+                    new.position_id,
+                ),
+            )
+        return new
+
+    def _claim(
+        self,
+        conn: sqlite3.Connection,
+        source_id: str,
+        signal_id: str,
+        action: str,
+        action_id: str,
+        position_id: str | None,
+    ) -> None:
+        if self._has_claims:
+            conn.execute(
+                "INSERT INTO signal_operator_actions (source_id, signal_id, action, action_id, "
+                "position_id, recorded_at_ms) VALUES (?,?,?,?,?,?)",
+                (source_id, signal_id, action, action_id, position_id, self.store.now_ms()),
+            )
+
+    def _check_unclaimed(self, conn: sqlite3.Connection, source_id: str, signal_id: str) -> None:
+        status = self._status_in(conn, source_id, signal_id)
+        if status is not None:
+            raise JournalError(
+                "SIGNAL_ALREADY_" + status.removeprefix("USER_"),
+                f"{signal_id} is already {status}; use n for an unlinked OFF_PLAN record",
+            )
 
     # ------------------------------------------------------------------ actions
 
@@ -811,33 +908,37 @@ class PositionJournal:
             raise JournalError("INVALID_NUMBER", "fees must be >= 0")
         payload = req.payload()
         content = _content_hash("ENTRY", payload)
-        if self._existing(req.action_id, content):
-            row = self._conn.execute(
-                "SELECT position_id FROM position_events WHERE dedupe_key = ?", (req.action_id,)
-            ).fetchone()
-            return self.get(row["position_id"]), False  # type: ignore[return-value]
-        if req.plan is not None:
-            status = self.signal_status(req.source_id, req.plan.signal_id)
-            if status is not None:
-                raise JournalError(
-                    "SIGNAL_ALREADY_" + status.removeprefix("USER_"),
-                    f"{req.plan.signal_id} is already {status}; use n for an unlinked "
-                    "OFF_PLAN record",
-                )
         position_id = "POS-" + req.action_id[:12].upper()
-        ev = PositionEventRecord(
-            event_id=req.action_id,
-            position_id=position_id,
-            sequence=1,
-            action=PositionAction.ENTRY,
-            effective_at_ms=req.fill_ms,
-            recorded_at_ms=self.store.now_ms(),
-            qty=req.qty,
-            price=req.price,
-            fees=req.fees,
-            payload=payload | {"content_sha256": content},
-        )
-        return self._write(ev), True
+
+        def work(conn: sqlite3.Connection) -> tuple[ManualPosition, bool]:
+            if self._existing(req.action_id, content, conn):
+                row = conn.execute(
+                    "SELECT position_id FROM position_events WHERE dedupe_key = ?",
+                    (req.action_id,),
+                ).fetchone()
+                return self._get_in(conn, row["position_id"]), False  # type: ignore[return-value]
+            if req.plan is not None:
+                self._check_unclaimed(conn, req.source_id, req.plan.signal_id)
+            ev = PositionEventRecord(
+                event_id=req.action_id,
+                position_id=position_id,
+                sequence=1,
+                action=PositionAction.ENTRY,
+                effective_at_ms=req.fill_ms,
+                recorded_at_ms=self.store.now_ms(),
+                qty=req.qty,
+                price=req.price,
+                fees=req.fees,
+                payload=payload | {"content_sha256": content},
+            )
+            new = self._append(conn, ev, None)
+            if req.plan is not None:
+                self._claim(
+                    conn, req.source_id, req.plan.signal_id, "ENTERED", req.action_id, position_id
+                )
+            return new, True
+
+        return self._tx(work)
 
     def record_skip(
         self,
@@ -855,39 +956,33 @@ class PositionJournal:
             "reason": reason or None,
         }
         content = _content_hash("USER_SKIPPED", payload)
-        if not self._existing(action_id, content):
-            status = self.signal_status(plan.source_id, plan.signal_id)
-            if status is not None:
-                raise JournalError(
-                    "SIGNAL_ALREADY_" + status.removeprefix("USER_"),
-                    f"{plan.signal_id} is already {status}",
-                )
-            try:
-                with self.store.transaction() as conn:
-                    conn.execute(
-                        "INSERT INTO signal_decisions (decision_id, signal_id, source_id, mode, "
-                        "decision, effective_at_ms, recorded_at_ms, reason, payload_json, "
-                        "dedupe_key) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                        (
-                            action_id,
-                            plan.signal_id,
-                            plan.source_id,
-                            mode,
-                            "USER_SKIPPED",
-                            effective_ms,
-                            self.store.now_ms(),
-                            reason or None,
-                            canonical_json(payload | {"content_sha256": content}),
-                            action_id,
-                        ),
-                    )
-            except sqlite3.Error as exc:
-                raise JournalError(
-                    "NOT_SAVED", f"Skip NOT saved ({exc}); nothing was changed. Retry."
-                ) from exc
-            created = True
-        else:
-            created = False
+
+        def work(conn: sqlite3.Connection) -> bool:
+            if self._existing(action_id, content, conn):
+                return False
+            self._check_unclaimed(conn, plan.source_id, plan.signal_id)
+            conn.execute(
+                "INSERT INTO signal_decisions (decision_id, signal_id, source_id, mode, "
+                "decision, effective_at_ms, recorded_at_ms, reason, payload_json, "
+                "dedupe_key) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (
+                    action_id,
+                    plan.signal_id,
+                    plan.source_id,
+                    mode,
+                    "USER_SKIPPED",
+                    effective_ms,
+                    self.store.now_ms(),
+                    reason or None,
+                    canonical_json(payload | {"content_sha256": content}),
+                    action_id,
+                ),
+            )
+            self._maybe_fail("after_event")
+            self._claim(conn, plan.source_id, plan.signal_id, "USER_SKIPPED", action_id, None)
+            return True
+
+        created = self._tx(work, "Skip")
         rec = next(d for d in self.decisions() if d.decision_id == action_id)
         return rec, created
 
@@ -911,43 +1006,51 @@ class PositionJournal:
             "note": note or None,
         }
         content = _content_hash(action.value + position_id, payload)
-        if self._existing(action_id, content):
-            return self.get(position_id), False  # type: ignore[return-value]
         if price <= 0 or qty <= 0:
+            if self._existing(action_id, content):
+                return self.get(position_id), False  # type: ignore[return-value]
             raise JournalError("INVALID_NUMBER", "price and quantity must be > 0")
         if fees is not None and fees < 0:
             raise JournalError("INVALID_NUMBER", "fees must be >= 0")
-        pos = self._open_position(position_id)
-        if qty > pos.remaining_qty:
-            raise JournalError(
-                "QTY_EXCEEDS_REMAINING",
-                f"quantity {_norm(qty)} exceeds remaining {_norm(pos.remaining_qty)}",
+
+        def work(conn: sqlite3.Connection) -> tuple[ManualPosition, bool]:
+            if self._existing(action_id, content, conn):
+                return self._get_in(conn, position_id), False  # type: ignore[return-value]
+            pos = self._open_in(conn, position_id)
+            if qty > pos.remaining_qty:
+                raise JournalError(
+                    "QTY_EXCEEDS_REMAINING",
+                    f"quantity {_norm(qty)} exceeds remaining {_norm(pos.remaining_qty)}",
+                )
+            if action is PositionAction.CLOSE and qty != pos.remaining_qty:
+                raise JournalError(
+                    "CLOSE_QTY_MISMATCH",
+                    f"close must cover the full remaining {_norm(pos.remaining_qty)}; "
+                    "use p for a partial close",
+                )
+            if action is PositionAction.PARTIAL_CLOSE and qty == pos.remaining_qty:
+                raise JournalError(
+                    "PARTIAL_IS_FULL", "quantity equals the remaining size; use x to record a close"
+                )
+            if fill_ms < pos.entry_ms:
+                raise JournalError(
+                    "TIME_BEFORE_ENTRY", "exit time is before the recorded fill time"
+                )
+            ev = PositionEventRecord(
+                event_id=action_id,
+                position_id=position_id,
+                sequence=self._next_seq_in(conn, position_id),
+                action=action,
+                effective_at_ms=fill_ms,
+                recorded_at_ms=self.store.now_ms(),
+                qty=qty,
+                price=price,
+                fees=fees,
+                payload=payload | {"content_sha256": content},
             )
-        if action is PositionAction.CLOSE and qty != pos.remaining_qty:
-            raise JournalError(
-                "CLOSE_QTY_MISMATCH",
-                f"close must cover the full remaining {_norm(pos.remaining_qty)}; "
-                "use p for a partial close",
-            )
-        if action is PositionAction.PARTIAL_CLOSE and qty == pos.remaining_qty:
-            raise JournalError(
-                "PARTIAL_IS_FULL", "quantity equals the remaining size; use x to record a close"
-            )
-        if fill_ms < pos.entry_ms:
-            raise JournalError("TIME_BEFORE_ENTRY", "exit time is before the recorded fill time")
-        ev = PositionEventRecord(
-            event_id=action_id,
-            position_id=position_id,
-            sequence=self._next_seq(position_id),
-            action=action,
-            effective_at_ms=fill_ms,
-            recorded_at_ms=self.store.now_ms(),
-            qty=qty,
-            price=price,
-            fees=fees,
-            payload=payload | {"content_sha256": content},
-        )
-        return self._write(ev, fail_after_event=_fail_after_event), True
+            return self._append(conn, ev, pos, _fail_after_event), True
+
+        return self._tx(work)
 
     def record_partial(self, action_id, position_id, *, price, qty, fill_ms, fees=None, note=None):
         return self._exit(
@@ -976,30 +1079,34 @@ class PositionJournal:
             "note": note or None,
         }
         content = _content_hash("MODIFY" + position_id, payload)
-        if self._existing(action_id, content):
-            return self.get(position_id), False  # type: ignore[return-value]
         if new_stop is None and new_target is None:
             raise JournalError("MISSING_VALUE", "enter a new stop and/or target")
         for v in (new_stop, new_target):
             if v is not None and v <= 0:
                 raise JournalError("INVALID_NUMBER", "stop/target must be > 0")
-        pos = self._open_position(position_id)
-        if effective_ms < pos.entry_ms:
-            raise JournalError("TIME_BEFORE_ENTRY", "effective time is before the fill time")
-        payload["further_away"] = stop_further_away(pos, new_stop)
-        ev = PositionEventRecord(
-            event_id=action_id,
-            position_id=position_id,
-            sequence=self._next_seq(position_id),
-            action=PositionAction.MODIFY,
-            effective_at_ms=effective_ms,
-            recorded_at_ms=self.store.now_ms(),
-            qty=None,
-            price=None,
-            fees=None,
-            payload=payload | {"content_sha256": content},
-        )
-        return self._write(ev), True
+
+        def work(conn: sqlite3.Connection) -> tuple[ManualPosition, bool]:
+            if self._existing(action_id, content, conn):
+                return self._get_in(conn, position_id), False  # type: ignore[return-value]
+            pos = self._open_in(conn, position_id)
+            if effective_ms < pos.entry_ms:
+                raise JournalError("TIME_BEFORE_ENTRY", "effective time is before the fill time")
+            body = payload | {"further_away": stop_further_away(pos, new_stop)}
+            ev = PositionEventRecord(
+                event_id=action_id,
+                position_id=position_id,
+                sequence=self._next_seq_in(conn, position_id),
+                action=PositionAction.MODIFY,
+                effective_at_ms=effective_ms,
+                recorded_at_ms=self.store.now_ms(),
+                qty=None,
+                price=None,
+                fees=None,
+                payload=body | {"content_sha256": content},
+            )
+            return self._append(conn, ev, pos), True
+
+        return self._tx(work)
 
     def confirm_open(
         self, action_id: str, position_id: str, *, effective_ms: int, note: str | None = None
@@ -1007,36 +1114,45 @@ class PositionJournal:
         """Operator verified at the broker that the position is open exactly as recorded."""
         payload = {"effective_ms": effective_ms, "note": note or None}
         content = _content_hash("CONFIRMED_OPEN" + position_id, payload)
-        if self._existing(action_id, content):
-            return self.get(position_id), False  # type: ignore[return-value]
-        pos = self._open_position(position_id)
-        if pos.state is not PositionState.RECONCILIATION_REQUIRED:
-            raise JournalError("NOT_REQUIRED", f"{position_id} does not need reconciliation")
-        ev = PositionEventRecord(
-            action_id,
-            position_id,
-            self._next_seq(position_id),
-            PositionAction.CONFIRMED_OPEN,
-            effective_ms,
-            self.store.now_ms(),
-            None,
-            None,
-            None,
-            payload | {"content_sha256": content},
-        )
-        return self._write(ev), True
+
+        def work(conn: sqlite3.Connection) -> tuple[ManualPosition, bool]:
+            if self._existing(action_id, content, conn):
+                return self._get_in(conn, position_id), False  # type: ignore[return-value]
+            pos = self._open_in(conn, position_id)
+            if pos.state is not PositionState.RECONCILIATION_REQUIRED:
+                raise JournalError("NOT_REQUIRED", f"{position_id} does not need reconciliation")
+            ev = PositionEventRecord(
+                action_id,
+                position_id,
+                self._next_seq_in(conn, position_id),
+                PositionAction.CONFIRMED_OPEN,
+                effective_ms,
+                self.store.now_ms(),
+                None,
+                None,
+                None,
+                payload | {"content_sha256": content},
+            )
+            return self._append(conn, ev, pos), True
+
+        return self._tx(work)
 
     def restore_on_startup(self) -> list[ManualPosition]:
         """docs/07 §8: every open position becomes RECONCILIATION_REQUIRED at program
-        start; already-unverified positions are left as they are (no duplicate events)."""
+        start; already-unverified positions are left as they are (no duplicate events),
+        also when two Grog instances start at the same time."""
         restored = []
-        for pos in self.open_positions():
-            if pos.state is PositionState.MONITORING:
+        for candidate in self.open_positions():
+
+            def work(conn: sqlite3.Connection, pid: str = candidate.position_id):
+                pos = self._get_in(conn, pid)
+                if pos is None or pos.state is not PositionState.MONITORING:
+                    return pos
                 now = self.store.now_ms()
                 ev = PositionEventRecord(
                     new_action_id(),
-                    pos.position_id,
-                    self._next_seq(pos.position_id),
+                    pid,
+                    self._next_seq_in(conn, pid),
                     PositionAction.RESTORED_UNVERIFIED,
                     now,
                     now,
@@ -1045,8 +1161,11 @@ class PositionJournal:
                     None,
                     {"reason": "PROGRAM_RESTART", "note": "verify at broker"},
                 )
-                pos = self._write(ev)
-            restored.append(pos)
+                return self._append(conn, ev, pos)
+
+            pos = self._tx(work)
+            if pos is not None and pos.is_open:
+                restored.append(pos)
         return restored
 
 

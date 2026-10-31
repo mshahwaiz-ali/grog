@@ -31,7 +31,7 @@ INFO = SourceInfo(
     batch_paths=("batches/syn.csv",),
     config_hash="f" * 64,
     config_version=1,
-    state_schema_version=3,
+    state_schema_version=4,
 )
 
 

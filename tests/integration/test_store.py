@@ -69,8 +69,8 @@ def test_db_filename_matches_settings() -> None:
 
 
 def test_migration_0001_schema(store: Store, tmp_path: Path) -> None:  # ST-01
-    assert [v for v, _ in available_migrations()] == [1, 2, 3] and LATEST_SCHEMA_VERSION == 3
-    assert store.schema_versions() == [1, 2, 3]
+    assert [v for v, _ in available_migrations()] == [1, 2, 3, 4] and LATEST_SCHEMA_VERSION == 4
+    assert store.schema_versions() == [1, 2, 3, 4]
     conn = sqlite3.connect(store.path)
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     conn.close()
@@ -84,6 +84,7 @@ def test_migration_0001_schema(store: Store, tmp_path: Path) -> None:  # ST-01
         "manual_positions",
         "position_events",
         "signal_decisions",
+        "signal_operator_actions",
     }
     for forbidden in ("wallet", "order", "account", "trade", "broker"):
         assert not any(forbidden in t for t in tables)
@@ -102,7 +103,7 @@ def test_reopen_is_idempotent_and_preserves_rows(tmp_path: Path) -> None:
         s.commit_import(source(), batch())
     before = dump(db)
     with Store.open(db, FixedClock(1)) as s:
-        assert s.schema_versions() == [1, 2, 3]
+        assert s.schema_versions() == [1, 2, 3, 4]
         assert len(s.list_batches()) == 1
     assert dump(db) == before
 
@@ -183,6 +184,6 @@ def test_failed_migration_rolls_back(tmp_path: Path) -> None:
     with pytest.raises(sqlite3.OperationalError):
         Store.open(db, CLOCK, migrations=bad)
     with Store.open(db, CLOCK) as s:
-        assert s.schema_versions() == [1, 2, 3]
+        assert s.schema_versions() == [1, 2, 3, 4]
         tables = {r[0] for r in s._conn.execute("SELECT name FROM sqlite_master")}
         assert "extra" not in tables
