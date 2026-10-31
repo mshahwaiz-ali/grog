@@ -64,3 +64,14 @@ def test_window_membership_uses_provider_time_for_cutoff(full) -> None:
     t = quotes[len(quotes) // 2].provider_time_ms
     cut = run_replay(quotes, ReplayConfig("syn", FIXTURE_POLICY, to_ms=t), data_sha="x")
     assert cut.processed_quotes == sum(1 for q in quotes if q.provider_time_ms < t)
+
+
+def test_reference_adapter_is_outside_the_replay_engine_hash() -> None:
+    """M09-A must not change REPLAY: adapter/live code is not part of the engine identity,
+    and an undeclared [reference] table leaves the canonical config (and its hash) as before."""
+    from grog.replay import runner
+    from grog.settings import Settings
+
+    assert not {"adapters", "live"} & set(runner.ENGINE_PACKAGES)
+    assert not any(f.startswith(("adapters", "live")) for f in runner.ENGINE_FILES)
+    assert "reference" not in Settings().to_canonical_dict()
