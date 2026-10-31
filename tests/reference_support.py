@@ -6,6 +6,7 @@ displayed as ``FIXTURE · SIMULATED``, never as live reference prices.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
 
 from grog.domain.models import DataHealthPolicy
@@ -14,8 +15,9 @@ from grog.signals.engine import SignalPolicy
 SRC = "syn"
 OFFSET_S = 7200  # fixture trade-server offset (server = UTC+2); a test value, not a broker fact
 T0 = 1_790_812_800_000  # 2026-10-01 00:00:00 UTC
-POLICY = SignalPolicy(
+POLICY = SignalPolicy(  # fixture-only declarations of OPEN thresholds (never broker values)
     health=DataHealthPolicy(max_quote_age_ms=60_000, max_first_postclose_delay_ms=30_000),
+    price_step=Decimal("0.01"),
 )
 HB_AGE = 5_000  # fixture-only heartbeat threshold
 
