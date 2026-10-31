@@ -36,7 +36,7 @@ from grog.settings import ConfigError, parse_utc_timestamp_ms
 from grog.ui.format import DASH, UNKNOWN, iso_utc, price, r_long, r_short, short_id, utc
 from grog.ui.forms import Field, JournalForm, Values
 from grog.ui.lanes import exposure
-from grog.ui.panels import JournalRow, Line, band_text, entry_labels
+from grog.ui.panels import OPERATOR, JournalRow, Line, band_text, entry_labels, jtime
 
 NO_ORDER = "Local journal record only — Grog sends no order and changes no broker position."
 EXTERNAL = "This records your external trade; Grog did not recommend or execute it."
@@ -800,34 +800,36 @@ def manual_journal_rows(
         reason = ", ".join(p.off_plan_reasons) if e.action is PositionAction.ENTRY else ""
         reason = reason or e.payload.get("note") or e.payload.get("reason") or DASH
         cells = (
-            utc(e.effective_at_ms),
-            f"{p.position_id}/{short_id(p.linked_signal_id)}",
-            p.plan.strategy_version if p.plan else DASH,
-            p.side.value,
+            jtime(e.effective_at_ms),
+            OPERATOR,
             e.action.value,
+            p.position_id,
+            p.side.value,
             state,
-            "MANUAL (operator)",
             realized,
-            f"{p.fidelity} {p.mode}",
             reason,
+            p.plan.strategy_version if p.plan else DASH,
+            f"{p.fidelity} {p.mode}",
         )
         if compact:
-            cells = (cells[0], p.position_id, cells[3], state, reason)
-        out.append((e.effective_at_ms, JournalRow(f"pe-{e.event_id}", cells)))
+            cells = (cells[0][5:], "OPER", e.action.value, p.position_id, state)
+        search = f"{p.linked_signal_id or ''} {reason} {p.fidelity} {p.mode} MANUAL"
+        out.append((e.effective_at_ms, JournalRow(f"pe-{e.event_id}", cells, search)))
     for d in journal.decisions():
         cells = (
-            utc(d.effective_at_ms),
-            d.signal_id,
-            DASH,
-            DASH,
+            jtime(d.effective_at_ms),
+            OPERATOR,
             "SKIP",
+            short_id(d.signal_id),
+            DASH,
             d.decision,
-            "OPERATOR",
+            DASH,
+            d.reason or DASH,
             DASH,
             f"SIMULATED {d.mode}",
-            d.reason or DASH,
         )
         if compact:
-            cells = (cells[0], short_id(d.signal_id), DASH, d.decision, d.reason or DASH)
-        out.append((d.effective_at_ms, JournalRow(f"sd-{d.decision_id}", cells)))
+            cells = (cells[0][5:], "OPER", "SKIP", short_id(d.signal_id), d.decision)
+        search = f"{d.signal_id} {d.reason or ''} SIMULATED {d.mode}"
+        out.append((d.effective_at_ms, JournalRow(f"sd-{d.decision_id}", cells, search)))
     return out

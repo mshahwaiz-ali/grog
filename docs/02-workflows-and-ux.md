@@ -142,7 +142,7 @@ Table columns: `position ID`, `signal ID`, `side`, `qty`, `actual entry`, `curre
 
 ## 7. Screen 4 — JOURNAL
 
-Compact searchable/sortable local table: `UTC`, `signal/position`, `strategy ver`, `side`, `action`, `state`, `fill source`, `realized R`, `source fidelity`, `reason`.
+Compact searchable/sortable local table: `UTC`, `recorded by` (the fill/record source: `OPERATOR` for operator-confirmed local journal records, `SIM ENGINE` for session SIMULATED signal events — never mixed or merged), `action`, `signal/position`, `side`, `state`, `realized R`, `reason`, `strategy ver`, `source fidelity` (secondary columns last; <120 columns shows UTC, by, action, ref, state). The filter also matches full IDs, reasons and mode behind abbreviated cells. `Enter` on a row opens the full record (every column, full IDs). Simulated replay outcomes from `grog replay` are research reports, never journal rows.
 
 Filter via text input by `signal ID`, `date range`, `status` and `mode`; these are **local journal filters**, not a new analytics dashboard. Journal retains SKIPPED/MISSED/EXPIRED/RESEARCH_READY with correct state names and actual entered trades. When no file/history exists show `No journal events yet`, not sample gains.
 

@@ -179,8 +179,8 @@ class GrogApp(App[None]):
             [
                 [
                     (
-                        f"Compact {self.size.width}x{self.size.height}: enlarge to >=80x24 "
-                        "(>=120x34 full). PgDn scrolls; Enter shows exact SL/TP.",
+                        f"{self.size.width}x{self.size.height}: enlarge to >=80x24 "
+                        "(120x34 full) · PgDn scrolls · Enter = exact SL/TP",
                         "caution",
                     )
                 ]
@@ -290,6 +290,13 @@ class GrogApp(App[None]):
         self.query_one("#journal-table", StateTable).show(
             cols, [(r.key, r.cells) for r in reversed(shown)]
         )
+
+    def _journal_full(self) -> list[panels.JournalRow]:
+        version = self.session.pipeline.detector.params.strategy_version
+        rows = panels.journal_rows(self.session.pipeline.signals.events, version)
+        if self.journal is not None:
+            rows += [r for _, r in manual.manual_journal_rows(self.journal)]
+        return rows
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id == "journal-filter":
@@ -476,6 +483,10 @@ class GrogApp(App[None]):
                     self._overlay(),
                     self._open,
                 )
+        elif table.id == "journal-table":
+            row = next((r for r in self._journal_full() if r.key == key), None)
+            if row is not None:
+                lines = panels.journal_detail(row)
         elif table.id == "positions-table" and self.journal is not None:
             pos = next((p for p in self._open if p.position_id == key), None)
             if pos is not None:

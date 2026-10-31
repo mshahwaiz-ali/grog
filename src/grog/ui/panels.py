@@ -631,110 +631,145 @@ def _playback_state(snap: Snapshot) -> str:
     return f"PLAYING {pace_label(snap.pace)}"
 
 
+DIAG_TAG_STYLE = {
+    "OK": "ok",
+    "UNKNOWN": "caution",
+    "DEGRADED": "caution",
+    "NOT CONFIGURED": "caution",
+    "INFO": "muted",
+    "ERROR": "error",
+}
+
+
+def _check(tag: str, text: str) -> Line:
+    """One diagnostic row: a fixed-width verdict tag, then the evidence (docs/02 §8)."""
+    return [(f"[{tag}]".ljust(17), DIAG_TAG_STYLE[tag]), (text, "primary")]
+
+
+def _group(title: str) -> Line:
+    return [(title, "gold")]
+
+
 def diagnostics_lines(snap: Snapshot) -> list[Line]:
+    """Grouped checks with explicit OK / UNKNOWN / DEGRADED / NOT CONFIGURED verdicts and a
+    one-line summary of actual problems first (docs/02 §8; docs/14 F-05)."""
     q, h = snap.quote, snap.health
     label = DIAG_LABEL[h.status] if h else "OFFLINE"
     s = snap.source
+    unset = bool(h and "STALE_THRESHOLD_UNSET" in h.reasons)
+    if h is None or q is None:
+        feed_tag = "ERROR"
+    elif h.status is FeedStatus.FRESH:
+        feed_tag = "OK"
+    elif h.status is FeedStatus.UNKNOWN:
+        feed_tag = "UNKNOWN"
+    elif h.status in (FeedStatus.CLOSED, FeedStatus.NO_DATA):
+        feed_tag = "ERROR"
+    else:
+        feed_tag = "DEGRADED"
+    m1_gaps = [g for g in snap.gaps if g.timeframe is Timeframe.M1]
+    data_gaps = [g for g in m1_gaps if g.kind.value == "DATA_GAP"]
+    issues = []
+    if feed_tag != "OK":
+        issues.append(f"feed {label}")
+    if unset:
+        issues.append("freshness thresholds NOT CONFIGURED")
+    if not snap.warmup.sufficient:
+        issues.append("INSUFFICIENT HISTORY")
+    if data_gaps:
+        issues.append(f"{len(data_gaps)} data gap(s)")
+    summary: Line = (
+        [("Summary: ", "primary"), ("all checks OK", "ok")]
+        if not issues
+        else [
+            ("Summary: ", "primary"),
+            (f"{len(issues)} issue(s) — " + "; ".join(issues), "caution"),
+        ]
+    )
     out: list[Line] = [
         [("SOURCE DIAGNOSTICS", "gold")],
+        summary,
         [
             (
                 f"Mode: REPLAY   Fidelity: SIMULATED / {s.origin}   Source status: {label}   "
                 f"Playback: {_playback_state(snap)}",
-                "primary",
+                "muted",
             )
         ],
-        [
-            (
-                f"Feed health: {h.status.value if h else UNKNOWN}  reasons: "
-                f"{', '.join(h.reasons) if h and h.reasons else DASH}",
-                "caution" if not h or h.status is not FeedStatus.FRESH else "ok",
-            )
-        ],
-        [
-            (
-                "Freshness thresholds: NOT CONFIGURED (max_quote_age_ms unset) — health "
-                "UNKNOWN, marks UNVERIFIED, no READY issued"
-                if h and "STALE_THRESHOLD_UNSET" in h.reasons
-                else "Freshness thresholds: declared in config",
-                "caution" if h and "STALE_THRESHOLD_UNSET" in h.reasons else "muted",
-            )
-        ],
-        [
-            (
-                f"source_id: {s.source_id}   "
-                f"dataset: local import ({len(s.batch_sha256s)} batch)   "
-                f"symbol: {s.raw_symbol} -> canonical=XAUUSD",
-                "primary",
-            )
-        ],
-        [
-            (
-                f"Latest provider UTC: {utc(q.provider_time_ms) if q else DASH}   "
-                f"received UTC: {utc(q.received_time_ms) if q else DASH}",
-                "primary",
-            )
-        ],
-        [
-            (
-                f"Quote age (virtual): {duration(h.quote_age_ms) if h else DASH}   "
-                f"BID {price(q.bid) if q else DASH}  ASK {price(q.ask) if q else DASH}  "
-                f"Spread {price(q.spread) if q else DASH}",
-                "primary",
-            )
-        ],
+        _group("SOURCE"),
+        _check(
+            "INFO",
+            f"source_id: {s.source_id}   dataset: local import ({len(s.batch_sha256s)} batch)"
+            f"   symbol: {s.raw_symbol} -> canonical=XAUUSD",
+        ),
+        _check("INFO", "Adapter: offline replay file (no live adapter, no broker)"),
+        _group("FEED HEALTH"),
+        _check(
+            feed_tag,
+            f"Feed health: {h.status.value if h else UNKNOWN}  reasons: "
+            f"{', '.join(h.reasons) if h and h.reasons else DASH}",
+        ),
+        _check(
+            "NOT CONFIGURED" if unset else "OK",
+            "Freshness thresholds: NOT CONFIGURED (max_quote_age_ms unset) — health UNKNOWN, "
+            "marks UNVERIFIED, no READY issued"
+            if unset
+            else "Freshness thresholds: declared in config",
+        ),
+        _check(
+            feed_tag,
+            f"Quote age (virtual): {duration(h.quote_age_ms) if h else DASH}   "
+            f"BID {price(q.bid) if q else DASH}  ASK {price(q.ask) if q else DASH}  "
+            f"Spread {price(q.spread) if q else DASH}",
+        ),
+        _check(
+            "INFO",
+            f"Latest provider UTC: {utc(q.provider_time_ms) if q else DASH}   "
+            f"received UTC: {utc(q.received_time_ms) if q else DASH}",
+        ),
+        _group("BARS & GAPS"),
     ]
     for tf in (Timeframe.M1, Timeframe.M5, Timeframe.M15, Timeframe.H1):
         bar = snap.last_bars.get(tf)
         out.append(
-            [
-                (
-                    f"Last finalized {tf.value:<3}: "
-                    f"{utc(bar.start_ms) if bar else DASH}  ({snap.bar_counts[tf]} bars)",
-                    "primary",
-                )
-            ]
+            _check(
+                "OK" if bar else "UNKNOWN",
+                f"Last finalized {tf.value:<3}: "
+                f"{utc(bar.start_ms) if bar else DASH}  ({snap.bar_counts[tf]} bars)",
+            )
         )
-    m1_gaps = [g for g in snap.gaps if g.timeframe is Timeframe.M1]
     out.append(
-        [
-            (
-                f"Gaps (M1): {len(m1_gaps)} records, "
-                f"{sum(g.missing_bars for g in m1_gaps)} missing bars "
-                "(missing ticks are not fabricated)",
-                "primary",
-            )
-        ]
+        _check(
+            "DEGRADED" if data_gaps else "OK",
+            f"Gaps (M1): {len(m1_gaps)} records, "
+            f"{sum(g.missing_bars for g in m1_gaps)} missing bars, {len(data_gaps)} data gap(s) "
+            "(missing ticks are not fabricated)",
+        )
+    )
+    out.append(_group("WARM-UP & REPLAY"))
+    out.append(
+        _check(
+            "OK" if snap.warmup.sufficient else "ERROR",
+            f"Warm-up: {'SUFFICIENT' if snap.warmup.sufficient else 'INSUFFICIENT HISTORY'}"
+            f" — {warmup_text(snap)}",
+        )
     )
     out.append(
-        [
-            (
-                f"Warm-up: {'SUFFICIENT' if snap.warmup.sufficient else 'INSUFFICIENT HISTORY'}"
-                f" — {warmup_text(snap)}",
-                "ok" if snap.warmup.sufficient else "error",
-            )
-        ]
+        _check(
+            "INFO",
+            f"Replay: {snap.processed}/{snap.total} quotes processed, pre-roll "
+            f"{snap.pre_roll_quotes} (history), window from {utc(snap.window_start_ms)}",
+        )
     )
-    out.append(
-        [
-            (
-                f"Replay: {snap.processed}/{snap.total} quotes processed, pre-roll "
-                f"{snap.pre_roll_quotes} (history), window from {utc(snap.window_start_ms)}",
-                "primary",
-            )
-        ]
-    )
+    out.append(_group("INTEGRITY"))
     for sha in s.batch_sha256s:
-        out.append([(f"Batch sha256: {sha}", "muted")])
-    out.append([("Adapter: offline replay file (no live adapter, no broker)", "muted")])
+        out.append(_check("INFO", f"Batch sha256: {sha}"))
     out.append(
-        [
-            (
-                f"Config sha256: {s.config_hash[:16]}  config schema v{s.config_version}  "
-                f"state schema v{s.state_schema_version}",
-                "muted",
-            )
-        ]
+        _check(
+            "INFO",
+            f"Config sha256: {s.config_hash[:16]}  config schema v{s.config_version}  "
+            f"state schema v{s.state_schema_version}",
+        )
     )
     return out
 
@@ -743,25 +778,53 @@ def diagnostics_lines(snap: Snapshot) -> list[Line]:
 class JournalRow:
     key: str
     cells: tuple[str, ...]
+    search: str = ""  # full IDs and mode, so filters match what short cells abbreviate
 
     def matches(self, text: str) -> bool:
         needle = text.strip().lower()
-        return not needle or any(needle in c.lower() for c in self.cells)
+        if not needle:
+            return True
+        return any(needle in c.lower() for c in self.cells) or needle in self.search.lower()
 
 
+def journal_detail(row: JournalRow) -> list[Line]:
+    """Enter on a journal row: every column of the full record (docs/02 §7)."""
+    by = row.cells[1]
+    lines: list[Line] = [[(f"JOURNAL RECORD — {by}", "gold")]]
+    for name, value in zip(JOURNAL_COLUMNS, row.cells, strict=True):
+        lines.append([(f"{name:<16}", "muted"), (value, "primary")])
+    if row.search.strip():
+        lines.append([(f"{'full refs':<16}", "muted"), (row.search.strip(), "muted")])
+    note = (
+        "Operator-confirmed LOCAL journal record (persisted). Not a broker record."
+        if by == OPERATOR
+        else "Session SIMULATED engine event (not persisted, not a trade)."
+    )
+    lines.append([(note, "caution")])
+    return lines
+
+
+def jtime(ms: int | None) -> str:
+    """Journal table time: UTC (the column header says UTC), no suffix noise."""
+    return utc(ms).removesuffix(" UTC") if ms is not None else DASH
+
+
+# docs/02 §7: who recorded the row comes right after time, so operator-confirmed records
+# are never confused with session SIMULATED engine events; secondary columns last.
 JOURNAL_COLUMNS = (
     "UTC",
-    "SIGNAL/POSITION",
-    "STRATEGY VER",
-    "SIDE",
+    "RECORDED BY",
     "ACTION",
+    "SIGNAL/POSITION",
+    "SIDE",
     "STATE",
-    "FILL SOURCE",
     "REALIZED R",
-    "FIDELITY",
     "REASON",
+    "STRATEGY VER",
+    "FIDELITY",
 )
-JOURNAL_COLUMNS_COMPACT = ("UTC", "SIGNAL", "SIDE", "STATE", "REASON")
+JOURNAL_COLUMNS_COMPACT = ("UTC", "BY", "ACTION", "REF", "STATE")
+SIM_ENGINE, OPERATOR = "SIM ENGINE", "OPERATOR"
 
 
 def journal_rows(
@@ -773,18 +836,18 @@ def journal_rows(
         reason = ", ".join(r.value for r in e.reason_codes[:3]) or DASH
         ref = e.signal_id or e.candidate_id
         cells = (
-            utc(e.decision_time_ms),
-            ref,
-            version,
-            e.side.value,
+            jtime(e.decision_time_ms),
+            SIM_ENGINE,
             e.kind.value,
+            short_id(ref),
+            e.side.value,
             state,
             DASH,
-            DASH,
-            f"SIMULATED {mode}",
             reason,
+            version,
+            f"SIMULATED {mode}",
         )
         if compact:
-            cells = (cells[0], short_id(ref), cells[3], state, reason)
-        rows.append(JournalRow(f"{e.event_id}", cells))
+            cells = (cells[0][5:], "SIM", e.kind.value, short_id(ref), state)
+        rows.append(JournalRow(f"{e.event_id}", cells, f"{ref} {reason} SIMULATED {mode}"))
     return rows

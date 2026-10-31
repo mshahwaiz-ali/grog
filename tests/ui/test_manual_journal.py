@@ -251,7 +251,7 @@ def test_ui17_close_updates_only_journal(tmp_path: Path) -> None:
             assert app.query_one("#positions-table").row_count == 0
             await pilot.press("4")
             journal_text = str(app.query_one("#journal-table").get_row_at(0))
-            assert "CLOSE" in journal_text and "MANUAL (operator)" in journal_text
+            assert "CLOSE" in journal_text and "OPERATOR" in journal_text
         closed = journal.get(pos.position_id)
         assert closed.state is PositionState.CLOSED and closed.remaining_qty == 0
         assert closed.fees_text == "0.7 + UNKNOWN"  # entry fee was never stated
