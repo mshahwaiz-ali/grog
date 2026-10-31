@@ -24,6 +24,8 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from grog.domain.ids import is_valid_source_id
+
 CONFIG_SCHEMA_VERSION = 1
 """Version of the configuration schema understood by this build."""
 
@@ -90,6 +92,19 @@ class LiveSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class ReferenceSettings:
+    """M09 read-only MT5 reference feed (docs/09 §5.1). Unset = NOT_CONFIGURED."""
+
+    source_id: str | None = None
+    exporter_dir: str | None = None
+    max_heartbeat_age_ms: int | None = None  # OPEN: measured on the authorized demo feed
+
+    @property
+    def configured(self) -> bool:
+        return self.source_id is not None and self.exporter_dir is not None
+
+
+@dataclass(frozen=True, slots=True)
 class EventSettings:
     blackout_window: str | None = None
 
@@ -111,6 +126,7 @@ class Settings:
     risk: RiskSettings = RiskSettings()
     live: LiveSettings = LiveSettings()
     events: EventSettings = EventSettings()
+    reference: ReferenceSettings = ReferenceSettings()
     config_source: str = "built-in defaults"
 
     def to_canonical_dict(self) -> dict[str, Any]:
@@ -145,6 +161,18 @@ class Settings:
                 "max_spread_cost_r": dec(self.live.max_spread_cost_r),
             },
             "events": {"blackout_window": self.events.blackout_window},
+            # Only present when declared, so existing config hashes / replay run IDs are unchanged.
+            **(
+                {
+                    "reference": {
+                        "source_id": self.reference.source_id,
+                        "exporter_dir": self.reference.exporter_dir,
+                        "max_heartbeat_age_ms": self.reference.max_heartbeat_age_ms,
+                    }
+                }
+                if self.reference != ReferenceSettings()
+                else {}
+            ),
         }
 
     @property
@@ -182,6 +210,7 @@ _TOP_LEVEL_KEYS = {
     "risk",
     "live",
     "events",
+    "reference",
 }
 _TABLE_KEYS = {
     "ui": {"max_refresh_hz"},
@@ -194,6 +223,7 @@ _TABLE_KEYS = {
     },
     "live": {"max_quote_age_ms", "max_first_postclose_delay_ms", "max_spread_cost_r"},
     "events": {"blackout_window"},
+    "reference": {"source_id", "exporter_dir", "max_heartbeat_age_ms"},
 }
 
 
@@ -385,6 +415,24 @@ def settings_from_mapping(data: Mapping[str, Any], config_source: str = "mapping
         blackout = _require_str(blackout, "events.blackout_window")
     events = EventSettings(blackout)
 
+    ref_data = data.get("reference", {})
+    ref_source = ref_data.get("source_id")
+    if ref_source is not None:
+        ref_source = _require_str(ref_source, "reference.source_id")
+        if not is_valid_source_id(ref_source):
+            raise ConfigError("reference.source_id", "INVALID_SOURCE_ID", repr(ref_source))
+    ref_dir = ref_data.get("exporter_dir")
+    if ref_dir is not None:
+        ref_dir = _require_str(ref_dir, "reference.exporter_dir")
+    hb_age = ref_data.get("max_heartbeat_age_ms")
+    if hb_age is not None:
+        hb_age = _require_positive_int(hb_age, "reference.max_heartbeat_age_ms")
+    if (ref_source is None) != (ref_dir is None):
+        raise ConfigError(
+            "reference", "INCOMPLETE", "source_id and exporter_dir must be declared together"
+        )
+    reference = ReferenceSettings(ref_source, ref_dir, hb_age)
+
     settings = Settings(
         config_version=version,
         profile=profile,
@@ -399,6 +447,7 @@ def settings_from_mapping(data: Mapping[str, Any], config_source: str = "mapping
         risk=risk,
         live=live,
         events=events,
+        reference=reference,
         config_source=config_source,
     )
     _validate_mode_policy(settings)

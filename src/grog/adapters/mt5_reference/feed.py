@@ -1,0 +1,405 @@
+"""Read-only MT5 reference feed: normalizer and durable file reader (docs/09 §5.1).
+
+``ReferenceNormalizer`` turns transport records into :class:`NormalizedQuote` (UTC conversion
+from the exporter-reported server offset, explicit side carry-forward, content+occurrence
+dedup that keeps distinct same-millisecond ticks, causal ordering, LIVE vs BACKFILL tagging).
+``ReferenceReader`` reads rotated append-only files, consumes complete lines only and persists
+an atomic JSON cursor. Neither writes to the journal or talks to any broker/network.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from collections import deque
+from dataclasses import dataclass, field
+from decimal import Decimal
+from pathlib import Path
+
+from grog.adapters.mt5_reference.format import (
+    FILE_NAME,
+    CatchUpBegin,
+    CatchUpEnd,
+    EndOfFile,
+    HeartbeatRecord,
+    MetaRecord,
+    Record,
+    RecordError,
+    TickRecord,
+    parse_line,
+)
+from grog.domain.clock import Clock
+from grog.domain.enums import SourceOrigin
+from grog.domain.models import CANONICAL_SYMBOL, NormalizedQuote
+
+RECENT_KEYS = 20_000  # bounded dedup memory (re-delivery overlap is milliseconds to minutes)
+CURSOR_VERSION = 1
+LIVE, BACKFILL, FIXTURE = "LIVE", "BACKFILL", "FIXTURE"
+
+
+@dataclass(frozen=True, slots=True)
+class Heartbeat:
+    received_ms: int  # Grog clock when the line was read (liveness is judged on this)
+    server_time_msc: int
+    connected: bool
+    session: str
+
+
+@dataclass(frozen=True, slots=True)
+class FeedEvent:
+    """One consumed transport line, in file order."""
+
+    kind: str  # QUOTE | REJECT | HEARTBEAT | META | CATCHUP_BEGIN | CATCHUP_END | EOF
+    file: str
+    seq: int
+    quote: NormalizedQuote | None = None
+    live: bool = False
+    code: str | None = None
+    heartbeat: Heartbeat | None = None
+
+
+@dataclass
+class NormalizerState:
+    source_id: str
+    producer: str | None = None
+    fixture: bool = False
+    server: str | None = None
+    raw_symbol: str | None = None
+    digits: int | None = None
+    offset_s: int | None = None
+    last_bid: Decimal | None = None
+    last_ask: Decimal | None = None
+    last_provider_ms: int | None = None
+    last_received_ms: int = 0
+    ingest_order: int = 0
+    in_catchup: bool = False
+    seg_ms: int | None = None
+    seg_counts: dict[str, int] = field(default_factory=dict)
+    recent: deque[str] = field(default_factory=lambda: deque(maxlen=RECENT_KEYS))
+    counters: dict[str, int] = field(default_factory=dict)
+    heartbeat: Heartbeat | None = None
+    records: int = 0
+
+    def to_json(self) -> dict:
+        hb = self.heartbeat
+        return {
+            "source_id": self.source_id,
+            "producer": self.producer,
+            "fixture": self.fixture,
+            "server": self.server,
+            "raw_symbol": self.raw_symbol,
+            "digits": self.digits,
+            "offset_s": self.offset_s,
+            "last_bid": None if self.last_bid is None else str(self.last_bid),
+            "last_ask": None if self.last_ask is None else str(self.last_ask),
+            "last_provider_ms": self.last_provider_ms,
+            "last_received_ms": self.last_received_ms,
+            "ingest_order": self.ingest_order,
+            "in_catchup": self.in_catchup,
+            "seg_ms": self.seg_ms,
+            "seg_counts": dict(self.seg_counts),
+            "recent": list(self.recent),
+            "counters": dict(self.counters),
+            "heartbeat": None
+            if hb is None
+            else [hb.received_ms, hb.server_time_msc, hb.connected, hb.session],
+            "records": self.records,
+        }
+
+    @classmethod
+    def from_json(cls, d: dict) -> NormalizerState:
+        st = cls(d["source_id"])
+        for k in (
+            "producer",
+            "fixture",
+            "server",
+            "raw_symbol",
+            "digits",
+            "offset_s",
+            "last_provider_ms",
+            "last_received_ms",
+            "ingest_order",
+            "in_catchup",
+            "seg_ms",
+            "records",
+        ):
+            setattr(st, k, d[k])
+        st.last_bid = None if d["last_bid"] is None else Decimal(d["last_bid"])
+        st.last_ask = None if d["last_ask"] is None else Decimal(d["last_ask"])
+        st.seg_counts = dict(d["seg_counts"])
+        st.recent = deque(d["recent"], maxlen=RECENT_KEYS)
+        st.counters = dict(d["counters"])
+        hb = d["heartbeat"]
+        st.heartbeat = None if hb is None else Heartbeat(hb[0], hb[1], bool(hb[2]), hb[3])
+        return st
+
+
+class ReferenceNormalizer:
+    """Stateful record -> quote conversion for one source (pure; time is passed in)."""
+
+    def __init__(
+        self,
+        source_id: str,
+        max_quote_age_ms: int | None,
+        state: NormalizerState | None = None,
+    ) -> None:
+        self.state = state or NormalizerState(source_id)
+        if self.state.source_id != source_id:
+            raise ValueError("cursor belongs to another source")
+        self.max_quote_age_ms = max_quote_age_ms
+        self._recent_set = set(self.state.recent)
+
+    def count(self, code: str) -> None:
+        self.state.counters[code] = self.state.counters.get(code, 0) + 1
+
+    def apply(self, record: Record, received_ms: int, file: str) -> FeedEvent:
+        st = self.state
+        st.records += 1
+        if isinstance(record, MetaRecord):
+            if record.source_id != st.source_id:
+                self.count("SOURCE_MISMATCH")
+                return FeedEvent("REJECT", file, record.seq, code="SOURCE_MISMATCH")
+            st.producer, st.server, st.raw_symbol = (
+                record.producer,
+                record.server,
+                record.raw_symbol,
+            )
+            st.digits, st.offset_s = record.digits, record.server_offset_s
+            st.fixture = st.fixture or record.producer == "FIXTURE"
+            return FeedEvent("META", file, record.seq)
+        if isinstance(record, HeartbeatRecord):
+            st.offset_s = record.server_offset_s
+            hb = Heartbeat(
+                max(received_ms, st.last_received_ms),
+                record.server_time_msc,
+                record.connected,
+                record.session,
+            )
+            st.heartbeat = hb
+            return FeedEvent("HEARTBEAT", file, record.seq, heartbeat=hb)
+        if isinstance(record, CatchUpBegin):
+            st.in_catchup, st.seg_ms, st.seg_counts = True, None, {}
+            return FeedEvent("CATCHUP_BEGIN", file, record.seq)
+        if isinstance(record, CatchUpEnd):
+            st.in_catchup, st.seg_ms, st.seg_counts = False, None, {}
+            return FeedEvent("CATCHUP_END", file, record.seq)
+        if isinstance(record, EndOfFile):
+            return FeedEvent("EOF", file, record.seq)
+        return self._tick(record, received_ms, file)
+
+    def _reject(self, code: str, file: str, seq: int) -> FeedEvent:
+        self.count(code)
+        return FeedEvent("REJECT", file, seq, code=code)
+
+    def _tick(self, t: TickRecord, received_ms: int, file: str) -> FeedEvent:
+        st = self.state
+        if st.offset_s is None or st.raw_symbol is None:
+            return self._reject("NO_META", file, t.seq)
+        if not (t.bid_changed or t.ask_changed):
+            return self._reject("NON_QUOTE", file, t.seq)
+        if (t.bid_changed and t.bid is None) or (t.ask_changed and t.ask is None):
+            return self._reject("INVALID_PRICE", file, t.seq)
+        flags = {"BID_CHANGED"} if t.bid_changed else set()
+        if t.ask_changed:
+            flags.add("ASK_CHANGED")
+        bid, ask = t.bid, t.ask
+        if bid is None:
+            bid = st.last_bid
+            flags.add("BID_CARRIED")
+        if ask is None:
+            ask = st.last_ask
+            flags.add("ASK_CARRIED")
+        if bid is None or ask is None:
+            return self._reject("SIDE_UNKNOWN", file, t.seq)
+        if ask < bid:
+            return self._reject("CROSSED", file, t.seq)
+
+        content = f"{t.time_msc}:{bid}:{ask}:{t.flags}"
+        if st.seg_ms != t.time_msc:
+            st.seg_ms, st.seg_counts = t.time_msc, {}
+        n = st.seg_counts.get(content, 0)
+        st.seg_counts[content] = n + 1
+        key = f"{st.source_id}:{content}:{n}"
+        if key in self._recent_set:
+            return self._reject("DUPLICATE", file, t.seq)
+        provider = t.time_msc - st.offset_s * 1000
+        if provider < 0:
+            return self._reject("BAD_TIME", file, t.seq)
+        if st.last_provider_ms is not None and provider < st.last_provider_ms:
+            return self._reject("OUT_OF_ORDER", file, t.seq)
+
+        received = max(received_ms, st.last_received_ms)
+        live = (
+            t.mode == "L"
+            and not st.in_catchup
+            and self.max_quote_age_ms is not None
+            and received - provider <= self.max_quote_age_ms
+        )
+        flags.add(LIVE if live else BACKFILL)
+        if st.fixture:
+            flags.add(FIXTURE)
+        st.ingest_order += 1
+        quote = NormalizedQuote(
+            source_id=st.source_id,
+            canonical_symbol=CANONICAL_SYMBOL,
+            raw_symbol=st.raw_symbol,
+            provider_time_ms=provider,
+            received_time_ms=received,
+            ingest_order=st.ingest_order,
+            bid=bid,
+            ask=ask,
+            source_origin=SourceOrigin.REFERENCE_LIVE,
+            source_event_key=key,
+            flags=frozenset(flags),
+        )
+        st.last_bid, st.last_ask = bid, ask
+        st.last_provider_ms, st.last_received_ms = provider, received
+        if len(st.recent) == st.recent.maxlen:
+            self._recent_set.discard(st.recent[0])
+        st.recent.append(key)
+        self._recent_set.add(key)
+        self.count("ACCEPTED_LIVE" if live else "ACCEPTED_BACKFILL")
+        return FeedEvent("QUOTE", file, t.seq, quote=quote, live=live)
+
+
+@dataclass(frozen=True, slots=True)
+class CursorPosition:
+    file: str | None
+    offset: int
+    next_seq: int
+
+
+class ReferenceReader:
+    """Durable reader of ``<source_id>__<session>__<part>.grogref`` files (complete lines only)."""
+
+    def __init__(
+        self,
+        directory: Path,
+        source_id: str,
+        clock: Clock,
+        max_quote_age_ms: int | None,
+        cursor_path: Path | None = None,
+    ) -> None:
+        self.directory = Path(directory)
+        self.source_id = source_id
+        self.clock = clock
+        self.cursor_path = cursor_path
+        state = None
+        self.position = CursorPosition(None, 0, 1)
+        if cursor_path is not None and cursor_path.exists():
+            data = json.loads(cursor_path.read_text(encoding="utf-8"))
+            if data.get("version") != CURSOR_VERSION:
+                raise ValueError(f"unsupported cursor version in {cursor_path}")
+            p = data["position"]
+            self.position = CursorPosition(p["file"], p["offset"], p["next_seq"])
+            state = NormalizerState.from_json(data["normalizer"])
+        self.normalizer = ReferenceNormalizer(source_id, max_quote_age_ms, state)
+
+    @property
+    def state(self) -> NormalizerState:
+        return self.normalizer.state
+
+    def files(self) -> list[str]:
+        if not self.directory.is_dir():
+            return []
+        names = []
+        for p in self.directory.iterdir():
+            m = FILE_NAME.fullmatch(p.name)
+            if m and m.group("source") == self.source_id and p.is_file():
+                names.append(p.name)
+        return sorted(names)
+
+    def poll(self, stop_at: CursorPosition | None = None) -> list[FeedEvent]:
+        """Consume every complete new line (optionally only up to ``stop_at``)."""
+        events: list[FeedEvent] = []
+        files = self.files()
+        pos = self.position
+        if pos.file is None:
+            if not files:
+                return events
+            pos = CursorPosition(files[0], 0, 1)
+        while True:
+            if stop_at is not None and (pos.file, pos.offset) >= (stop_at.file, stop_at.offset):
+                break
+            path = self.directory / pos.file
+            data = b""
+            if path.exists():
+                with path.open("rb") as fh:
+                    fh.seek(pos.offset)
+                    data = fh.read()
+            end = data.rfind(b"\n")
+            if stop_at is not None and stop_at.file == pos.file:
+                end = min(end, stop_at.offset - pos.offset - 1)
+            consumed = data[: end + 1] if end >= 0 else b""
+            offset = pos.offset
+            seq = pos.next_seq
+            for raw in consumed.split(b"\n")[:-1]:
+                offset += len(raw) + 1
+                ev = self._line(raw, pos.file, seq)
+                if ev.seq != seq:
+                    self.normalizer.count("TRANSPORT_SEQ_GAP")
+                seq = ev.seq + 1
+                events.append(ev)
+            pos = CursorPosition(pos.file, offset, seq)
+            later = [f for f in files if f > pos.file]
+            if not later or (stop_at is not None and stop_at.file == pos.file):
+                break
+            if len(data) > len(consumed):
+                self.normalizer.count("PARTIAL_LINE_DISCARDED")
+            if not any(e.kind == "EOF" and e.file == pos.file for e in events) and offset > 0:
+                self.normalizer.count("FILE_ENDED_WITHOUT_Z")
+            pos = CursorPosition(later[0], 0, 1)
+        self.position = pos
+        return events
+
+    def _line(self, raw: bytes, file: str, seq: int) -> FeedEvent:
+        received = self.clock.now_ms()
+        try:
+            text = raw.decode("utf-8")
+            record = parse_line(text, self.normalizer.state.digits)
+        except (UnicodeDecodeError, RecordError) as exc:
+            code = exc.code if isinstance(exc, RecordError) else "BAD_ENCODING"
+            self.normalizer.count(code)
+            return FeedEvent("REJECT", file, seq, code=code)
+        if seq == 1 and not isinstance(record, MetaRecord):
+            self.normalizer.count("MISSING_META")
+        return self.normalizer.apply(record, received, file)
+
+    def commit(self) -> None:
+        """Atomically persist position + normalizer state (temp file, fsync, rename)."""
+        if self.cursor_path is None:
+            return
+        self.cursor_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "version": CURSOR_VERSION,
+            "position": {
+                "file": self.position.file,
+                "offset": self.position.offset,
+                "next_seq": self.position.next_seq,
+            },
+            "normalizer": self.normalizer.state.to_json(),
+        }
+        tmp = self.cursor_path.with_suffix(".tmp")
+        with tmp.open("w", encoding="utf-8") as fh:
+            json.dump(payload, fh, sort_keys=True)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, self.cursor_path)
+
+
+def cursor_path_for(state_dir: Path, source_id: str) -> Path:
+    return Path(state_dir) / "reference" / f"{source_id}.cursor.json"
+
+
+__all__ = [
+    "BACKFILL",
+    "FIXTURE",
+    "LIVE",
+    "CursorPosition",
+    "FeedEvent",
+    "Heartbeat",
+    "NormalizerState",
+    "ReferenceNormalizer",
+    "ReferenceReader",
+    "cursor_path_for",
+]
