@@ -71,8 +71,10 @@ def test_heartbeat_offset_change_applies_forward_only(tmp_path: Path) -> None:
     w.offset_s = OFFSET_S + 3600  # server moved (e.g. DST): exporter reports the new offset
     w.hb(T0 + 500)
     w.line(f"T,{{seq}},L,{T0 + 1_000 + (OFFSET_S + 3600) * 1000},4000.10,4000.30,6")
-    qs = quotes(reader(tmp_path, StepClock(T0 + 2_000)).poll())
+    r = reader(tmp_path, StepClock(T0 + 2_000))
+    qs = quotes(r.poll())
     assert [q.provider_time_ms for q in qs] == [T0, T0 + 1_000]
+    assert "OFFSET_CHANGED" in r.state.faults  # history across two offsets blocks READY
 
 
 def test_backfill_vs_live_tagging(tmp_path: Path) -> None:

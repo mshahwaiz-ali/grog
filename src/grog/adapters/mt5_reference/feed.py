@@ -35,6 +35,7 @@ from grog.domain.models import CANONICAL_SYMBOL, NormalizedQuote
 RECENT_KEYS = 20_000  # bounded dedup memory (re-delivery overlap is milliseconds to minutes)
 CURSOR_VERSION = 1
 LIVE, BACKFILL, FIXTURE = "LIVE", "BACKFILL", "FIXTURE"
+FUTURE_TIME, OFFSET_ASSUMED = "FUTURE_TIME", "OFFSET_ASSUMED"
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +81,8 @@ class NormalizerState:
     counters: dict[str, int] = field(default_factory=dict)
     heartbeat: Heartbeat | None = None
     records: int = 0
+    # Latched integrity faults: code -> [file, line seq] of the first occurrence (docs/09 §5.1).
+    faults: dict[str, list] = field(default_factory=dict)
 
     def to_json(self) -> dict:
         hb = self.heartbeat
@@ -105,6 +108,7 @@ class NormalizerState:
             if hb is None
             else [hb.received_ms, hb.server_time_msc, hb.utc_ms, hb.connected, hb.session],
             "records": self.records,
+            "faults": {k: list(v) for k, v in self.faults.items()},
         }
 
     @classmethod
@@ -130,6 +134,7 @@ class NormalizerState:
         st.seg_counts = dict(d["seg_counts"])
         st.recent = deque(d["recent"], maxlen=RECENT_KEYS)
         st.counters = dict(d["counters"])
+        st.faults = {k: list(v) for k, v in d.get("faults", {}).items()}
         hb = d["heartbeat"]
         st.heartbeat = None if hb is None else Heartbeat(hb[0], hb[1], hb[2], bool(hb[3]), hb[4])
         return st
@@ -143,15 +148,28 @@ class ReferenceNormalizer:
         source_id: str,
         max_quote_age_ms: int | None,
         state: NormalizerState | None = None,
+        max_future_skew_ms: int | None = None,
     ) -> None:
         self.state = state or NormalizerState(source_id)
         if self.state.source_id != source_id:
             raise ValueError("cursor belongs to another source")
         self.max_quote_age_ms = max_quote_age_ms
+        self.max_future_skew_ms = max_future_skew_ms  # OPEN policy: unset by default
         self._recent_set = set(self.state.recent)
 
     def count(self, code: str) -> None:
         self.state.counters[code] = self.state.counters.get(code, 0) + 1
+
+    def fault(self, code: str, file: str | None, seq: int) -> None:
+        """Count and latch an integrity fault (never cleared automatically)."""
+        self.count(code)
+        self.state.faults.setdefault(code, [file, seq])
+
+    def _offset(self, offset_s: int, file: str, seq: int) -> None:
+        st = self.state
+        if st.offset_s is not None and offset_s != st.offset_s:
+            self.fault("OFFSET_CHANGED", file, seq)  # history across two offsets: no READY
+        st.offset_s = offset_s
 
     def apply(self, record: Record, received_ms: int, file: str) -> FeedEvent:
         st = self.state
@@ -165,11 +183,12 @@ class ReferenceNormalizer:
                 record.server,
                 record.raw_symbol,
             )
-            st.digits, st.offset_s = record.digits, record.server_offset_s
+            st.digits = record.digits
+            self._offset(record.server_offset_s, file, record.seq)
             st.fixture = st.fixture or record.producer == "FIXTURE"
             return FeedEvent("META", file, record.seq)
         if isinstance(record, HeartbeatRecord):
-            st.offset_s = record.server_offset_s
+            self._offset(record.server_offset_s, file, record.seq)
             hb = Heartbeat(
                 max(received_ms, st.last_received_ms),
                 record.server_time_msc,
@@ -231,8 +250,17 @@ class ReferenceNormalizer:
             return self._reject("OUT_OF_ORDER", file, t.seq)
 
         received = max(received_ms, st.last_received_ms)
+        ahead = provider - received
+        if ahead > 0:
+            flags.add(FUTURE_TIME)  # provider clock ahead of receipt: never LIVE
+            if self.max_future_skew_ms is not None and ahead > self.max_future_skew_ms:
+                self.fault("FUTURE_TIME", file, t.seq)
+                return FeedEvent("REJECT", file, t.seq, code="FUTURE_TIME")
+        if t.mode == "B":
+            flags.add(OFFSET_ASSUMED)  # history converted with an offset observed later
         live = (
-            t.mode == "L"
+            ahead <= 0
+            and t.mode == "L"
             and not st.in_catchup
             and self.max_quote_age_ms is not None
             and received - provider <= self.max_quote_age_ms
@@ -281,6 +309,7 @@ class ReferenceReader:
         clock: Clock,
         max_quote_age_ms: int | None,
         cursor_path: Path | None = None,
+        max_future_skew_ms: int | None = None,
     ) -> None:
         self.directory = Path(directory)
         self.source_id = source_id
@@ -295,7 +324,9 @@ class ReferenceReader:
             p = data["position"]
             self.position = CursorPosition(p["file"], p["offset"], p["next_seq"])
             state = NormalizerState.from_json(data["normalizer"])
-        self.normalizer = ReferenceNormalizer(source_id, max_quote_age_ms, state)
+        self.normalizer = ReferenceNormalizer(
+            source_id, max_quote_age_ms, state, max_future_skew_ms
+        )
 
     @property
     def state(self) -> NormalizerState:
@@ -396,6 +427,8 @@ def cursor_path_for(state_dir: Path, source_id: str) -> Path:
 __all__ = [
     "BACKFILL",
     "FIXTURE",
+    "FUTURE_TIME",
+    "OFFSET_ASSUMED",
     "LIVE",
     "CursorPosition",
     "FeedEvent",

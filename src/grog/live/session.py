@@ -30,6 +30,7 @@ from grog.signals.pipeline import S1ResearchPipeline
 class LinkStatus(StrEnum):
     NOT_CONFIGURED = "NOT_CONFIGURED"
     NO_DATA = "NO_DATA"
+    INTEGRITY_FAULT = "INTEGRITY_FAULT"
     DISCONNECTED = "DISCONNECTED"
     OFFLINE = "OFFLINE"
     UNKNOWN = "UNKNOWN"
@@ -87,6 +88,8 @@ class ReferenceSession:
         max_heartbeat_age_ms: int | None,
         state_dir: Path | None = None,
         commit: bool = True,
+        time_basis_verified: bool = False,
+        max_future_skew_ms: int | None = None,
     ) -> None:
         self.source_id = source_id
         self.policy = policy
@@ -95,7 +98,13 @@ class ReferenceSession:
         self.commit_cursor = commit and state_dir is not None
         cursor = cursor_path_for(state_dir, source_id) if state_dir is not None else None
         age = policy.health.max_quote_age_ms
-        self.reader = ReferenceReader(Path(exporter_dir), source_id, clock, age, cursor)
+        # Timestamp boundary (docs/09 §5.1): UNVERIFIED until an authorized MT5 observation;
+        # the future-skew tolerance is OPEN. Both stay actionable blockers by default.
+        self.time_basis_verified = time_basis_verified
+        self.max_future_skew_ms = max_future_skew_ms
+        self.reader = ReferenceReader(
+            Path(exporter_dir), source_id, clock, age, cursor, max_future_skew_ms
+        )
         self.pipeline = S1ResearchPipeline(source_id, policy)
         self.live_ready: set[str] = set()
         self.historical_ready: set[str] = set()
@@ -110,7 +119,11 @@ class ReferenceSession:
             return
         stop = self.reader.position
         history = ReferenceReader(
-            self.reader.directory, self.source_id, self.clock, self.policy.health.max_quote_age_ms
+            self.reader.directory,
+            self.source_id,
+            self.clock,
+            self.policy.health.max_quote_age_ms,
+            max_future_skew_ms=self.max_future_skew_ms,
         )
         for ev in history.poll(stop_at=CursorPosition(stop.file, stop.offset, stop.next_seq)):
             if ev.kind == "QUOTE" and ev.quote is not None:
@@ -160,7 +173,12 @@ class ReferenceSession:
         )
         actionable = candidates if not blockers else ()
         # A FIXTURE producer's would-be READY is shown only in the simulated lane (docs/09 §5.1).
-        simulated = candidates if blockers == ("FIXTURE_SIMULATED",) else ()
+        trust = {"TIME_BASIS_UNVERIFIED", "FUTURE_SKEW_TOLERANCE_UNSET"}  # real-feed only
+        simulated = (
+            candidates
+            if tuple(b for b in blockers if b not in trust) == ("FIXTURE_SIMULATED",)
+            else ()
+        )
         label = (
             "NOT CONFIGURED"
             if st.producer is None
@@ -188,8 +206,14 @@ class ReferenceSession:
             out.append(f"LINK_{link.value}")
         if feed is None or feed.status is not FeedStatus.FRESH:
             out.append(f"FEED_{feed.status.value if feed is not None else 'NO_DATA'}")
+        if self.reader.state.faults:
+            out.append("INTEGRITY_FAULT")
         if self.reader.state.fixture:
             out.append("FIXTURE_SIMULATED")
+        if not self.time_basis_verified:
+            out.append("TIME_BASIS_UNVERIFIED")
+        if self.max_future_skew_ms is None:
+            out.append("FUTURE_SKEW_TOLERANCE_UNSET")
         return tuple(out)
 
     def _link(self, now: int, hb_age: int | None) -> tuple[LinkStatus, tuple[str, ...]]:
@@ -197,6 +221,8 @@ class ReferenceSession:
         hb = st.heartbeat
         if st.records == 0:
             return LinkStatus.NO_DATA, ("NO_RECORDS",)
+        if st.faults:
+            return LinkStatus.INTEGRITY_FAULT, tuple(sorted(st.faults))
         if hb is not None and not hb.connected:
             return LinkStatus.DISCONNECTED, ("TERMINAL_REPORTS_DISCONNECTED",)
         if self.max_heartbeat_age_ms is None:
