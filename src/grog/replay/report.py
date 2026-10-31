@@ -7,6 +7,7 @@ assumptions. It never states a probability, win rate or expected profit.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 from grog.journal.research import RunRow
@@ -18,12 +19,20 @@ def _utc(ms: int | None) -> str:
     return datetime.fromtimestamp(ms / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
+def _fmt(value: str) -> str:
+    """Display-only rounding (4 dp); exact values stay in the stored JSON result."""
+    return str(Decimal(value).quantize(Decimal("0.0001")))
+
+
 def _r(block: dict[str, Any] | str) -> str:
     if isinstance(block, str):
         return block
     if not block["resolved"]:
         return "no resolved outcomes"
-    return f"{block['total_r']} R total over {block['resolved']} (mean {block['mean_r']} R)"
+    return (
+        f"{_fmt(block['total_r'])} R total over {block['resolved']} "
+        f"(mean {_fmt(block['mean_r'])} R; display rounded, exact in JSON)"
+    )
 
 
 def render_text(run: RunRow, comparable: list[RunRow]) -> str:
