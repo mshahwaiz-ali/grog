@@ -137,7 +137,9 @@ class ReferenceSession:
         last = self.pipeline.aggregator.last_quote
         now = self.clock.now_ms()
         hb = st.heartbeat
-        hb_age = None if hb is None else max(0, now - hb.received_ms)
+        # Age by Grog's receive clock AND by the heartbeat's own (server->UTC) time, so a
+        # backlog of old heartbeat lines read now can never look like a live terminal.
+        hb_age = None if hb is None else max(0, now - hb.received_ms, now - hb.utc_ms)
         link, reasons = self._link(now, hb_age)
         feed = None
         if last is not None:

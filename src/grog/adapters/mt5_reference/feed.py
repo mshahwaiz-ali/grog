@@ -39,8 +39,9 @@ LIVE, BACKFILL, FIXTURE = "LIVE", "BACKFILL", "FIXTURE"
 
 @dataclass(frozen=True, slots=True)
 class Heartbeat:
-    received_ms: int  # Grog clock when the line was read (liveness is judged on this)
+    received_ms: int  # Grog clock when the line was read
     server_time_msc: int
+    utc_ms: int  # server_time_msc converted with the reported offset
     connected: bool
     session: str
 
@@ -102,7 +103,7 @@ class NormalizerState:
             "counters": dict(self.counters),
             "heartbeat": None
             if hb is None
-            else [hb.received_ms, hb.server_time_msc, hb.connected, hb.session],
+            else [hb.received_ms, hb.server_time_msc, hb.utc_ms, hb.connected, hb.session],
             "records": self.records,
         }
 
@@ -130,7 +131,7 @@ class NormalizerState:
         st.recent = deque(d["recent"], maxlen=RECENT_KEYS)
         st.counters = dict(d["counters"])
         hb = d["heartbeat"]
-        st.heartbeat = None if hb is None else Heartbeat(hb[0], hb[1], bool(hb[2]), hb[3])
+        st.heartbeat = None if hb is None else Heartbeat(hb[0], hb[1], hb[2], bool(hb[3]), hb[4])
         return st
 
 
@@ -172,6 +173,7 @@ class ReferenceNormalizer:
             hb = Heartbeat(
                 max(received_ms, st.last_received_ms),
                 record.server_time_msc,
+                record.server_time_msc - record.server_offset_s * 1000,
                 record.connected,
                 record.session,
             )

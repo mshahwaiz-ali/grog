@@ -54,7 +54,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "Rule-based local software: no AI agent, no broker orders, no automated trading."
         ),
         epilog=(
-            "Commands available in this build: version, doctor, import-ticks, replay, report, ui."
+            "Commands available in this build: version, doctor, import-ticks, replay, report, ui, "
+            "reference-status."
         ),
     )
     sub = parser.add_subparsers(dest="command", metavar="COMMAND", parser_class=_Parser)
@@ -160,6 +161,22 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help="isolated local state directory (default: $XDG_DATA_HOME/grog); never created",
     )
+    ref = sub.add_parser(
+        "reference-status",
+        help="read-only status of the configured MT5 reference feed files (M09)",
+        description=(
+            "Read the read-only MT5 exporter files (GROG-MT5-REF/1) of the configured "
+            "[reference] source and report link state, feed health, last quote and counters. "
+            "Read-only: no cursor is advanced, no journal record, no broker connection, no "
+            "network. Without a [reference] config the answer is NOT_CONFIGURED."
+        ),
+    )
+    ref.add_argument("--config", metavar="PATH", help="TOML config file with [reference]")
+    ref.add_argument(
+        "--state-dir",
+        metavar="PATH",
+        help="local state directory holding the reference cursor (read only)",
+    )
     return parser
 
 
@@ -203,6 +220,13 @@ def build_ui_session(args: argparse.Namespace, env: Mapping[str, str]):
 
 def _cmd_ui(args: argparse.Namespace, env: Mapping[str, str], out: TextIO, err: TextIO) -> int:
     if args.mode == "reference":
+        if load_settings(args.config, env).reference.configured:
+            err.write(
+                "GROG ERROR code=NOT_AVAILABLE reason=the reference workstation view is not wired "
+                "yet (M09-B, needs an authorized MT5 demo feed); no live or mock quotes are shown\n"
+            )
+            err.write("Next: grog reference-status --config PATH (read-only file status)\n")
+            return EXIT_CONFIG
         err.write(
             "GROG ERROR code=NOT_CONFIGURED reason=no read-only reference feed is configured "
             "(later milestone); no live or mock quotes are shown\n"
@@ -320,6 +344,72 @@ def _cmd_report(args: argparse.Namespace, env: Mapping[str, str], out: TextIO, e
     return EXIT_OK
 
 
+def _utc(ms: int) -> str:
+    return datetime.fromtimestamp(ms / 1000, UTC).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + " UTC"
+
+
+def _cmd_reference_status(
+    args: argparse.Namespace, env: Mapping[str, str], out: TextIO, err: TextIO
+) -> int:
+    from grog.domain.clock import SystemClock
+    from grog.domain.enums import SourceOrigin
+    from grog.live.session import ReferenceSession
+    from grog.replay.service import policy_from_settings
+
+    settings = load_settings(args.config, env)
+    ref = settings.reference
+    out.write("GROG / REFERENCE STATUS    read-only · no broker connection · no orders\n")
+    if not ref.configured:
+        out.write(
+            "Link: NOT_CONFIGURED — no [reference] source_id/exporter_dir in the config; "
+            "no live or mock quotes are shown\n"
+        )
+        return EXIT_CONFIG
+    state_dir, _origin = resolve_state_dir(args.state_dir, env)
+    session = ReferenceSession(
+        Path(ref.exporter_dir),
+        ref.source_id,
+        policy_from_settings(settings, {SourceOrigin.REFERENCE_LIVE}),
+        SystemClock(),
+        ref.max_heartbeat_age_ms,
+        state_dir=state_dir,
+        commit=False,
+    )
+    st = session.poll()
+    rs = session.reader.state
+    out.write(
+        f"Source: {ref.source_id}  Server: {rs.server or '-'}  Symbol: {rs.raw_symbol or '-'}"
+        f"  Producer: {rs.producer or '-'}  Label: {st.label}  Broker-verified: NO\n"
+    )
+    why = ", ".join(st.reasons) or "-"
+    hb = "-" if st.heartbeat_age_ms is None else f"{st.heartbeat_age_ms} ms"
+    out.write(f"Link: {st.link.value} ({why})   Heartbeat age: {hb}\n")
+    if st.feed is None:
+        out.write("Feed: NO_DATA (no accepted quote)\n")
+    else:
+        out.write(f"Feed: {st.feed.status.value} ({', '.join(st.feed.reasons) or '-'})\n")
+    q = st.last_quote
+    if q is not None:
+        kind = "LIVE" if "LIVE" in q.flags else "BACKFILL"
+        out.write(
+            f"Last quote: {_utc(q.provider_time_ms)}  BID {q.bid}  ASK {q.ask}  "
+            f"[{kind}] [{st.label}]\n"
+        )
+    counts = ", ".join(f"{k} {v}" for k, v in sorted(st.counters.items())) or "none"
+    out.write(f"Records: {counts}\n")
+    out.write(
+        f"READY actionable now: {', '.join(st.actionable) or 'none'}   "
+        f"historical (backfill) READY: {len(st.historical)} (never actionable)\n"
+    )
+    if rs.fixture:
+        out.write("FIXTURE files: SIMULATED test data, not reference prices; nothing is sent.\n")
+    else:
+        out.write(
+            "Prices are INDICATIVE reference data; P/L UNKNOWN; nothing is sent to a broker.\n"
+        )
+    return EXIT_OK
+
+
 def _cmd_version(out: TextIO) -> int:
     out.write(f"grog {__version__}\n")
     out.write(f"Config schema: {CONFIG_SCHEMA_VERSION}\n")
@@ -432,6 +522,8 @@ def main(
             return _cmd_report(args, env, out, err)
         if args.command == "ui":
             return _cmd_ui(args, env, out, err)
+        if args.command == "reference-status":
+            return _cmd_reference_status(args, env, out, err)
     except UsageError as exc:
         err.write(f"GROG ERROR code=USAGE_ERROR reason={exc}\n")
         return EXIT_USAGE

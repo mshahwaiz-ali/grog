@@ -43,7 +43,15 @@ def test_help_lists_only_finished_commands(capsys: pytest.CaptureFixture[str]) -
     assert main(["--help"]) == EXIT_OK
     text = capsys.readouterr().out
     listed = re.findall(r"^    (\S+)\s{2,}", text, flags=re.MULTILINE)
-    assert listed == ["version", "doctor", "import-ticks", "replay", "report", "ui"]
+    assert listed == [
+        "version",
+        "doctor",
+        "import-ticks",
+        "replay",
+        "report",
+        "ui",
+        "reference-status",
+    ]
     for unavailable in ("buy", "sell", "trade", "close-broker-order"):
         assert unavailable not in text
 
