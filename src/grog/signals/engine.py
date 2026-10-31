@@ -133,6 +133,9 @@ class SignalEngine:
         self._issued_by_candidate: dict[str, str] = {}
         self._triggers: dict[str, TriggerObservation] = {}
         self.plans: dict[str, TradePlan] = {}
+        # Plans that could be computed for triggers NOT issued, for labeled counterfactual
+        # (rejected-winner) accounting only; never a signal (docs/08 Section 13.2).
+        self.counterfactual: dict[str, tuple[TradePlan, NormalizedQuote]] = {}
 
     # ------------------------------------------------------------------ public
 
@@ -364,6 +367,8 @@ class SignalEngine:
                 kind = SignalEventKind.MISSED_PRICE_CHASE
             else:
                 kind = SignalEventKind.NOT_ISSUED
+            if plan is not None:
+                self.counterfactual[trig.trigger_id] = (plan, quote)
             return [self._emit(kind, trig, quote, reasons=[*reasons, *evidence], gates=gates)]
 
         signal_id = "SIG-" + sha256_hex(f"{trig.candidate_id}|{trig.trigger_bar_id}".encode())[:20]

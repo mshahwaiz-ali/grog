@@ -55,7 +55,7 @@ def test_strategy_layer_is_pure() -> None:
     # docs/09: analysis -> strategies; no UI, persistence, journal or network coupling.
     code = (
         "import sys, grog.market_data.bars, grog.analysis.contexts, "
-        "grog.strategies.s1_pullback, grog.signals.pipeline; "
+        "grog.strategies.s1_pullback, grog.signals.pipeline, grog.replay.runner; "
         "bad=[m for m in ('textual','rich','sqlite3','urllib.request','http.client',"
         "'grog.journal','grog.journal.store') if m in sys.modules]; print(','.join(bad))"
     )

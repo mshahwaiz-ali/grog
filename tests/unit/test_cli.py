@@ -43,8 +43,8 @@ def test_help_lists_only_finished_commands(capsys: pytest.CaptureFixture[str]) -
     assert main(["--help"]) == EXIT_OK
     text = capsys.readouterr().out
     listed = re.findall(r"^    (\S+)\s{2,}", text, flags=re.MULTILINE)
-    assert listed == ["version", "doctor", "import-ticks"]
-    for unavailable in ("replay", "buy", "sell", "close-broker-order"):
+    assert listed == ["version", "doctor", "import-ticks", "replay", "report"]
+    for unavailable in ("grog ui", "--mode", "buy", "sell", "close-broker-order"):
         assert unavailable not in text
 
 
@@ -62,7 +62,7 @@ def test_version(isolated_env: dict[str, str]) -> None:
     code, out, err = run(["version"], isolated_env)
     assert code == EXIT_OK and err == ""
     assert out.splitlines()[0] == f"grog {grog.__version__}"
-    assert "Config schema: 1" in out and "State schema: 1" in out
+    assert "Config schema: 1" in out and "State schema: 2" in out
 
 
 # ---------------------------------------------------------------- doctor

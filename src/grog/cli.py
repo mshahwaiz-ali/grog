@@ -1,7 +1,8 @@
 """Grog command line (docs/09-architecture.md Section 8; output format docs/02 Section 13).
 
-Only finished commands are registered: ``version``, a read-only ``doctor`` and
-``import-ticks`` (M01, local state only). There are no buy/sell/trade/order commands, and none will
+Only finished commands are registered: ``version``, a read-only ``doctor``,
+``import-ticks`` (M01, local state only), ``replay`` (M06, SIMULATED research run in local
+state) and a read-only ``report`` (M06). There are no buy/sell/trade/order commands, and none will
 be added: Grog never places broker orders.
 """
 
@@ -31,6 +32,7 @@ EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_CONFIG = 3
 EXIT_IMPORT_REJECTED = 4
+EXIT_NOT_FOUND = 5
 
 
 class UsageError(Exception):
@@ -49,7 +51,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "Grog — offline XAUUSD research and manual decision-support terminal. "
             "Rule-based local software: no AI agent, no broker orders, no automated trading."
         ),
-        epilog="Commands available in this build: version, doctor, import-ticks.",
+        epilog="Commands available in this build: version, doctor, import-ticks, replay, report.",
     )
     sub = parser.add_subparsers(dest="command", metavar="COMMAND", parser_class=_Parser)
 
@@ -98,7 +100,119 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help="isolated local state directory (default: $XDG_DATA_HOME/grog)",
     )
+    rep = sub.add_parser(
+        "replay",
+        help="deterministic SIMULATED research replay of one imported source",
+        description=(
+            "Replay every committed quote of one source in stable order on a virtual UTC clock "
+            "through bars, H1/M15/M5 context, S1 and signal eligibility; record a SIMULATED "
+            "research run locally and print its evidence report. Quotes before --from are "
+            "processed as pre-roll (history only); processing stops at --to. "
+            "No real trades, no broker, no network."
+        ),
+    )
+    rep.add_argument("--source-id", required=True, metavar="ID", help="imported source ID")
+    rep.add_argument("--from", dest="from_ts", metavar="ISO_UTC", help="window start (Z/offset)")
+    rep.add_argument("--to", dest="to_ts", metavar="ISO_UTC", help="window end (Z/offset)")
+    rep.add_argument("--config", metavar="PATH", help="TOML config file (frozen into the run)")
+    rep.add_argument(
+        "--state-dir",
+        metavar="PATH",
+        help="isolated local state directory (default: $XDG_DATA_HOME/grog)",
+    )
+    rpt = sub.add_parser(
+        "report",
+        help="read-only summary of a recorded research run",
+        description=(
+            "Summarize a recorded research run: source fidelity, data gaps, assumptions, "
+            "outcome caveats. Read-only; text by default, stable JSON optional."
+        ),
+    )
+    rpt.add_argument("--run-id", required=True, metavar="ID", help="research run ID")
+    rpt.add_argument("--format", choices=["text", "json"], default="text", help="output format")
+    rpt.add_argument(
+        "--state-dir",
+        metavar="PATH",
+        help="isolated local state directory (default: $XDG_DATA_HOME/grog); never created",
+    )
     return parser
+
+
+def _cmd_replay(args: argparse.Namespace, env: Mapping[str, str], out: TextIO, err: TextIO) -> int:
+    from grog.domain.clock import SystemClock
+    from grog.journal.research import comparable_runs
+    from grog.journal.store import Store
+    from grog.replay.report import render_text
+    from grog.replay.service import replay_source
+    from grog.settings import parse_utc_timestamp_ms
+
+    settings = load_settings(args.config, env)
+    from_ms = None if args.from_ts is None else parse_utc_timestamp_ms(args.from_ts, "--from")
+    to_ms = None if args.to_ts is None else parse_utc_timestamp_ms(args.to_ts, "--to")
+    if from_ms is not None and to_ms is not None and to_ms <= from_ms:
+        raise UsageError("--to must be after --from")
+    state_dir, _origin = resolve_state_dir(args.state_dir, env)
+    db = state_dir / STATE_DB_FILENAME
+    if not db.is_file():
+        return _not_found(err, f"source {args.source_id!r} (no local state at {state_dir})")
+    with Store.open(db, SystemClock()) as store:
+        if store.get_source(args.source_id) is None:
+            return _not_found(err, f"source {args.source_id!r}")
+        _result, run = replay_source(
+            store, state_dir, args.source_id, settings, from_ms=from_ms, to_ms=to_ms
+        )
+        others = comparable_runs(store._conn, run)
+    out.write(render_text(run, others))
+    out.write(f"Next: grog report --run-id {run.run_id} [--format json]\n")
+    return EXIT_OK
+
+
+def _not_found(out: TextIO, what: str) -> int:
+    out.write(f"GROG ERROR code=NOT_FOUND reason={what} not found\n")
+    return EXIT_NOT_FOUND
+
+
+def _cmd_report(args: argparse.Namespace, env: Mapping[str, str], out: TextIO, err: TextIO) -> int:
+    import json
+
+    from grog.journal.research import comparable_runs, get_run, open_read_only
+    from grog.replay.report import render_text
+
+    state_dir, _origin = resolve_state_dir(args.state_dir, env)
+    db = state_dir / STATE_DB_FILENAME
+    if not db.is_file():
+        return _not_found(err, f"run {args.run_id!r}")
+    conn = open_read_only(db)
+    try:
+        has_runs = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='research_runs'"
+        ).fetchone()
+        run = get_run(conn, args.run_id) if has_runs else None
+        if run is None or run.status != "COMPLETE":
+            return _not_found(err, f"completed run {args.run_id!r}")
+        others = comparable_runs(conn, run)
+    finally:
+        conn.close()
+    if args.format == "json":
+        doc = {
+            "run": {
+                "run_id": run.run_id,
+                "status": run.status,
+                "code_version": run.code_version,
+                "config_hash": run.config_hash,
+                "data_hash": run.data_hash,
+                "params_hash": run.params_hash,
+            },
+            "result": run.result,
+            "comparable_runs": [
+                {"run_id": r.run_id, "config_hash": r.config_hash, "params_hash": r.params_hash}
+                for r in others
+            ],
+        }
+        out.write(json.dumps(doc, sort_keys=True, indent=2) + "\n")
+    else:
+        out.write(render_text(run, others))
+    return EXIT_OK
 
 
 def _cmd_version(out: TextIO) -> int:
@@ -207,6 +321,13 @@ def main(
             return _cmd_doctor(args, env, out)
         if args.command == "import-ticks":
             return _cmd_import_ticks(args, env, out)
+        if args.command == "replay":
+            return _cmd_replay(args, env, out, err)
+        if args.command == "report":
+            return _cmd_report(args, env, out, err)
+    except UsageError as exc:
+        err.write(f"GROG ERROR code=USAGE_ERROR reason={exc}\n")
+        return EXIT_USAGE
     except CsvImportError as exc:
         err.write(f"{exc.describe()}; batch NOT committed; prior data unchanged.\n")
         err.write("Next: fix the named line/field or import another file.\n")

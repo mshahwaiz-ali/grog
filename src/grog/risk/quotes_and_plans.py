@@ -192,12 +192,14 @@ def _gross_r(plan: TradePlan, exit_price: Decimal) -> Decimal:
 def evaluate_exit_ticks(plan: TradePlan, quotes: Iterable[NormalizedQuote]) -> ExitEvaluation:
     """Ordered ticks after entry: the whole position exits at TP2 or SL, whichever first.
 
-    Stop and target are filled at the plan levels (gaps may slip further; docs/07 §2)."""
+    The target fills at TP2 (never better). A stop fills at SL, or at the actual worse
+    closeable price when a tick gaps through it (docs/07 §2: stops may slip)."""
     tp1 = False
     for q in quotes:
         if stop_touched(plan.side, q, plan.sl0):
+            price = min(plan.sl0, q.bid) if plan.side is Side.BUY else max(plan.sl0, q.ask)
             return ExitEvaluation(
-                ExitOutcome.STOP, plan.sl0, q.provider_time_ms, tp1, _gross_r(plan, plan.sl0)
+                ExitOutcome.STOP, price, q.provider_time_ms, tp1, _gross_r(plan, price)
             )
         if target_touched(plan.side, q, plan.tp2):
             return ExitEvaluation(
