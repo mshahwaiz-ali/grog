@@ -105,15 +105,17 @@ class JournalForm(ModalScreen[str | None]):
             [
                 [
                     (
-                        "Tab: next field · typing never triggers hotkeys · Esc: cancel (twice "
-                        "if edited) · saves a LOCAL record only; nothing is sent to a broker",
+                        "Tab next field · typing never triggers hotkeys · Esc cancels (twice if "
+                        "edited) · LOCAL record only, nothing is sent to a broker",
                         "muted",
                     )
                 ]
             ]
         )
         self._refresh_preview()
-        self.query_one("#cancel", Button).focus()  # docs/02 §9: default selection Cancel
+        # docs/02 §9: default selection Cancel; the dialog still opens at its top so the
+        # identity section is read first on small terminals (docs/02 §2.1).
+        self.query_one("#cancel", Button).focus(scroll_visible=False)
 
     # ------------------------------------------------------------------ state
 

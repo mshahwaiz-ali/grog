@@ -115,12 +115,13 @@ def test_entry_modal_anatomy_cancel_default_and_typing_safe(tmp_path: Path, size
             assert order == sorted(order) and order[-1] < buttons
             assert form.query_one("#sec-preview").border_title == "RISK PREVIEW & WARNINGS"
             assert isinstance(app.focused, Button) and app.focused.id == "cancel"
+            assert form.query_one("#form-box").scroll_y == 0  # opens at identity, not bottom
             price = form.query_one("#f-note", Input)
             price.focus()
             await pilot.press(*"esxpmnq12345", "space", "full_stop", "question_mark")
             assert app.screen is form and price.value == "esxpmnq12345 .?"
             assert app.query_one("#views", ContentSwitcher).current == "signals"
-            assert "nothing is sent to a broker" in form.plain or "broker" in form.plain
+            assert "nothing is sent to a broker" in form.query_one("#form-hint").plain
         store.close()
 
     run(scenario)

@@ -133,7 +133,6 @@ Screen.-short .modal, Screen.-narrow .modal { width: 100%; max-height: 100%; }
 }
 .form-row { height: 1; }
 .form-label { width: 30; padding: 0 1 0 0; color: $g-muted; }
-Screen.-narrow .form-label { width: 22; }
 .form-row Input { width: 1fr; height: 1; padding: 0 1; border: none; background: $g-panel; }
 .form-row Input:focus { background: $g-line; color: $g-text; text-style: bold; }
 .form-buttons { height: 3; align-horizontal: right; }
