@@ -80,6 +80,20 @@ For confirmed **long** position, mark exit using current **BID**; short uses cur
 
 If current quote stale: do not display fresh-looking P/L; mark prices stale with timestamp and monitoring degraded.
 
+### 6.1 Gross R presentation while fees/contract are UNKNOWN (R0)
+
+Net R above needs verified fees and contract currency; until then Grog shows **gross** R only, labeled gross, with explicit denominators and `Net R: UNKNOWN`:
+
+| Quantity | Definition |
+| --- | --- |
+| per-unit move R | `(closeable_mark − actual_entry) × side_sign / initial_per_unit_risk` |
+| original full-position risk | `initial_per_unit_risk × initial_qty` (price units; frozen at entry, never rewritten by stop moves) |
+| realized R | `Σ (exit − entry) × side_sign × closed_qty / original full-position risk` |
+| unrealized remaining R | `(closeable_mark − entry) × side_sign × remaining_qty / original full-position risk` |
+| total gross R | `realized R + unrealized remaining R` (UNKNOWN when an open quantity has no mark) |
+
+Realized and unrealized share one denominator so they add. A mark that is not `FRESH` (docs/02 §6) keeps its value but is labeled with its freshness. This defines presentation only; it adds no threshold or limit.
+
 ## 7. Live monitoring: observations vs advice
 
 After `ENTERED` user confirmation:

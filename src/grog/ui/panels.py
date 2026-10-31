@@ -20,11 +20,11 @@ from grog.ui.lanes import OperatorOverlay, exposure, signal_lane
 
 Line = list[tuple[str, str]]
 
-DIAG_LABEL = {  # docs/02 §8 diagnostic presentation labels (not the signal FSM)
+DIAG_LABEL = {  # docs/02 §8 source status presentation labels (not the signal FSM)
     FeedStatus.FRESH: "FRESH",
-    FeedStatus.STALE: "DEGRADED",
+    FeedStatus.STALE: "STALE",
     FeedStatus.DEGRADED: "DEGRADED",
-    FeedStatus.UNKNOWN: "DEGRADED",
+    FeedStatus.UNKNOWN: "UNKNOWN",
     FeedStatus.CLOSED: "MARKET_CLOSED",
     FeedStatus.NO_DATA: "OFFLINE",
 }
@@ -541,18 +541,25 @@ def candidate_detail(snap: Snapshot, c: S1Candidate) -> list[Line]:
     ]
 
 
+def _playback_state(snap: Snapshot) -> str:
+    """Playback is shown next to, never instead of, the source status (docs/14 F-05)."""
+    if snap.playback is Playback.ENDED:
+        return "REPLAY_ENDED"
+    if snap.playback is Playback.PAUSED:
+        return "REPLAY_PAUSED"
+    return f"PLAYING {pace_label(snap.pace)}"
+
+
 def diagnostics_lines(snap: Snapshot) -> list[Line]:
     q, h = snap.quote, snap.health
     label = DIAG_LABEL[h.status] if h else "OFFLINE"
-    if snap.playback is Playback.PAUSED:
-        label = "REPLAY_PAUSED"
     s = snap.source
     out: list[Line] = [
         [("SOURCE DIAGNOSTICS", "gold")],
         [
             (
-                f"Mode: REPLAY   Fidelity: SIMULATED / {s.origin}   Status: {label}   "
-                f"Playback: {playback_label(snap)}",
+                f"Mode: REPLAY   Fidelity: SIMULATED / {s.origin}   Source status: {label}   "
+                f"Playback: {_playback_state(snap)}",
                 "primary",
             )
         ],
@@ -561,6 +568,15 @@ def diagnostics_lines(snap: Snapshot) -> list[Line]:
                 f"Feed health: {h.status.value if h else UNKNOWN}  reasons: "
                 f"{', '.join(h.reasons) if h and h.reasons else DASH}",
                 "caution" if not h or h.status is not FeedStatus.FRESH else "ok",
+            )
+        ],
+        [
+            (
+                "Freshness thresholds: NOT CONFIGURED (max_quote_age_ms unset) — health "
+                "UNKNOWN, marks UNVERIFIED, no READY issued"
+                if h and "STALE_THRESHOLD_UNSET" in h.reasons
+                else "Freshness thresholds: declared in config",
+                "caution" if h and "STALE_THRESHOLD_UNSET" in h.reasons else "muted",
             )
         ],
         [

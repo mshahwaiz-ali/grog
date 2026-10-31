@@ -51,6 +51,10 @@ __all__ = [
     "TouchTracker",
     "entry_preview",
     "mark_position",
+    "mark_freshness",
+    "r_breakdown",
+    "RBreakdown",
+    "MARK_FRESHNESS",
     "new_action_id",
     "observations",
     "parse_amount",
@@ -466,15 +470,67 @@ class EntryRequest:
 
 @dataclass(frozen=True, slots=True)
 class Mark:
-    """Closeable-side mark of an open position (docs/07 §6). Observations, not advice."""
+    """Closeable-side mark of an open position (docs/07 §6). Observations, not advice.
+
+    R denominators are explicit (docs/07 §6.1): ``move_r`` is the per-unit price move over
+    the frozen per-unit initial risk; ``unrealized_r`` is the remaining position's gross move
+    over the ORIGINAL full-position risk (initial risk x initial qty), so it adds directly to
+    :attr:`ManualPosition.realized_r`. Net R is UNKNOWN until fees/contract are verified.
+    """
 
     closeable: Decimal | None  # BID for BUY, ASK for SELL
     closeable_side: str
     quote_ms: int | None
     unrealized_price_units: Decimal | None  # signed (mark - entry) x remaining qty
-    unrealized_r: Decimal | None  # gross, per unit, vs frozen initial risk
+    unrealized_r: Decimal | None  # gross, remaining position vs original full-position risk
     money: MoneyAmount | None
-    reason: str | None  # why the mark is UNAVAILABLE / UNKNOWN
+    reason: str | None  # why the mark is UNAVAILABLE / UNKNOWN / not fresh
+    freshness: str = "UNAVAILABLE"  # see MARK_FRESHNESS
+    move_r: Decimal | None = None  # gross per-unit move / frozen per-unit initial risk
+
+    @property
+    def fresh(self) -> bool:
+        return self.freshness == "FRESH"
+
+
+MARK_FRESHNESS = (
+    "FRESH",  # feed health FRESH under declared thresholds
+    "UNVERIFIED",  # feed health UNKNOWN: thresholds not configured, age not verified
+    "STALE",
+    "DEGRADED",
+    "MARKET_CLOSED",
+    "OFFLINE",
+    "REPLAY_ENDED",  # last replay quote, no newer data will arrive
+    "UNAVAILABLE",  # no quote from this position's source / clock before the fill
+)
+
+_FEED_FRESHNESS = {
+    "FRESH": "FRESH",
+    "UNKNOWN": "UNVERIFIED",
+    "STALE": "STALE",
+    "DEGRADED": "DEGRADED",
+    "CLOSED": "MARKET_CLOSED",
+    "NO_DATA": "OFFLINE",
+}
+
+_FRESHNESS_REASON = {
+    "UNVERIFIED": "MARK UNVERIFIED — feed thresholds not configured; quote age not verified",
+    "STALE": "PRICES STALE — monitoring degraded",
+    "DEGRADED": "FEED DEGRADED — mark may be unreliable; monitoring degraded",
+    "MARKET_CLOSED": "MARKET CLOSED — last mark before close; monitoring paused",
+    "OFFLINE": "FEED OFFLINE — last known mark only; monitoring degraded",
+    "REPLAY_ENDED": "REPLAY ENDED — last replay mark; no newer quotes",
+}
+
+
+def mark_freshness(feed_status: str | None, *, replay_ended: bool = False) -> str:
+    """Freshness label for a mark from a feed-health status value (FeedStatus.value)."""
+    if feed_status is None:
+        return "UNVERIFIED"
+    label = _FEED_FRESHNESS.get(feed_status, "UNVERIFIED")
+    if replay_ended and label == "FRESH":
+        return "REPLAY_ENDED"
+    return label
 
 
 def mark_position(
@@ -483,6 +539,8 @@ def mark_position(
     *,
     contract: ContractSpec | None = None,
     stale: bool = False,
+    feed_status: str | None = "FRESH",
+    replay_ended: bool = False,
 ) -> Mark:
     side_label = "BID" if pos.side is Side.BUY else "ASK"
     if quote is None or quote.source_id != pos.source_id:
@@ -501,10 +559,46 @@ def mark_position(
     mark = quote.bid if pos.side is Side.BUY else quote.ask
     move = (mark - pos.entry_price) * _sign(pos.side)
     units = move * pos.remaining_qty
-    r = _div(move, pos.initial_risk) if pos.initial_risk else None
+    move_r = _div(move, pos.initial_risk) if pos.initial_risk else None
+    full = pos.initial_risk * pos.initial_qty if pos.initial_risk else None
+    r = _div(units, full) if full else None
     money = price_to_money(move, pos.remaining_qty, contract, REPORTING_CURRENCY)
-    reason = "PRICES STALE — monitoring degraded" if stale else None
-    return Mark(mark, side_label, quote.received_time_ms, units, r, money, reason)
+    freshness = "STALE" if stale else mark_freshness(feed_status, replay_ended=replay_ended)
+    reason = _FRESHNESS_REASON.get(freshness)
+    return Mark(
+        mark, side_label, quote.received_time_ms, units, r, money, reason, freshness, move_r
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class RBreakdown:
+    """Gross R of one position with explicit denominators (docs/07 §6.1)."""
+
+    move_r: Decimal | None  # per unit: (mark - entry) / initial per-unit risk
+    realized_r: Decimal | None  # closed qty vs original full-position risk
+    unrealized_r: Decimal | None  # remaining qty vs original full-position risk
+    total_r: Decimal | None  # realized + unrealized (gross, full-position basis)
+    original_risk_units: Decimal | None  # initial per-unit risk x initial qty (price units)
+    net_r: None = None  # UNKNOWN: fees/contract/currency not verified
+
+
+def r_breakdown(pos: ManualPosition, mark: Mark | None = None) -> RBreakdown:
+    full = pos.initial_risk * pos.initial_qty if pos.initial_risk else None
+    realized = pos.realized_r
+    unreal = mark.unrealized_r if mark is not None and mark.closeable is not None else None
+    if not pos.is_open:
+        unreal = Decimal(0) if full else None
+    total = None
+    if full:
+        parts = [x for x in (realized, unreal) if x is not None]
+        if pos.remaining_qty and unreal is None:
+            total = None  # open qty without a mark: total gross R is not computable
+        else:
+            total = Decimal(0)
+            for x in parts:
+                total = CALC_CONTEXT.add(total, x)
+    move = mark.move_r if mark is not None and mark.closeable is not None else None
+    return RBreakdown(move, realized, unreal, total, full)
 
 
 # --------------------------------------------------------------------------- projection

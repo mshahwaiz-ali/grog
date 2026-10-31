@@ -15,6 +15,7 @@ from grog.journal.positions import (
     EntryRequest,
     JournalError,
     ManualPosition,
+    Mark,
     PlanRef,
     PositionAction,
     PositionEventRecord,
@@ -27,6 +28,7 @@ from grog.journal.positions import (
     mark_position,
     observations,
     parse_amount,
+    r_breakdown,
     stop_further_away,
 )
 from grog.replay.session import Playback, SignalView, Snapshot
@@ -486,8 +488,21 @@ def _clock(snap: Snapshot, p: ManualPosition) -> int | None:
     return q.received_time_ms if q is not None and q.source_id == p.source_id else None
 
 
-def _stale(snap: Snapshot) -> bool:
-    return snap.health is not None and snap.health.status.value == "STALE"
+def mark_for(p: ManualPosition, snap: Snapshot) -> Mark:
+    """Mark with explicit freshness from feed health and playback (docs/14 F-04)."""
+    return mark_position(
+        p,
+        snap.quote,
+        feed_status=snap.health.status.value if snap.health else None,
+        replay_ended=snap.playback is Playback.ENDED,
+    )
+
+
+def mark_cell(m: Mark) -> str:
+    """Closeable price with a freshness tag whenever it is not FRESH (never fresh-looking)."""
+    if m.closeable is None:
+        return DASH
+    return price(m.closeable) if m.fresh else f"{price(m.closeable)} {m.freshness[:5]}"
 
 
 def position_rows(
@@ -498,21 +513,21 @@ def position_rows(
 ) -> list[tuple[str, tuple[str, ...]]]:
     rows = []
     for p in positions:
-        m = mark_position(p, snap.quote, stale=_stale(snap))
+        m = mark_for(p, snap)
         touched = tracker.touched(p)
         sl = price(p.current_sl) + ("*" if p.current_sl != p.initial_sl else "")
         tp = "TOUCHED" if "TARGET" in touched else price(p.current_tp)
         sig = DASH if not p.linked_signal_id else p.linked_signal_id[-6:]
         if p.plan_status.value == "OFF_PLAN":
             sig = f"{sig} OFF" if p.linked_signal_id else "OFF_PLAN"
-        r = r_short(m.unrealized_r) if m.closeable is not None else DASH
+        r = r_short(r_breakdown(p, m).total_r) if m.closeable is not None else DASH
         cells = (
             p.position_id,
             sig,
             p.side.value,
             _q(p.remaining_qty),
             price(p.entry_price),
-            price(m.closeable),
+            mark_cell(m),
             sl,
             tp,
             UNKNOWN,
@@ -568,7 +583,8 @@ def positions_strip(
             (
                 "MARK = closeable BID (BUY) / ASK (SELL) from SIMULATED replay quotes. "
                 + PNL_UNKNOWN
-                + "; R is gross price R vs initial risk. No hold/exit advice.",
+                + "; R = gross (realized + unrealized) / original full-position risk; "
+                "net R UNKNOWN. A non-FRESH mark is tagged. No hold/exit advice.",
                 "muted",
             )
         ]
@@ -583,8 +599,10 @@ def live_positions_panel(positions: Sequence[ManualPosition], snap: Snapshot) ->
         lines.append([("Nothing is assumed executed by Grog.", "muted")])
         return lines
     for p in positions[:4]:
-        m = mark_position(p, snap.quote)
-        r = r_short(m.unrealized_r) if m.closeable is not None else DASH
+        m = mark_for(p, snap)
+        r = r_short(r_breakdown(p, m).total_r) if m.closeable is not None else DASH
+        if m.closeable is not None and not m.fresh:
+            r += f" ({m.freshness})"
         style = "error" if p.state is PositionState.RECONCILIATION_REQUIRED else "primary"
         lines.append(
             [
@@ -608,7 +626,8 @@ def position_detail(
     tracker: TouchTracker,
 ) -> list[Line]:
     ent, ex = entry_labels(pos.side)
-    m = mark_position(pos, snap.quote, stale=_stale(snap))
+    m = mark_for(pos, snap)
+    rb = r_breakdown(pos, m)
     lines: list[Line] = [
         [
             (f"POSITION {pos.position_id} / ", "gold"),
@@ -655,19 +674,31 @@ def position_detail(
         lines.append(
             [
                 (
-                    f"Mark {m.closeable_side} {price(m.closeable)} at {utc(m.quote_ms)}   "
-                    f"unrealized gross price x qty {signed(m.unrealized_price_units)}   "
-                    f"{r_long(m.unrealized_r)} gross",
-                    "primary",
+                    f"Mark {m.closeable_side} {price(m.closeable)} at {utc(m.quote_ms)} "
+                    f"[{m.freshness}]   unrealized gross price x qty "
+                    f"{signed(m.unrealized_price_units)}",
+                    "primary" if m.fresh else "caution",
                 )
             ]
         )
     if m.reason:
         lines.append([(m.reason, "caution")])
+    full = price(rb.original_risk_units) if rb.original_risk_units else UNKNOWN
     lines.append(
         [
             (
-                f"Realized gross {r_long(pos.realized_r)}   Fees {pos.fees_text}   {PNL_UNKNOWN}",
+                f"R (gross): move/unit {r_long(rb.move_r)}   realized {r_long(rb.realized_r)}   "
+                f"unrealized remaining {r_long(rb.unrealized_r)}   total {r_long(rb.total_r)}",
+                "primary",
+            )
+        ]
+    )
+    lines.append(
+        [
+            (
+                f"Denominator: original full-position risk {full} price units "
+                f"(initial risk x initial qty; per-unit move uses initial risk)   "
+                f"Net R: UNKNOWN   Fees {pos.fees_text}   {PNL_UNKNOWN}",
                 "muted",
             )
         ]

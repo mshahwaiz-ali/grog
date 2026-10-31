@@ -118,6 +118,8 @@ A numeric quality percentage is **NOT** part of MVP: [06](06-signals-and-scoring
 
 Table columns: `position ID`, `signal ID`, `side`, `qty`, `actual entry`, `current closeable quote`, `initial/current SL`, `TP status`, `gross/net estimated P&L`, `R`, `last updated`, `STATE`.
 
+- **Mark freshness is explicit** (docs/14 F-04): every mark carries `FRESH`, `UNVERIFIED` (thresholds not configured), `STALE`, `DEGRADED`, `MARKET_CLOSED`, `OFFLINE`, `REPLAY_ENDED` or `UNAVAILABLE`. Any non-`FRESH` mark is tagged in the table, the Live strip and the detail, with its reason; it never looks fresh.
+- **R column** is gross total R = (realized + unrealized remaining) / original full-position risk (docs/07 §6.1). Details show per-unit move R, realized R, unrealized remaining R, total, the denominator, and `Net R: UNKNOWN`.
 - **Long closeable mark is BID**; short closeable mark is ASK. Unknown lot specs/fees => `P&L UNKNOWN` with a clear explanatory reason; never treat reference-feed unrealized P&L as true account balance.
 - Immediately show `RECONCILIATION REQUIRED` for positions restored after restart until user verifies them.
 - Advisory event strip: `TP1 APPROACHING`, `STOP TOUCHED (NOT VERIFIED FILL)`, `H1 BIAS CHANGED`, `FEED STALE`, `MANUAL BROKER VERIFICATION NEEDED`.
@@ -136,7 +138,7 @@ Recording error correction is an **append-only correction event**, never silent 
 
 Show `mode`, `source_id`, broker/server/dataset, original symbol and `canonical=XAUUSD`, UTC provider/receive latest timestamps, quote age, BID/ASK, spread, last finalized M1/M5/M15/H1 bars, missing ticks/bars, replay/import checksum and gaps, adapter status, history warm-up sufficiency, schema/config version, current data fidelity.
 
-Source status labels are `FRESH`, `DEGRADED`, `OFFLINE`, `MARKET_CLOSED`, `REPLAY_PAUSED` as **diagnostic presentation**, distinct from the signal's domain FSM. Show reason and latest reliable quote time prominently.
+Source status labels are `FRESH`, `STALE`, `DEGRADED`, `UNKNOWN`, `OFFLINE`, `MARKET_CLOSED` as **diagnostic presentation**, distinct from the signal's domain FSM. `UNKNOWN` means freshness thresholds are not configured (docs/11 keeps them OPEN) and is shown with `Freshness thresholds: NOT CONFIGURED`; it is never relabeled `DEGRADED` or `FRESH`. Playback (`PLAYING`, `REPLAY_PAUSED`, `REPLAY_ENDED`) is shown **next to** the source status and never replaces it. Show reason and latest reliable quote time prominently.
 
 No account balance, wallet, 'connect bank', API wallet, transaction dashboard or account order panel.
 

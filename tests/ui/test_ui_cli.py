@@ -83,7 +83,9 @@ def test_ui_session_loads_read_only_and_starts_paused(
         async with app.run_test(size=(120, 34)) as pilot:
             await pilot.press("5")
             diag = app.query_one("#diag").plain
-            assert "Status: REPLAY_PAUSED" in diag and session.source.batch_sha256s[0] in diag
+            assert "Source status: UNKNOWN" in diag and "Playback: REPLAY_PAUSED" in diag
+            assert "Freshness thresholds: NOT CONFIGURED" in diag
+            assert session.source.batch_sha256s[0] in diag
             # Default config leaves OPEN thresholds unset: feed health UNKNOWN, no READY.
             assert "STALE_THRESHOLD_UNSET" in app.query_one("#banner").plain
 
