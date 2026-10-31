@@ -19,9 +19,18 @@ from grog.signals.engine import SignalPolicy
 from grog.signals.pipeline import S1ResearchPipeline
 from grog.strategies.s1_pullback import record_to_dict
 from grog.ui import panels
-from grog.ui.app import GrogApp, PositionRow
+from grog.ui.app import GrogApp
 from grog.ui.screens import Overlay, QuitWarning
-from ui_support import FIXTURE_POLICY, INFO, run, session, step_until, synthetic_quotes
+from ui_support import (
+    FIXTURE_POLICY,
+    INFO,
+    open_journal,
+    record_unlinked,
+    run,
+    session,
+    step_until,
+    synthetic_quotes,
+)
 
 WIDE, NORMAL, SMALL = (120, 34), (80, 24), (70, 18)
 
@@ -349,22 +358,19 @@ def test_ui07_record_entry_on_forming_is_not_tradable() -> None:
     run(scenario)
 
 
-def test_record_keys_on_ready_record_nothing_and_never_order() -> None:
+def test_record_keys_without_writable_journal_record_nothing_and_never_order() -> None:
     async def scenario() -> None:
-        s, sid = at_first_ready()
-        app = GrogApp(s, autoplay_timer=False)
+        s, _sid = at_first_ready()
+        app = GrogApp(s, autoplay_timer=False)  # no journal: e.g. read-only embedding
         async with app.run_test(size=WIDE) as pilot:
             await pilot.press("2")
             before = record_to_dict(s.pipeline.signals.events)
-            for key in ("e", "s"):
+            for key in ("e", "s", "x", "n"):
                 await pilot.press(key)
                 body = app.screen.plain
-                assert sid in body and "nothing was recorded" in body
+                assert "Local journal unavailable" in body and "nothing recorded" in body
+                assert "No broker order is ever created." in body
                 await pilot.press("escape")
-            await pilot.press("x")
-            assert "Grog never changes broker positions" in app.screen.plain
-            await pilot.press("escape", "n")
-            assert "Journal or Positions only" in app.screen.plain
             assert record_to_dict(s.pipeline.signals.events) == before
 
     run(scenario)
@@ -483,14 +489,11 @@ def test_ui14_expired_signal_is_terminal_and_never_resurrected() -> None:
 # ---------------------------------------------------------------- UI-20 quit / no broker
 
 
-class OpenPositions:
-    def open_positions(self):
-        return (PositionRow("POS-1", None, "BUY", "0.10", "4000.20", "OPEN"),)
-
-
-def test_ui20_quit_with_recorded_open_position_explains_broker_untouched() -> None:
+def test_ui20_quit_with_recorded_open_position_explains_broker_untouched(tmp_path: Path) -> None:
     async def scenario() -> None:
-        app = GrogApp(session(), positions=OpenPositions(), autoplay_timer=False)
+        store, journal = open_journal(tmp_path)
+        record_unlinked(journal)
+        app = GrogApp(session(), journal, autoplay_timer=False)
         async with app.run_test(size=WIDE) as pilot:
             await pilot.press("q")
             assert isinstance(app.screen, QuitWarning)
@@ -502,6 +505,8 @@ def test_ui20_quit_with_recorded_open_position_explains_broker_untouched() -> No
             await pilot.press("q", "q")
             await pilot.pause()
         assert app.return_code == 0
+        assert len(journal.open_positions()) == 1  # persisted, never closed by quitting
+        store.close()
 
     run(scenario)
 

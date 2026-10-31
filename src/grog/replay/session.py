@@ -10,7 +10,7 @@ wall time or changes event/availability timestamps.
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
@@ -131,7 +131,6 @@ class Snapshot:
     bar_counts: dict[Timeframe, int]
     gaps: tuple[GapRecord, ...]
     triggers_observed: int
-    entered: int  # manually confirmed entries: none until the M08 journal exists
 
     @property
     def virtual_time_ms(self) -> int | None:
@@ -181,6 +180,9 @@ class ReplaySession:
         self.window_start_ms: int | None = None
         self._pre_rolling = True
         self._m5_seen = 0
+        # Read-only listeners told about every processed quote (e.g. manual-position touch
+        # monitoring, docs/07 §7.2). They cannot change engine state or event order.
+        self.quote_observers: list[Callable[[NormalizedQuote], None]] = []
         self._pre_roll()
         self._pre_rolling = False
 
@@ -217,6 +219,8 @@ class ReplaySession:
             self.feed.append(
                 FeedItem(e.decision_time_ms, e.signal_id or e.candidate_id, e.kind.value, text, pre)
             )
+        for observer in self.quote_observers:
+            observer(q)
         if self.cursor >= len(self.quotes):
             self.playback = Playback.ENDED
 
@@ -367,7 +371,6 @@ class ReplaySession:
             bar_counts=counts,
             gaps=tuple(agg.gaps),
             triggers_observed=sum(1 for e in det.events if e.kind is S1EventKind.TRIGGER_OBSERVED),
-            entered=0,
         )
 
     def _is_pre_roll(self, t_ms: int) -> bool:

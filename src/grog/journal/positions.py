@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field, replace
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
@@ -47,9 +48,11 @@ __all__ = [
     "PositionEventRecord",
     "PositionJournal",
     "PositionState",
+    "TouchTracker",
     "entry_preview",
     "mark_position",
     "new_action_id",
+    "observations",
     "parse_amount",
 ]
 
@@ -1069,3 +1072,73 @@ def exit_preview(
     units = (price - pos.entry_price) * _sign(pos.side) * qty
     r = _div(units, pos.initial_risk * pos.initial_qty) if pos.initial_risk else None
     return pos.remaining_qty - qty, units, r
+
+
+# --------------------------------------------------------------------------- touch observations
+
+
+class TouchTracker:
+    """Records the first quote at which a recorded position's closeable price touched its
+    stop, TP1 or target (docs/07 §7.2/§7.5). A touch is an observation only: it never
+    closes, reduces or otherwise changes a position (docs/07 §1, §10.3.5)."""
+
+    def __init__(self) -> None:
+        self._positions: list[ManualPosition] = []
+        self.touches: dict[tuple[str, str, str], int] = {}  # (position, kind, level) -> ms
+
+    def track(self, positions: Sequence[ManualPosition]) -> None:
+        self._positions = [p for p in positions if p.is_open]
+
+    def on_quote(self, q: NormalizedQuote) -> None:
+        for p in self._positions:
+            if p.source_id != q.source_id or q.received_time_ms < p.entry_ms:
+                continue
+            c = q.bid if p.side is Side.BUY else q.ask
+            sign = _sign(p.side)
+            levels = (("STOP", p.current_sl, -1), ("TP1", p.tp1, 1), ("TARGET", p.current_tp, 1))
+            for kind, level, direction in levels:
+                if level is None:
+                    continue
+                if (c - level) * sign * direction >= 0:
+                    self.touches.setdefault((p.position_id, kind, str(level)), q.received_time_ms)
+
+    def touched(self, p: ManualPosition) -> dict[str, int]:
+        current = {"STOP": p.current_sl, "TP1": p.tp1, "TARGET": p.current_tp}
+        return {
+            kind: ms
+            for (pid, kind, level), ms in self.touches.items()
+            if pid == p.position_id and current[kind] is not None and str(current[kind]) == level
+        }
+
+
+def observations(
+    p: ManualPosition,
+    touched: dict[str, int],
+    *,
+    feed_status: str | None,
+    h1_bias_now: str | None,
+    replay_ended: bool,
+    clock_ms: int | None = None,
+) -> list[str]:
+    """Advisory event strip (docs/02 §6): facts, never hold/reduce/exit advice.
+    ``TP1 APPROACHING`` needs a distance threshold that is OPEN, so it is not emitted."""
+    out = []
+    if p.state is PositionState.RECONCILIATION_REQUIRED:
+        out.append("MANUAL BROKER VERIFICATION NEEDED")
+    if "STOP" in touched:
+        out.append("STOP TOUCHED (NOT VERIFIED FILL)")
+    if "TP1" in touched:
+        out.append("TP1 TOUCHED — execution unconfirmed")
+    if "TARGET" in touched:
+        out.append("TARGET TOUCHED — execution unconfirmed")
+    if clock_ms is None or clock_ms < p.entry_ms:
+        out.append("MONITORING UNAVAILABLE (no quote at/after the recorded fill)")
+        return out
+    if feed_status is not None and feed_status != "FRESH":
+        out.append("FEED STALE" if feed_status == "STALE" else f"FEED {feed_status}")
+    known = {"UP", "DOWN", "NEUTRAL"}
+    if p.h1_bias_at_entry in known and h1_bias_now in known and p.h1_bias_at_entry != h1_bias_now:
+        out.append("H1 BIAS CHANGED")
+    if replay_ended:
+        out.append("REPLAY ENDED — monitoring unavailable")
+    return out

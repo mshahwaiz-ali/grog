@@ -13,16 +13,27 @@ from grog.ui.panels import Line
 from grog.ui.widgets import TextPanel
 
 HELP: list[Line] = [
-    [("GROG KEYS — view only; no key can place a broker order", "gold")],
+    [("GROG KEYS — no key can place, modify or close a broker order", "gold")],
     [("1 Live  2 Signals  3 Positions  4 Journal  5 Diagnostics", "primary")],
     [("Tab / Shift+Tab / arrows  move focus and table selection", "primary")],
     [("Enter  details of selected candidate or signal    Esc  close overlay", "primary")],
     [("Space  REPLAY play/pause    .  step one quote event (paused only)", "primary")],
     [("+ / -  playback pacing 50 ev/s, 500 ev/s, FAST (events per second)", "primary")],
     [("r  refresh panels from already-ingested state (no new market events)", "primary")],
-    [("e / s  record entry / skip on READY;  p m x  partial / modify / close position;", "muted")],
-    [("n  unlinked manual entry (Journal/Positions) — local journal recording is not", "muted")],
-    [("   available in this build; nothing is recorded and no order is ever sent.", "muted")],
+    [("e / s  record your manual entry / skip on the selected READY signal (Signals)", "primary")],
+    [
+        (
+            "p m x  record partial / modification / closure of the selected position (Positions)",
+            "primary",
+        )
+    ],
+    [("n  unlinked OFF_PLAN external trade (Journal/Positions)", "primary")],
+    [
+        (
+            "   Every record needs Confirm; it is a LOCAL journal entry, never a broker order.",
+            "muted",
+        )
+    ],
     [("?  this help    q  quit (recorded positions are never closed by Grog)", "primary")],
     [("Pacing never changes event order, timestamps, expiry or outcomes.", "muted")],
 ]

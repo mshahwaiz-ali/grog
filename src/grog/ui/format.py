@@ -58,3 +58,15 @@ def short_id(full: str | None) -> str:
 
 def pace_label(pace: int | None) -> str:
     return "FAST" if pace is None else f"{pace} ev/s"
+
+
+def iso_utc(ms: int) -> str:
+    """Editable ISO-8601 UTC with milliseconds and ``Z`` (form default)."""
+    return datetime.fromtimestamp(ms / 1000, tz=UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
+def r_long(value: Decimal | None) -> str:
+    """Signed R with extended precision for details/previews (docs/02 §11)."""
+    if value is None:
+        return UNKNOWN
+    return f"{value.quantize(Decimal('0.0001')):+}R"

@@ -245,9 +245,10 @@ def forming_rows(snap: Snapshot, compact: bool = False) -> list[tuple[str, tuple
     return rows
 
 
-def lanes_summary(snap: Snapshot) -> str:
+def lanes_summary(snap: Snapshot, entered: int = 0) -> str:
+    """``entered`` = open positions in the local manual journal (never inferred)."""
     return (
-        f"{len(snap.forming)} forming | {len(snap.ready)} ready | {snap.entered} entered | "
+        f"{len(snap.forming)} forming | {len(snap.ready)} ready | {entered} entered | "
         f"{snap.triggers_observed} triggers observed"
     )
 
@@ -320,26 +321,6 @@ def proposals_panel(snap: Snapshot, events: Sequence[SignalEvent]) -> list[Line]
     return lines
 
 
-def positions_panel(rows: Sequence[object]) -> list[Line]:
-    lines: list[Line] = [[("ACTIVE MANUAL POSITIONS", "gold")]]
-    if not rows:
-        lines.append([("No manually confirmed positions.", "primary")])
-        lines.append([("Nothing is assumed executed by Grog.", "muted")])
-    else:
-        lines.append([(f"{len(rows)} recorded open position(s)", "caution")])
-        for r in rows:
-            lines.append(
-                [
-                    (
-                        f"{r.position_id}  {r.side}  qty {r.qty}  entry {r.entry}  {r.state}  "
-                        "P&L UNKNOWN (contract/fees unverified)",
-                        "primary",
-                    )
-                ]
-            )
-    return lines
-
-
 def feed_lines(snap: Snapshot, limit: int) -> list[Line]:
     lines: list[Line] = [[("EVENT FEED (latest state transitions, virtual UTC)", "gold")]]
     if not snap.feed:
@@ -361,7 +342,12 @@ READY_COLUMNS = ("ID", "SIDE", "READY UTC", "ENTRY", "BAND", "SL", "TP2", "NET R
 READY_COLUMNS_COMPACT = ("ID", "SIDE", "ENTRY", "SL", "TP2", "STATE")
 
 
-def ready_rows(snap: Snapshot, compact: bool = False) -> list[tuple[str, tuple[str, ...]]]:
+def ready_rows(
+    snap: Snapshot, compact: bool = False, operator: dict[str, str] | None = None
+) -> list[tuple[str, tuple[str, ...]]]:
+    """``operator`` maps signal ID -> local journal status (USER_SKIPPED / ENTERED); it is
+    an overlay label only and never changes the signal record."""
+    operator = operator or {}
     rows = []
     now = snap.virtual_time_ms
     for v in reversed(snap.signals):
@@ -381,10 +367,11 @@ def ready_rows(snap: Snapshot, compact: bool = False) -> list[tuple[str, tuple[s
             f"{ex} {price(r.tp2)}",
             UNKNOWN if r.estimated_cost_model_id is None else "SEE DETAIL",
             ttl,
-            state_label(v) + " SIMULATED",
+            operator.get(r.signal_id, state_label(v)) + " SIMULATED",
         )
         if compact:
-            cells = (cells[0], cells[1], cells[3], cells[5], cells[6], state_label(v))
+            label = operator.get(r.signal_id, state_label(v))
+            cells = (cells[0], cells[1], cells[3], cells[5], cells[6], label)
         rows.append((r.signal_id, cells))
     return rows
 

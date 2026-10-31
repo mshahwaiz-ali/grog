@@ -25,10 +25,12 @@ from grog.journal.positions import (
     PositionAction,
     PositionJournal,
     PositionState,
+    TouchTracker,
     entry_preview,
     exit_preview,
     mark_position,
     new_action_id,
+    observations,
     parse_amount,
     stop_further_away,
 )
@@ -539,3 +541,67 @@ def test_events_and_entry_identity_are_append_only(journal: PositionJournal) -> 
     journal.record_skip(new_action_id(), replace(PLAN, signal_id="other"), effective_ms=T0)
     with pytest.raises(sqlite3.DatabaseError):
         conn.execute("DELETE FROM signal_decisions")
+
+
+# --------------------------------------------------------------------------- observations
+
+
+def _quote(t: int, bid: str, ask: str) -> NormalizedQuote:
+    return NormalizedQuote(
+        source_id=SRC,
+        canonical_symbol="XAUUSD",
+        raw_symbol="XAUUSD",
+        provider_time_ms=t,
+        received_time_ms=t,
+        ingest_order=t,
+        bid=D(bid),
+        ask=D(ask),
+        source_origin=SourceOrigin.SYNTHETIC,
+        source_event_key=f"k{t}",
+    )
+
+
+def test_touch_tracker_records_observations_only(journal: PositionJournal) -> None:
+    pos, _ = journal.record_entry(entry(h1_bias_at_entry="UP"))
+    tracker = TouchTracker()
+    tracker.track(journal.open_positions())
+    tracker.on_quote(_quote(T0, "3990", "3990.2"))  # before the fill: ignored
+    assert tracker.touched(pos) == {}
+    tracker.on_quote(_quote(T0 + 6_000, "4002.40", "4002.60"))  # BID reaches TP1
+    tracker.on_quote(_quote(T0 + 7_000, "3998.00", "3998.20"))  # BID reaches SL
+    assert tracker.touched(pos) == {"TP1": T0 + 6_000, "STOP": T0 + 7_000}
+    obs = observations(
+        pos, tracker.touched(pos), feed_status="STALE", h1_bias_now="DOWN",
+        replay_ended=False, clock_ms=T0 + 7_000,
+    )  # fmt: skip
+    assert obs == [
+        "STOP TOUCHED (NOT VERIFIED FILL)",
+        "TP1 TOUCHED — execution unconfirmed",
+        "FEED STALE",
+        "H1 BIAS CHANGED",
+    ]
+    assert journal.get(pos.position_id) == pos  # nothing was closed or written
+    # After a recorded stop modification the old touch no longer applies to the new level.
+    mod, _ = journal.record_modify(
+        new_action_id(), pos.position_id, effective_ms=T0 + 8_000, new_stop=D("3990")
+    )
+    assert "STOP" not in tracker.touched(mod)
+
+
+def test_observations_unavailable_before_fill_and_reconciliation_flag(db: Path) -> None:
+    with Store.open(db, CLOCK) as store:
+        PositionJournal(store).record_entry(entry())
+    with Store.open(db, CLOCK) as store:
+        (pos,) = PositionJournal(store).restore_on_startup()
+    obs = observations(
+        pos, {}, feed_status="FRESH", h1_bias_now="UP", replay_ended=False, clock_ms=T0
+    )
+    assert obs == [
+        "MANUAL BROKER VERIFICATION NEEDED",
+        "MONITORING UNAVAILABLE (no quote at/after the recorded fill)",
+    ]
+    sell = TouchTracker()
+    p = replace(pos, side=Side.SELL, current_sl=D("4003"), tp1=None, current_tp=None)
+    sell.track([p])
+    sell.on_quote(_quote(T0 + 9_000, "4002.80", "4003.00"))  # ASK reaches a SELL stop
+    assert set(sell.touched(p)) == {"STOP"}

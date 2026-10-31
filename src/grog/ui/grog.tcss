@@ -91,3 +91,17 @@ ModalScreen { align: center middle; background: $g-bg 60%; }
     border: round $g-gold;
     padding: 0 1;
 }
+
+/* Manual-journal forms (docs/02 §9) */
+.form { max-width: 104; }
+.form-row { height: 1; }
+.form-label { width: 30; padding: 0 1 0 0; color: $g-muted; }
+.form-row Input { width: 1fr; height: 1; padding: 0 1; border: none; background: $g-panel; }
+.form-row Input:focus { background: $g-line; color: $g-text; text-style: bold; }
+.form-buttons { height: 3; align-horizontal: right; }
+.form-buttons Button { margin: 0 0 0 2; min-width: 12; }
+#form-error { color: $g-error; height: auto; }
+#form-preview { height: auto; padding: 1 0 0 0; }
+#form-info { height: auto; padding: 0 0 1 0; }
+
+#positions-table { max-height: 10; }

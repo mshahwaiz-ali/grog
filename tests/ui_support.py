@@ -6,9 +6,13 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from decimal import Decimal
 from functools import cache
+from pathlib import Path
 
-from grog.domain.enums import SignalEventKind
+from grog.domain.clock import FixedClock
+from grog.domain.enums import Side, SignalEventKind
 from grog.domain.models import DataHealthPolicy, NormalizedQuote
+from grog.journal.positions import EntryRequest, ManualPosition, PositionJournal, new_action_id
+from grog.journal.store import STATE_DB_FILENAME, Store
 from grog.market_data.import_csv import parse_canonical_csv
 from grog.replay import synthetic
 from grog.replay.session import ReplaySession, SourceInfo
@@ -27,7 +31,7 @@ INFO = SourceInfo(
     batch_paths=("batches/syn.csv",),
     config_hash="f" * 64,
     config_version=1,
-    state_schema_version=2,
+    state_schema_version=3,
 )
 
 
@@ -58,3 +62,27 @@ def step_until(s: ReplaySession, kind: SignalEventKind, nth: int = 1) -> str:
 
 def run(coro_factory: Callable[[], Awaitable[None]]) -> None:
     asyncio.run(coro_factory())
+
+
+JOURNAL_CLOCK = FixedClock(1_793_450_000_000)  # wall-clock "recorded at" for fixtures
+
+
+def open_journal(tmp_path: Path, **kw) -> tuple[Store, PositionJournal]:
+    store = Store.open(tmp_path / "state" / STATE_DB_FILENAME, JOURNAL_CLOCK, **kw)
+    return store, PositionJournal(store)
+
+
+def record_unlinked(journal: PositionJournal, fill_ms: int | None = None, **kw) -> ManualPosition:
+    """A fixture OFF_PLAN external BUY on the synthetic source (declared test values)."""
+    q = synthetic_quotes()[0]
+    req = dict(
+        action_id=new_action_id(),
+        side=Side.BUY,
+        price=q.ask,
+        qty=Decimal("0.10"),
+        fill_ms=q.received_time_ms if fill_ms is None else fill_ms,
+        source_id="syn",
+        stop=q.bid - Decimal("2.00"),
+    )
+    req.update(kw)
+    return journal.record_entry(EntryRequest(**req))[0]

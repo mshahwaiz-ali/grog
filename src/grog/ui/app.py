@@ -1,26 +1,27 @@
 """Textual App shell: five views, replay controls and responsive layout (docs/02).
 
-The app only renders :class:`grog.replay.session.Snapshot` objects and forwards playback
-controls to :class:`grog.replay.session.ReplaySession`. It never writes market data, never
-changes engine rules, and contains no broker/order code path.
+The app renders :class:`grog.replay.session.Snapshot` objects, forwards playback controls
+to :class:`grog.replay.session.ReplaySession` and records operator statements only through
+the validated :class:`grog.journal.positions.PositionJournal` (M08). It never writes market
+data, never changes engine rules or signals, and contains no broker/order code path.
 """
 
 from __future__ import annotations
 
 import time
-from collections.abc import Sequence
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen
 from textual.widgets import ContentSwitcher, DataTable, Input
 
 from grog.domain.enums import SignalState
+from grog.journal.positions import ManualPosition, PositionJournal, TouchTracker
 from grog.replay.session import Playback, ReplaySession, Snapshot
-from grog.ui import panels
+from grog.ui import manual, panels
+from grog.ui.forms import PositionDetail
 from grog.ui.screens import HELP, Overlay, QuitWarning
 from grog.ui.widgets import StateTable, TextPanel
 
@@ -29,29 +30,6 @@ TICK_S = 0.05  # playback work slice; only decides how many quotes run per slice
 VIEWS = ("live", "signals", "positions", "journal", "diagnostics")
 FEED_ROWS_LIVE = 8
 JOURNAL_ROWS = 50  # docs/02 §11 visible buffer
-
-
-@dataclass(frozen=True, slots=True)
-class PositionRow:
-    """Read model of a manually recorded position (written only by the M08 journal)."""
-
-    position_id: str
-    signal_id: str | None
-    side: str
-    qty: str
-    entry: str
-    state: str
-
-
-class PositionsSource(Protocol):
-    def open_positions(self) -> Sequence[PositionRow]: ...
-
-
-class NoPositions:
-    """M07 has no local journal yet: nothing is ever assumed executed."""
-
-    def open_positions(self) -> Sequence[PositionRow]:
-        return ()
 
 
 class GrogApp(App[None]):
@@ -85,13 +63,17 @@ class GrogApp(App[None]):
     def __init__(
         self,
         session: ReplaySession,
-        positions: PositionsSource | None = None,
+        journal: PositionJournal | None = None,
         *,
         autoplay_timer: bool = True,
     ) -> None:
         super().__init__()
         self.session = session
-        self.positions = positions or NoPositions()
+        self.journal = journal
+        self.tracker = TouchTracker()
+        session.quote_observers.append(self.tracker.on_quote)
+        self._open: list[ManualPosition] = []
+        self._reload_positions()
         self.autoplay_timer = autoplay_timer
         self.current_view = "live"
         self.compact = False
@@ -99,6 +81,7 @@ class GrogApp(App[None]):
         self._dirty = True
         self._last_tick = time.monotonic()
         self.snap: Snapshot = session.snapshot()
+        self.last_message: str | None = None
 
     # ------------------------------------------------------------------ layout
 
@@ -125,6 +108,8 @@ class GrogApp(App[None]):
                 yield StateTable(id="ready")
                 yield TextPanel(id="signals-note", classes="note")
             with VerticalScroll(id="positions", classes="pane"):
+                yield TextPanel(id="positions-title", classes="title")
+                yield StateTable(id="positions-table")
                 yield TextPanel(id="positions-body")
             with Vertical(id="journal", classes="pane"):
                 yield Input(
@@ -192,13 +177,13 @@ class GrogApp(App[None]):
         q("#forming-title", TextPanel).set_lines([[("OPPORTUNITIES FORMING", "gold")]])
         cols = panels.FORMING_COLUMNS_COMPACT if self.compact else panels.FORMING_COLUMNS
         q("#forming", StateTable).show(cols, panels.forming_rows(snap, self.compact))
-        lanes = [[(panels.lanes_summary(snap), "muted")]]
+        lanes = [[(panels.lanes_summary(snap, len(self._open)), "muted")]]
         if not snap.forming:
             lanes.insert(0, [("No developing opportunities", "muted")])
         q("#lanes", TextPanel).set_lines(lanes)
         q("#proposals", TextPanel).set_lines(panels.proposals_panel(snap, events))
-        rows = self.positions.open_positions()
-        q("#positions-mini", TextPanel).set_lines(panels.positions_panel(rows))
+        rows = self._open
+        q("#positions-mini", TextPanel).set_lines(manual.live_positions_panel(rows, snap))
         q("#feed", TextPanel).set_lines(panels.feed_lines(snap, FEED_ROWS_LIVE))
         # Signals
         q("#dev-title", TextPanel).set_lines(
@@ -209,7 +194,9 @@ class GrogApp(App[None]):
             [[("ACTIONABLE / READY — SIMULATED (REPLAY)", "gold")]]
         )
         rcols = panels.READY_COLUMNS_COMPACT if self.compact else panels.READY_COLUMNS
-        q("#ready", StateTable).show(rcols, panels.ready_rows(snap, self.compact))
+        q("#ready", StateTable).show(
+            rcols, panels.ready_rows(snap, self.compact, self._operator_status())
+        )
         note = [
             [
                 (
@@ -231,15 +218,15 @@ class GrogApp(App[None]):
             )
         q("#signals-note", TextPanel).set_lines(note)
         # Positions
-        body = panels.positions_panel(rows)
-        body.append(
-            [
-                ("Advisory events: none (no recorded positions).", "muted")
-                if not rows
-                else ("MANUAL BROKER VERIFICATION NEEDED", "caution")
-            ]
+        title = "ACTIVE MANUAL POSITIONS — local journal, not broker positions"
+        if self.journal is None:
+            title += " (journal unavailable: no writable local state)"
+        q("#positions-title", TextPanel).set_lines([[(title, "gold")]])
+        pcols = manual.POSITION_COLUMNS_COMPACT if self.compact else manual.POSITION_COLUMNS
+        q("#positions-table", StateTable).show(
+            pcols, manual.position_rows(rows, snap, self.tracker, self.compact)
         )
-        q("#positions-body", TextPanel).set_lines(body)
+        q("#positions-body", TextPanel).set_lines(manual.positions_strip(rows, snap, self.tracker))
         # Journal
         self._render_journal()
         # Diagnostics
@@ -247,19 +234,30 @@ class GrogApp(App[None]):
         keys = (
             "1-5 Views  Space Play  . Step  +/- Pace  ? Help  q Quit  [No orders]"
             if self.compact
-            else "1 Live 2 Signals 3 Positions 4 Journal 5 Diagnostics  "
-            "Space Play . Step +/- Pace  ? Help  q Quit  [No orders]"
+            else "1-5 Views  Space Play . Step +/- Pace  e/s Entry/Skip  p/m/x Part/Mod/Close  "
+            "n Unlinked  ? Help  q Quit  [No orders]"
         )
         q("#keys", TextPanel).set_lines([[(keys, "muted")]])
 
     def _render_journal(self) -> None:
         version = self.session.pipeline.detector.params.strategy_version
-        rows = panels.journal_rows(self.session.pipeline.signals.events, version, self.compact)
+        session_rows = panels.journal_rows(
+            self.session.pipeline.signals.events, version, self.compact
+        )
+        timed = [
+            (e.decision_time_ms, r)
+            for e, r in zip(self.session.pipeline.signals.events, session_rows, strict=True)
+        ]
+        local = manual.manual_journal_rows(self.journal, self.compact) if self.journal else []
+        timed += local
+        timed.sort(key=lambda t: t[0])
+        rows = [r for _, r in timed]
         needle = self.query_one("#journal-filter", Input).value
         shown = [r for r in rows if r.matches(needle)][-JOURNAL_ROWS:]
+        stored = "unavailable (read-only)" if self.journal is None else f"{len(local)} saved"
         note = (
-            f"Session REPLAY signal events (SIMULATED, not persisted): {len(shown)} shown of "
-            f"{len(rows)}. Local manual journal: no entries recorded."
+            f"{len(shown)} shown of {len(rows)}. Session REPLAY signal events: SIMULATED, not "
+            f"persisted. Local manual journal: {stored}."
         )
         if not rows:
             note = "No journal events yet"
@@ -281,7 +279,7 @@ class GrogApp(App[None]):
         focus = {
             "live": "#forming",
             "signals": "#ready",
-            "positions": None,
+            "positions": "#positions-table",
             "journal": "#journal-table",
             "diagnostics": None,
         }[name]
@@ -313,9 +311,9 @@ class GrogApp(App[None]):
         self.push_screen(Overlay(HELP, "help"))
 
     def action_quit_app(self) -> None:
-        open_rows = [r for r in self.positions.open_positions() if r.state != "CLOSED"]
-        if open_rows:
-            self.push_screen(QuitWarning(len(open_rows)))
+        self._reload_positions()
+        if self._open:
+            self.push_screen(QuitWarning(len(self._open)))
         else:
             self.exit()
 
@@ -325,82 +323,114 @@ class GrogApp(App[None]):
             return focused.id or "", focused.selected_key
         return None
 
+    # ------------------------------------------------------------------ manual journal
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """docs/02 §3: global keys never fire while a modal/form is open."""
+        if isinstance(self.screen, ModalScreen):
+            return False
+        return True
+
+    def _reload_positions(self) -> None:
+        self._open = self.journal.open_positions() if self.journal else []
+        self.tracker.track(self._open)
+
+    def _operator_status(self) -> dict[str, str]:
+        if self.journal is None:
+            return {}
+        out = {}
+        for v in self.snap.signals:
+            st = self.journal.signal_status(v.record.original_source_id, v.record.signal_id)
+            if st:
+                out[v.record.signal_id] = st
+        return out
+
+    def _notice(self, text: str, style: str = "caution") -> None:
+        self.push_screen(
+            Overlay(
+                [[(text, style)], [("No broker order is ever created.", "muted")]], "notice-overlay"
+            )
+        )
+
+    def _after_form(self, message: str | None) -> None:
+        if message:
+            self._reload_positions()
+            self.last_message = message
+            self._render_all()
+            self._notice(message, "ok")
+
+    def _selected_position(self) -> ManualPosition | None:
+        table = self.query_one("#positions-table", StateTable)
+        if self.current_view != "positions" or table.selected_key is None:
+            return None
+        return next((p for p in self._open if p.position_id == table.selected_key), None)
+
     def action_record(self, kind: str) -> None:
-        """Manual-journal keys (docs/02 §3). M07 is view-only: explain, record nothing."""
-        sel = self._selection()
-        snap = self.snap
-        msg: list[panels.Line]
+        """Manual-journal keys (docs/02 §3, §9): open a confirm-before-save local form."""
+        snap = self.snap = self.session.snapshot()
+        if self.journal is None and kind in ("partial", "modify", "close", "unlinked"):
+            self._notice("Local journal unavailable (no writable local state); nothing recorded.")
+            return
         if kind in ("partial", "modify", "close"):
-            msg = [
-                [
-                    (
-                        "No manually confirmed position selected. Grog never changes broker "
-                        "positions.",
-                        "caution",
-                    )
-                ]
-            ]
-        elif kind == "unlinked":
+            pos = self._selected_position()
+            if pos is None:
+                self._notice(
+                    "Select a recorded open position first (3 Positions, arrows). Grog never "
+                    "changes broker positions."
+                )
+                return
+            build = {
+                "partial": manual.partial_form,
+                "modify": manual.modify_form,
+                "close": manual.close_form,
+            }[kind]
+            self.push_screen(build(self.journal, snap, pos), self._after_form)
+            return
+        if kind == "unlinked":
             if self.current_view not in ("journal", "positions"):
-                msg = [
-                    [
-                        (
-                            "Unlinked manual entry (n) is available from Journal or Positions "
-                            "only.",
-                            "caution",
-                        )
-                    ]
-                ]
-            else:
-                msg = [
-                    [
-                        (
-                            "Local manual-journal recording is not available in this build; "
-                            "nothing was recorded. No broker order is ever created.",
-                            "caution",
-                        )
-                    ]
-                ]
-        elif sel is None:
-            msg = [
-                [("Select a READY signal first (2 Signals, arrows, Enter for details).", "caution")]
-            ]
-        elif sel[0] in ("forming", "dev"):
-            msg = [
-                [
-                    (
-                        f"NOT TRADABLE YET — {sel[1]} is FORMING; no on-plan local entry can be "
-                        "recorded.",
-                        "caution",
-                    )
-                ]
-            ]
-        else:
-            view = next((v for v in snap.signals if v.record.signal_id == sel[1]), None)
-            if view is None or view.status.state is not SignalState.READY:
-                state = view.status.state.value if view else "UNKNOWN"
-                msg = [
-                    [
-                        (
-                            f"{sel[1]} is {state} — no on-plan entry or skip; terminal signals "
-                            "are never resurrected.",
-                            "caution",
-                        )
-                    ]
-                ]
-            else:
-                action = "Record Entry" if kind == "entry" else "Skip"
-                msg = [
-                    [
-                        (
-                            f"{action} for {sel[1]}: local manual-journal recording is not "
-                            "available in this build; nothing was recorded.",
-                            "caution",
-                        )
-                    ],
-                    [("No automatic broker order is created.", "muted")],
-                ]
-        self.push_screen(Overlay(msg, "notice-overlay"))
+                self._notice(
+                    "Unlinked manual entry (n) is available from Journal or Positions only."
+                )
+                return
+            self.push_screen(manual.unlinked_form(self.journal, snap), self._after_form)
+            return
+        sel = self._selection()
+        if sel is None or sel[0] not in ("ready", "forming", "dev"):
+            self._notice("Select a READY signal first (2 Signals, arrows, Enter for details).")
+            return
+        if sel[0] in ("forming", "dev"):
+            self._notice(
+                f"NOT TRADABLE YET — {sel[1]} is FORMING; no on-plan local entry can be recorded."
+            )
+            return
+        view = next((v for v in snap.signals if v.record.signal_id == sel[1]), None)
+        if view is None or view.status.state is not SignalState.READY:
+            state = view.status.state.value if view else "UNKNOWN"
+            self._notice(
+                f"{sel[1]} is {state} — no on-plan entry or skip; terminal signals are never "
+                "resurrected. Use n (Journal/Positions) for an OFF_PLAN external trade."
+            )
+            return
+        if self.journal is None:
+            self._notice("Local journal unavailable (no writable local state); nothing recorded.")
+            return
+        status = self.journal.signal_status(view.record.original_source_id, sel[1])
+        if status is not None:
+            self._notice(f"{sel[1]} is already {status} in the local journal.")
+            return
+        build = manual.entry_form if kind == "entry" else manual.skip_form
+        self.push_screen(build(self.journal, snap, view), self._after_form)
+
+    def _confirm_open(self, position_id: str):
+        journal = self.journal
+        assert journal is not None
+
+        def run(action_id: str) -> str:
+            eff = self.snap.virtual_time_ms or journal.store.now_ms()
+            journal.confirm_open(action_id, position_id, effective_ms=eff)
+            return f"Saved locally: {position_id} verified open — MONITORING."
+
+        return run
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         table = event.data_table
@@ -416,6 +446,19 @@ class GrogApp(App[None]):
             if view is not None:
                 q = snap.quote
                 lines = panels.signal_detail(snap, view, q.ask if q else None, q.bid if q else None)
+        elif table.id == "positions-table" and self.journal is not None:
+            pos = next((p for p in self._open if p.position_id == key), None)
+            if pos is not None:
+                confirm = (
+                    self._confirm_open(pos.position_id)
+                    if pos.state.value == "RECONCILIATION_REQUIRED"
+                    else None
+                )
+                detail = manual.position_detail(
+                    pos, self.journal.events(pos.position_id), snap, self.tracker
+                )
+                self.push_screen(PositionDetail(detail, confirm), self._after_form)
+                return
         if lines is not None:
             self.push_screen(Overlay(lines, "detail"))
 

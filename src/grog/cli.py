@@ -2,7 +2,8 @@
 
 Only finished commands are registered: ``version``, a read-only ``doctor``,
 ``import-ticks`` (M01, local state only), ``replay`` (M06, SIMULATED research run in local
-state), a read-only ``report`` (M06) and the view-only Textual workstation ``ui`` (M07).
+state), a read-only ``report`` (M06) and the Textual workstation ``ui`` (M07) with its
+local manual-position journal (M08: operator records only, never broker actions).
 There are no buy/sell/trade/order commands, and none will be added: Grog never places
 broker orders.
 """
@@ -140,12 +141,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     ui = sub.add_parser(
         "ui",
-        help="interactive offline research workstation (Textual, view only)",
+        help="interactive offline research workstation (Textual) with local manual journal",
         description=(
             "Textual workstation over one imported source. REPLAY pre-rolls causal history "
             "for MTF warm-up and starts PAUSED: Space play/pause, . step one quote, +/- pacing "
-            "50 ev/s, 500 ev/s, FAST. SIMULATED research only; no broker, no orders; writes "
-            "nothing (state is opened read-only)."
+            "50 ev/s, 500 ev/s, FAST. SIMULATED research only; no broker, no orders. Market "
+            "data is read-only; the only writes are operator-confirmed local journal records "
+            "(entry, skip, partial, modify, close). Recorded open positions are restored as "
+            "RECONCILIATION_REQUIRED at every start."
         ),
     )
     ui.add_argument("--mode", required=True, choices=["replay", "reference"], help="UI mode")
@@ -213,8 +216,31 @@ def _cmd_ui(args: argparse.Namespace, env: Mapping[str, str], out: TextIO, err: 
         return _not_found(err, f"source {args.source_id!r}")
     from grog.ui.app import GrogApp
 
-    GrogApp(session).run()
+    store, journal = open_ui_journal(args, env)
+    try:
+        GrogApp(session, journal).run()
+    finally:
+        store.close()
     return EXIT_OK
+
+
+def open_ui_journal(args: argparse.Namespace, env: Mapping[str, str]):
+    """Writable local journal for the workstation (M08). Applies pending additive
+    migrations (with a backup first) and restores open positions as
+    RECONCILIATION_REQUIRED (docs/07 §8). Market-data tables are never written here."""
+    from grog.domain.clock import SystemClock
+    from grog.journal.positions import PositionJournal
+    from grog.journal.store import Store
+
+    state_dir, _origin = resolve_state_dir(args.state_dir, env)
+    store = Store.open(state_dir / STATE_DB_FILENAME, SystemClock())
+    try:
+        journal = PositionJournal(store)
+        journal.restore_on_startup()
+    except BaseException:
+        store.close()
+        raise
+    return store, journal
 
 
 def _cmd_replay(args: argparse.Namespace, env: Mapping[str, str], out: TextIO, err: TextIO) -> int:
