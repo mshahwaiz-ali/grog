@@ -9,6 +9,7 @@ an atomic JSON cursor. Neither writes to the journal or talks to any broker/netw
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from collections import deque
@@ -21,6 +22,7 @@ from grog.adapters.mt5_reference.format import (
     CatchUpBegin,
     CatchUpEnd,
     EndOfFile,
+    GapRecord,
     HeartbeatRecord,
     MetaRecord,
     Record,
@@ -83,6 +85,12 @@ class NormalizerState:
     records: int = 0
     # Latched integrity faults: code -> [file, line seq] of the first occurrence (docs/09 §5.1).
     faults: dict[str, list] = field(default_factory=dict)
+    # Per-file transport state (reset when the reader enters a new file).
+    file_meta_ok: bool = False
+    file_closed: bool = False
+    file_head: str | None = None  # fingerprint of the file's first line
+    file_flags: list[str] = field(default_factory=list)
+    catchup_ticks: int = 0
 
     def to_json(self) -> dict:
         hb = self.heartbeat
@@ -109,6 +117,11 @@ class NormalizerState:
             else [hb.received_ms, hb.server_time_msc, hb.utc_ms, hb.connected, hb.session],
             "records": self.records,
             "faults": {k: list(v) for k, v in self.faults.items()},
+            "file_meta_ok": self.file_meta_ok,
+            "file_closed": self.file_closed,
+            "file_head": self.file_head,
+            "file_flags": list(self.file_flags),
+            "catchup_ticks": self.catchup_ticks,
         }
 
     @classmethod
@@ -135,6 +148,11 @@ class NormalizerState:
         st.recent = deque(d["recent"], maxlen=RECENT_KEYS)
         st.counters = dict(d["counters"])
         st.faults = {k: list(v) for k, v in d.get("faults", {}).items()}
+        st.file_meta_ok = bool(d.get("file_meta_ok", st.offset_s is not None))
+        st.file_closed = bool(d.get("file_closed", False))
+        st.file_head = d.get("file_head")
+        st.file_flags = list(d.get("file_flags", []))
+        st.catchup_ticks = int(d.get("catchup_ticks", 0))
         hb = d["heartbeat"]
         st.heartbeat = None if hb is None else Heartbeat(hb[0], hb[1], hb[2], bool(hb[3]), hb[4])
         return st
@@ -165,6 +183,17 @@ class ReferenceNormalizer:
         self.count(code)
         self.state.faults.setdefault(code, [file, seq])
 
+    def begin_file(self) -> None:
+        """Metadata is per file: a new file is unusable until its own valid META."""
+        st = self.state
+        st.file_meta_ok, st.file_closed, st.file_head, st.file_flags = False, False, None, []
+
+    def file_fault(self, code: str, file: str, seq: int) -> None:
+        """Latch a per-file condition once (repeated polls do not re-count it)."""
+        if code not in self.state.file_flags:
+            self.state.file_flags.append(code)
+            self.fault(code, file, seq)
+
     def _offset(self, offset_s: int, file: str, seq: int) -> None:
         st = self.state
         if st.offset_s is not None and offset_s != st.offset_s:
@@ -175,9 +204,20 @@ class ReferenceNormalizer:
         st = self.state
         st.records += 1
         if isinstance(record, MetaRecord):
+            st.file_meta_ok = False
+            if record.seq != 1:
+                return self._fault_reject("META_INVALID", file, record.seq)
             if record.source_id != st.source_id:
-                self.count("SOURCE_MISMATCH")
-                return FeedEvent("REJECT", file, record.seq, code="SOURCE_MISMATCH")
+                return self._fault_reject("SOURCE_MISMATCH", file, record.seq)
+            identity = (record.producer, record.server, record.raw_symbol, record.digits)
+            if st.producer is not None and identity != (
+                st.producer,
+                st.server,
+                st.raw_symbol,
+                st.digits,
+            ):  # a source switch needs its own source_id (MD-14)
+                return self._fault_reject("META_CHANGED", file, record.seq)
+            st.file_meta_ok = True
             st.producer, st.server, st.raw_symbol = (
                 record.producer,
                 record.server,
@@ -187,6 +227,11 @@ class ReferenceNormalizer:
             self._offset(record.server_offset_s, file, record.seq)
             st.fixture = st.fixture or record.producer == "FIXTURE"
             return FeedEvent("META", file, record.seq)
+        if isinstance(record, EndOfFile):
+            st.file_closed = True
+            return FeedEvent("EOF", file, record.seq)
+        if not st.file_meta_ok:  # never inherit an earlier file's metadata
+            return self._reject("NO_META", file, record.seq)
         if isinstance(record, HeartbeatRecord):
             self._offset(record.server_offset_s, file, record.seq)
             hb = Heartbeat(
@@ -199,27 +244,40 @@ class ReferenceNormalizer:
             st.heartbeat = hb
             return FeedEvent("HEARTBEAT", file, record.seq, heartbeat=hb)
         if isinstance(record, CatchUpBegin):
-            st.in_catchup, st.seg_ms, st.seg_counts = True, None, {}
+            if st.in_catchup:
+                self.fault("CATCHUP_SEQUENCE", file, record.seq)
+            st.in_catchup, st.seg_ms, st.seg_counts, st.catchup_ticks = True, None, {}, 0
             return FeedEvent("CATCHUP_BEGIN", file, record.seq)
         if isinstance(record, CatchUpEnd):
-            st.in_catchup, st.seg_ms, st.seg_counts = False, None, {}
+            if not st.in_catchup:
+                self.fault("CATCHUP_SEQUENCE", file, record.seq)
+            elif record.count != st.catchup_ticks:  # failed/partial window or lost lines
+                self.fault("CATCHUP_COUNT_MISMATCH", file, record.seq)
+            st.in_catchup, st.seg_ms, st.seg_counts, st.catchup_ticks = False, None, {}, 0
             return FeedEvent("CATCHUP_END", file, record.seq)
-        if isinstance(record, EndOfFile):
-            return FeedEvent("EOF", file, record.seq)
+        if isinstance(record, GapRecord):
+            self.fault("SOURCE_GAP", file, record.seq)
+            return FeedEvent("GAP", file, record.seq, code="SOURCE_GAP")
+        if st.in_catchup:
+            st.catchup_ticks += 1
         return self._tick(record, received_ms, file)
 
     def _reject(self, code: str, file: str, seq: int) -> FeedEvent:
         self.count(code)
         return FeedEvent("REJECT", file, seq, code=code)
 
+    def _fault_reject(self, code: str, file: str, seq: int) -> FeedEvent:
+        self.fault(code, file, seq)
+        return FeedEvent("REJECT", file, seq, code=code)
+
     def _tick(self, t: TickRecord, received_ms: int, file: str) -> FeedEvent:
         st = self.state
-        if st.offset_s is None or st.raw_symbol is None:
+        if st.offset_s is None or st.raw_symbol is None:  # pragma: no cover - file_meta_ok
             return self._reject("NO_META", file, t.seq)
         if not (t.bid_changed or t.ask_changed):
             return self._reject("NON_QUOTE", file, t.seq)
         if (t.bid_changed and t.bid is None) or (t.ask_changed and t.ask is None):
-            return self._reject("INVALID_PRICE", file, t.seq)
+            return self._fault_reject("INVALID_PRICE", file, t.seq)
         flags = {"BID_CHANGED"} if t.bid_changed else set()
         if t.ask_changed:
             flags.add("ASK_CHANGED")
@@ -245,9 +303,11 @@ class ReferenceNormalizer:
             return self._reject("DUPLICATE", file, t.seq)
         provider = t.time_msc - st.offset_s * 1000
         if provider < 0:
-            return self._reject("BAD_TIME", file, t.seq)
+            return self._fault_reject("BAD_TIME", file, t.seq)
         if st.last_provider_ms is not None and provider < st.last_provider_ms:
-            return self._reject("OUT_OF_ORDER", file, t.seq)
+            if t.mode == "L":  # the live stream never goes back: a transport fault
+                return self._fault_reject("OUT_OF_ORDER", file, t.seq)
+            return self._reject("OUT_OF_ORDER", file, t.seq)  # re-delivered history
 
         received = max(received_ms, st.last_received_ms)
         ahead = provider - received
@@ -347,19 +407,32 @@ class ReferenceReader:
         events: list[FeedEvent] = []
         files = self.files()
         pos = self.position
+        norm = self.normalizer
         if pos.file is None:
             if not files:
                 return events
             pos = CursorPosition(files[0], 0, 1)
+            norm.begin_file()
         while True:
             if stop_at is not None and (pos.file, pos.offset) >= (stop_at.file, stop_at.offset):
                 break
             path = self.directory / pos.file
             data = b""
-            if path.exists():
+            if not path.exists():
+                if not norm.state.file_closed:  # unread tail unknowable: never silent
+                    norm.file_fault("CURSOR_FILE_MISSING", pos.file, pos.next_seq)
+            else:
                 with path.open("rb") as fh:
-                    fh.seek(pos.offset)
-                    data = fh.read()
+                    head = fh.readline()
+                    if pos.offset > 0 and norm.state.file_head is not None:
+                        if _fingerprint(head) != norm.state.file_head:
+                            norm.file_fault("FILE_REPLACED", pos.file, pos.next_seq)
+                    size = os.fstat(fh.fileno()).st_size
+                    if size < pos.offset:
+                        norm.file_fault("FILE_TRUNCATED", pos.file, pos.next_seq)
+                    else:
+                        fh.seek(pos.offset)
+                        data = fh.read()
             end = data.rfind(b"\n")
             if stop_at is not None and stop_at.file == pos.file:
                 end = min(end, stop_at.offset - pos.offset - 1)
@@ -367,10 +440,12 @@ class ReferenceReader:
             offset = pos.offset
             seq = pos.next_seq
             for raw in consumed.split(b"\n")[:-1]:
+                if offset == 0:
+                    norm.state.file_head = _fingerprint(raw + b"\n")
                 offset += len(raw) + 1
                 ev = self._line(raw, pos.file, seq)
                 if ev.seq != seq:
-                    self.normalizer.count("TRANSPORT_SEQ_GAP")
+                    norm.fault("TRANSPORT_SEQ_GAP", pos.file, ev.seq)
                 seq = ev.seq + 1
                 events.append(ev)
             pos = CursorPosition(pos.file, offset, seq)
@@ -378,10 +453,15 @@ class ReferenceReader:
             if not later or (stop_at is not None and stop_at.file == pos.file):
                 break
             if len(data) > len(consumed):
-                self.normalizer.count("PARTIAL_LINE_DISCARDED")
-            if not any(e.kind == "EOF" and e.file == pos.file for e in events) and offset > 0:
-                self.normalizer.count("FILE_ENDED_WITHOUT_Z")
+                norm.fault("PARTIAL_LINE_DISCARDED", pos.file, seq)
+            if (
+                not norm.state.file_closed
+                and offset > 0
+                and "CURSOR_FILE_MISSING" not in (norm.state.file_flags)
+            ):
+                norm.fault("FILE_ENDED_WITHOUT_Z", pos.file, seq)
             pos = CursorPosition(later[0], 0, 1)
+            norm.begin_file()
         self.position = pos
         return events
 
@@ -392,10 +472,13 @@ class ReferenceReader:
             record = parse_line(text, self.normalizer.state.digits)
         except (UnicodeDecodeError, RecordError) as exc:
             code = exc.code if isinstance(exc, RecordError) else "BAD_ENCODING"
-            self.normalizer.count(code)
+            self.normalizer.fault(code, file, seq)  # transport corruption is never healthy
+            if seq == 1:
+                self.normalizer.fault("META_INVALID", file, seq)
             return FeedEvent("REJECT", file, seq, code=code)
         if seq == 1 and not isinstance(record, MetaRecord):
             self.normalizer.count("MISSING_META")
+            self.normalizer.fault("META_INVALID", file, seq)
         return self.normalizer.apply(record, received, file)
 
     def commit(self) -> None:
@@ -418,6 +501,10 @@ class ReferenceReader:
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp, self.cursor_path)
+
+
+def _fingerprint(first_line: bytes) -> str:
+    return hashlib.sha256(first_line).hexdigest()[:16]
 
 
 def cursor_path_for(state_dir: Path, source_id: str) -> Path:

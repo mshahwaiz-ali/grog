@@ -84,14 +84,26 @@ class CatchUpEnd:
 
 
 @dataclass(frozen=True, slots=True)
+class GapRecord:
+    """An irrecoverable source gap the exporter could not read after its retries."""
+
+    seq: int
+    from_msc: int
+    to_msc: int
+    error: int
+
+
+@dataclass(frozen=True, slots=True)
 class EndOfFile:
     seq: int
     next_file: str | None
 
 
-Record = MetaRecord | TickRecord | HeartbeatRecord | CatchUpBegin | CatchUpEnd | EndOfFile
+Record = (
+    MetaRecord | TickRecord | HeartbeatRecord | CatchUpBegin | CatchUpEnd | GapRecord | EndOfFile
+)
 
-_ARITY = {"M": 10, "T": 7, "H": 6, "B": 3, "E": 4, "Z": 3}
+_ARITY = {"M": 10, "T": 7, "H": 6, "B": 3, "E": 4, "G": 5, "Z": 3}
 
 
 def _int(text: str, name: str, minimum: int | None = None) -> int:
@@ -172,6 +184,13 @@ def parse_line(line: str, digits: int | None = None) -> Record:
         return CatchUpBegin(seq, _int(fields[2], "from_msc", 0))
     if kind == "E":
         return CatchUpEnd(seq, _int(fields[2], "to_msc", 0), _int(fields[3], "count", 0))
+    if kind == "G":
+        return GapRecord(
+            seq,
+            _int(fields[2], "from_msc", 0),
+            _int(fields[3], "to_msc", 0),
+            _int(fields[4], "error"),
+        )
     nxt = fields[2]
     return EndOfFile(seq, None if nxt == "-" else nxt)
 
@@ -187,6 +206,7 @@ __all__ = [
     "CatchUpBegin",
     "CatchUpEnd",
     "EndOfFile",
+    "GapRecord",
     "HeartbeatRecord",
     "MetaRecord",
     "Record",

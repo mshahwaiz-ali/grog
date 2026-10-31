@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from grog.adapters.mt5_reference.feed import ReferenceReader
+from grog.adapters.mt5_reference.feed import ReferenceReader, cursor_path_for
 from grog.live.session import LinkStatus, ReferenceSession
 from reference_support import HB_AGE, OFFSET_S, POLICY, SRC, T0, StepClock, Writer, srv
 from ui_support import synthetic_quotes
@@ -153,3 +153,191 @@ def test_unverified_time_basis_and_unset_skew_tolerance_block_actionable(tmp_pat
         max_future_skew_ms=1_000,
     ).poll()
     assert st2.blockers == ()
+
+
+# REF-15 / REF-18 / REF-19 / REF-16 (reader side) ----------------- review #9, #11-#15
+def _session(d: Path, clock) -> ReferenceSession:
+    return ReferenceSession(d, SRC, POLICY, clock, HB_AGE)
+
+
+def test_catch_up_end_count_mismatch_is_latched(tmp_path: Path) -> None:  # review c1
+    w = Writer(tmp_path)
+    w.begin(T0)
+    w.tick(T0, "4000.00", "4000.20", mode="B")
+    w.end(T0 + 7_200_000, 5)  # claims 5 ticks; 1 written (failed/partial window)
+    w.hb(T0 + 7_200_000)
+    r = _reader(tmp_path, StepClock(T0 + 7_200_100))
+    r.poll()
+    assert "CATCHUP_COUNT_MISMATCH" in r.state.faults
+
+
+def test_explicit_gap_record_is_latched(tmp_path: Path) -> None:
+    w = Writer(tmp_path)
+    w.begin(T0)
+    w.line(f"G,{{seq}},{srv(T0)},{srv(T0 + 3_599_999)},4401")
+    w.end(T0 + 3_600_000, 0)
+    r = _reader(tmp_path, StepClock(T0 + 3_600_100))
+    r.poll()
+    assert r.state.faults["SOURCE_GAP"][1] == 3
+    assert "CATCHUP_COUNT_MISMATCH" not in r.state.faults
+
+
+def test_catch_up_block_sequence_errors_are_latched(tmp_path: Path) -> None:
+    w = Writer(tmp_path)
+    w.end(T0, 0)  # E without B
+    w.begin(T0)
+    w.begin(T0)  # B inside an open block
+    r = _reader(tmp_path, StepClock(T0 + 100))
+    r.poll()
+    assert r.state.counters["CATCHUP_SEQUENCE"] == 2
+
+
+def test_seq_gap_is_not_a_healthy_live_link(tmp_path: Path) -> None:  # review g1
+    w = Writer(tmp_path)
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")
+    w.seq += 5  # 5 lines lost
+    w.hb(T0 + 50)
+    w.tick(T0 + 50, "4000.10", "4000.30")
+    st = _session(tmp_path, StepClock(T0 + 100)).poll()
+    assert st.counters.get("TRANSPORT_SEQ_GAP")
+    assert st.link is LinkStatus.INTEGRITY_FAULT and st.actionable == ()
+
+
+def test_unexpected_eof_without_z_is_not_healthy(tmp_path: Path) -> None:  # review g2
+    w = Writer(tmp_path)
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")
+    w.open("20261001T000100Z", 1)  # new file, previous never closed with Z
+    w.hb(T0 + 50)
+    w.tick(T0 + 50, "4000.10", "4000.30")
+    st = _session(tmp_path, StepClock(T0 + 100)).poll()
+    assert st.counters.get("FILE_ENDED_WITHOUT_Z")
+    assert st.link is LinkStatus.INTEGRITY_FAULT
+
+
+def test_clean_rotation_across_polls_is_not_a_fault(tmp_path: Path) -> None:
+    """Counterexample: Z read in one poll, next file appearing in a later poll is clean."""
+    w = Writer(tmp_path)
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")
+    w.eof("next")
+    clock = StepClock(T0 + 100)
+    s = _session(tmp_path, clock)
+    s.poll()
+    w.open("20261001T000000Z", 2)
+    w.hb(T0 + 200)
+    w.tick(T0 + 200, "4000.10", "4000.30")
+    clock.now = T0 + 300
+    st = s.poll()
+    assert st.link is LinkStatus.LIVE and s.reader.state.faults == {}
+
+
+def _second_file(w: Writer, meta: str) -> None:
+    w.eof()
+    w.name = f"{SRC}__20261001T000100Z__000001.grogref"
+    w.seq = 0
+    w.line(meta)
+
+
+def test_changed_server_symbol_digits_mid_stream_is_rejected(tmp_path: Path) -> None:  # g3
+    w = Writer(tmp_path)
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")
+    _second_file(
+        w, f"M,{{seq}},GROG-MT5-REF/1,FIXTURE,{SRC},Other-Server,GOLD,3,{OFFSET_S},fixture-1"
+    )
+    w.hb(T0 + 50)
+    w.line(f"T,{{seq}},L,{srv(T0 + 50)},4000.105,4000.305,6")
+    r = _reader(tmp_path, StepClock(T0 + 100))
+    r.poll()
+    assert _accepted(r) == 1, "ticks from a different server/symbol/digits joined the series"
+    assert "META_CHANGED" in r.state.faults
+    assert (r.state.server, r.state.raw_symbol, r.state.digits) == (
+        "Fixture-Demo-Server",
+        "XAUUSD.fx",
+        2,
+    )
+
+
+def test_invalid_meta_does_not_inherit_previous_files_meta(tmp_path: Path) -> None:  # g4
+    w = Writer(tmp_path)
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")
+    _second_file(w, "M,{seq},GROG-MT5-REF/1,MQL5_EXPORTER,syn,broken")
+    w.hb(T0 + 50)
+    w.tick(T0 + 50, "4000.10", "4000.30")
+    r = _reader(tmp_path, StepClock(T0 + 100))
+    r.poll()
+    assert _accepted(r) == 1, "file with invalid META accepted under the previous file's META"
+    assert "META_INVALID" in r.state.faults
+
+
+def test_source_mismatch_meta_blocks_following_ticks(tmp_path: Path) -> None:  # g5
+    w = Writer(tmp_path)
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")
+    _second_file(w, f"M,{{seq}},GROG-MT5-REF/1,FIXTURE,other,S,XAUUSD,2,{OFFSET_S},x")
+    w.tick(T0 + 50, "4000.10", "4000.30")
+    r = _reader(tmp_path, StepClock(T0 + 100))
+    r.poll()
+    assert _accepted(r) == 1 and "SOURCE_MISMATCH" in r.state.faults
+
+
+def test_missing_cursor_file_is_detected(tmp_path: Path) -> None:  # review g6
+    exp, state = tmp_path / "exp", tmp_path / "state"
+    w = Writer(exp)
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")
+    clock = StepClock(T0 + 100)
+    r = _reader(exp, clock, cursor_path_for(state, SRC))
+    r.poll()
+    r.commit()
+    first = w.path
+    w.tick(T0 + 10, "4000.10", "4000.30")  # unread tail ...
+    first.unlink()  # ... and the file disappears
+    w.open("20261001T000100Z", 1)
+    w.tick(T0 + 20, "4000.20", "4000.40")
+    r2 = _reader(exp, clock, cursor_path_for(state, SRC))
+    r2.poll()
+    assert "CURSOR_FILE_MISSING" in r2.state.faults
+
+
+def test_truncated_or_rewritten_file_is_detected(tmp_path: Path) -> None:  # review g7
+    w = Writer(tmp_path)
+    w.hb(T0)
+    for i in range(20):
+        w.tick(T0 + i, "4000.00", "4000.20")
+    clock = StepClock(T0 + 100)
+    r = _reader(tmp_path, clock)
+    r.poll()
+    w.path.unlink()
+    w.open("20261001T000000Z", 1)  # same name, restarted at seq 1 (FILE_WRITE truncation)
+    w.hb(T0 + 200)
+    w.tick(T0 + 200, "4000.50", "4000.70")
+    clock.now = T0 + 300
+    r.poll()
+    assert _accepted(r) == 21 or "FILE_TRUNCATED" in r.state.faults
+
+
+def test_replaced_file_with_a_different_first_line_is_detected(tmp_path: Path) -> None:
+    w = Writer(tmp_path)
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")
+    r = _reader(tmp_path, StepClock(T0 + 100))
+    r.poll()
+    text = w.path.read_text().replace("fixture-1", "fixture-2", 1) + "H,4,1,1,OPEN,7200\n"
+    w.path.write_text(text)  # same name, same size or longer, different content
+    r.poll()
+    assert "FILE_REPLACED" in r.state.faults
+
+
+def test_malformed_line_and_live_out_of_order_are_latched(tmp_path: Path) -> None:
+    w = Writer(tmp_path)
+    w.hb(T0)
+    w.tick(T0 + 10, "4000.00", "4000.20")
+    w.line(f"T,{{seq}},L,{srv(T0)},4000.10,4000.30,6")  # live tick older than the last
+    w.line("T,{seq},L,notanumber,4000.10,4000.30,6")
+    r = _reader(tmp_path, StepClock(T0 + 100))
+    r.poll()
+    assert {"OUT_OF_ORDER", "BAD_INT"} <= set(r.state.faults)

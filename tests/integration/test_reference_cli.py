@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from grog.cli import EXIT_CONFIG, EXIT_OK, main
+from reference_support import T0, Writer
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "reference"
 
@@ -65,7 +66,9 @@ def test_reference_status_reads_fixture_files_read_only(
     assert code == EXIT_OK
     assert "Label: FIXTURE · SIMULATED" in out and "Broker-verified: NO" in out
     assert "REFERENCE · INDICATIVE" not in out  # fixture quotes are never shown as live ref
-    assert "Link: OFFLINE" in out  # the fixture's heartbeats are from 2026-10-01: old now
+    # The recorded fixture deliberately contains corrupt lines: latched integrity faults.
+    assert "Link: INTEGRITY_FAULT (" in out and "PRICE_PRECISION" in out
+    assert "Actionable blockers: LINK_INTEGRITY_FAULT" in out
     assert "BID 4000.20  ASK 4000.40" in out and "DUPLICATE 3" in out and "CROSSED 1" in out
     assert "READY actionable now: none" in out
     assert not state.exists()  # status never writes a cursor, journal or anything else
@@ -78,7 +81,9 @@ def test_unset_heartbeat_threshold_reports_unknown(
     tmp_path: Path, isolated_env: dict[str, str]
 ) -> None:
     exporter = tmp_path / "exp"
-    shutil.copytree(FIXTURES, exporter)
+    w = Writer(exporter)  # clean FIXTURE file (no integrity fault)
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")
     cfg = config(tmp_path, exporter, hb=False)
     code, out, _ = run(["reference-status", "--config", str(cfg)], isolated_env)
     assert code == EXIT_OK and "Link: UNKNOWN (HEARTBEAT_THRESHOLD_UNSET)" in out
