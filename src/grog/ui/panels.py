@@ -50,22 +50,40 @@ def playback_label(snap: Snapshot) -> str:
     return f"PLAYING {pace_label(snap.pace)}"
 
 
+STATUS_CHIP = {  # docs/02 §2.1: text carries meaning; safety states never gold/green
+    FeedStatus.FRESH: "chip_ok",
+    FeedStatus.UNKNOWN: "chip_warn",
+    FeedStatus.STALE: "chip_warn",
+    FeedStatus.DEGRADED: "chip_warn",
+    FeedStatus.CLOSED: "chip_err",
+    FeedStatus.NO_DATA: "chip_err",
+}
+
+
 def header(snap: Snapshot, compact: bool = False) -> list[Line]:
     """Title, mode/fidelity badge, playback state, virtual UTC time, source and quote."""
     q, h = snap.quote, snap.health
     status = h.status.value if h else UNKNOWN
-    status_style = "ok" if h and h.status is FeedStatus.FRESH else "caution"
-    play_style = "caution" if snap.playback is not Playback.PLAYING else "ok"
-    gap = "  " if compact else "   "
+    status_style = STATUS_CHIP[h.status] if h else "chip_warn"
+    play_style = {
+        Playback.PLAYING: "ok",
+        Playback.PAUSED: "caution",
+        Playback.ENDED: "caution",
+    }.get(snap.playback, "caution")
+    gap = " " if compact else "  "
     title: Line = [
         ("GROG / GOLD WORKSTATION", "gold"),
         (f"{gap}XAUUSD{gap}", "primary"),
-        (mode_badge(snap), "gold"),
-        (f"{gap}SIMULATED{gap}", "caution"),
-        (playback_label(snap), play_style),
+        (f" {mode_badge(snap)} ", "badge"),
+        (gap, "muted"),
+        (" SIMULATED ", "chip_warn"),
     ]
+    playback: Line = [(gap, "muted"), (playback_label(snap), play_style)]
     clock: Line = [(f"{gap}{utc(snap.virtual_time_ms)} (virtual)", "primary")]
-    source: Line = [(f"Source: {snap.source.source_id} ", "primary"), (f"[{status}]", status_style)]
+    source: Line = [
+        (f"Source: {snap.source.source_id} ", "primary"),
+        (f"[{status}]", status_style),
+    ]
     quote: Line = []
     if q is None:
         quote.append(("DATA NOT LOADED — import/replay data", "error"))
@@ -73,22 +91,85 @@ def header(snap: Snapshot, compact: bool = False) -> list[Line]:
         quote += [
             ("BID ", "muted"),
             (price(q.bid), "primary"),
-            ("  ASK ", "muted"),
+            (" ASK " if compact else "  ASK ", "muted"),
             (price(q.ask), "primary"),
-            ("  Spread ", "muted"),
+            (" Spread " if compact else "  Spread ", "muted"),
             (price(q.spread), "primary"),
         ]
     tail: Line = [
         (f"{gap}Pace {pace_label(snap.pace)}", "muted"),
         (
-            f"{gap}PRE-ROLL {snap.pre_roll_quotes}"
-            + (" (history)" if compact else " quotes (history)"),
+            f"{gap}PRE-ROLL {snap.pre_roll_quotes}" + ("" if compact else " quotes (history)"),
             "caution",
         ),
     ]
-    if compact:
-        return [title, [*source, *clock], [*quote, *tail]]
-    return [[*title, *clock], [*source, ("   ", "muted"), *quote, *tail]]
+    if compact:  # docs/02 §2.1: three rows, each fits 70 columns
+        return [title, [*playback[1:], *clock, (gap, "muted"), *source], [*quote, *tail]]
+    return [[*title, *playback, *clock], [*source, ("   ", "muted"), *quote, *tail]]
+
+
+VIEW_TABS = (
+    ("live", "1", "LIVE", "LIVE"),
+    ("signals", "2", "SIGNALS", "SIG"),
+    ("positions", "3", "POSITIONS", "POS"),
+    ("journal", "4", "JOURNAL", "JRNL"),
+    ("diagnostics", "5", "DIAGNOSTICS", "DIAG"),
+)
+
+
+def tabs_line(
+    current: str,
+    *,
+    ready: int = 0,
+    open_positions: int = 0,
+    unverified: int = 0,
+    narrow: bool = False,
+) -> Line:
+    """View tabs with the active view filled (docs/02 §2.1). Counts are local facts."""
+    out: Line = []
+    for name, key, label, short in VIEW_TABS:
+        text = short if narrow else label
+        if name == "signals" and ready:
+            text += f" {ready}"
+        if name == "positions" and open_positions:
+            text += f" {open_positions}"
+        out.append((f" {key} {text} ", "tab_on" if name == current else "tab"))
+        if not narrow:
+            out.append(("  ", "muted"))
+    if narrow:
+        out.append((" ", "muted"))
+    if unverified:
+        out.append(("RECONCILIATION REQUIRED", "error"))
+    return out
+
+
+KEYS = {  # docs/02 §3: only keys valid in the current view (+ always-safe globals)
+    "live": [("Enter", "details"), ("Space", "play"), (".", "step"), ("+/-", "pace")],
+    "signals": [("Enter", "details"), ("e", "record fill"), ("s", "skip"), ("Space", "play")],
+    "positions": [
+        ("Enter", "details/reconcile"),
+        ("p", "partial"),
+        ("m", "modify"),
+        ("x", "close"),
+        ("n", "unlinked"),
+    ],
+    "journal": [("type", "filter"), ("Tab", "table"), ("n", "unlinked")],
+    "diagnostics": [("Space", "play"), (".", "step"), ("r", "refresh")],
+}
+
+
+def key_bar(view: str, narrow: bool = False) -> Line:
+    """Below 80 columns labels shorten to one word so every valid key still fits."""
+    keys = [("1-5", "views"), *KEYS[view], ("?", "help"), ("q", "quit")]
+    out: Line = []
+    for k, label in keys:
+        if narrow:
+            label = "" if k in ("1-5", "?", "q") else label.split("/")[0].split(" ")[0][:5]
+            out += [(k, "key"), (f" {label} " if label else " ", "muted")]
+        else:
+            out += [(k, "key"), (f" {label}  ", "muted")]
+    out.append(("[No orders]", "caution"))
+    return out
 
 
 def banner(snap: Snapshot) -> Line | None:

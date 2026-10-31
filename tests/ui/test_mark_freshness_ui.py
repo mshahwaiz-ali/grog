@@ -38,7 +38,9 @@ def test_unconfigured_thresholds_show_unknown_and_unverified_marks(tmp_path: Pat
     m = manual.mark_for(pos, snap)
     assert m.freshness == "UNVERIFIED" and not m.fresh
     row = dict(manual.position_rows([pos], snap, TouchTracker()))[pos.position_id]
-    assert row[5].endswith("UNVER")
+    assert row[5].endswith("*")
+    strip = _text(manual.positions_strip([pos], snap, TouchTracker()))
+    assert "* MARK UNVERIFIED — feed thresholds not configured" in strip
     detail = _text(
         manual.position_detail(pos, journal.events(pos.position_id), snap, TouchTracker())
     )

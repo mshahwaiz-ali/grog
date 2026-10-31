@@ -87,38 +87,39 @@ class GrogApp(App[None]):
 
     def compose(self) -> ComposeResult:
         yield TextPanel(id="header")
+        yield TextPanel(id="tabs")
         yield TextPanel(id="banner")
         yield TextPanel(id="notice")
         with ContentSwitcher(initial="live", id="views"):
             with VerticalScroll(id="live", classes="pane"):
-                with Horizontal(id="live-top"):
-                    yield TextPanel(id="context", classes="panel")
+                with Horizontal(id="live-top", classes="row"):
+                    yield TextPanel(id="context", classes="panel boxed")
                     with Vertical(id="forming-box", classes="panel"):
-                        yield TextPanel(id="forming-title", classes="title")
                         yield StateTable(id="forming")
                         yield TextPanel(id="lanes", classes="note")
-                with Horizontal(id="live-mid"):
-                    yield TextPanel(id="proposals", classes="panel")
-                    yield TextPanel(id="positions-mini", classes="panel")
-                yield TextPanel(id="feed")
+                with Horizontal(id="live-mid", classes="row"):
+                    yield TextPanel(id="proposals", classes="panel boxed")
+                    yield TextPanel(id="positions-mini", classes="panel boxed")
+                yield TextPanel(id="feed", classes="panel boxed")
             with VerticalScroll(id="signals", classes="pane"):
-                yield TextPanel(id="dev-title", classes="title")
-                yield StateTable(id="dev")
-                yield TextPanel(id="ready-title", classes="title")
-                yield StateTable(id="ready")
-                yield TextPanel(id="signals-note", classes="note")
+                with Vertical(id="ready-box", classes="box"):
+                    yield StateTable(id="ready")
+                    yield TextPanel(id="signals-note", classes="note")
+                with Vertical(id="dev-box", classes="box"):
+                    yield StateTable(id="dev")
             with VerticalScroll(id="positions", classes="pane"):
-                yield TextPanel(id="positions-title", classes="title")
-                yield StateTable(id="positions-table")
-                yield TextPanel(id="positions-body")
+                with Vertical(id="positions-box", classes="box"):
+                    yield StateTable(id="positions-table")
+                yield TextPanel(id="positions-body", classes="panel boxed")
             with Vertical(id="journal", classes="pane"):
-                yield Input(
-                    placeholder="Filter: signal ID, date, state or mode", id="journal-filter"
-                )
-                yield TextPanel(id="journal-note", classes="note")
-                yield StateTable(id="journal-table")
+                with Vertical(id="journal-box", classes="box"):
+                    yield Input(
+                        placeholder="Filter: signal ID, date, state or mode", id="journal-filter"
+                    )
+                    yield TextPanel(id="journal-note", classes="note")
+                    yield StateTable(id="journal-table")
             with VerticalScroll(id="diagnostics", classes="pane"):
-                yield TextPanel(id="diag")
+                yield TextPanel(id="diag", classes="panel boxed")
         yield TextPanel(id="keys")
 
     def on_mount(self) -> None:
@@ -155,7 +156,21 @@ class GrogApp(App[None]):
         snap = self.snap = self.session.snapshot()
         events = self.session.pipeline.signals.events
         q = self.query_one
+        narrow = self.size.width < 80
         q("#header", TextPanel).set_lines(panels.header(snap, compact=self.compact))
+        unverified = sum(1 for p in self._open if p.state.value == "RECONCILIATION_REQUIRED")
+        live_ready = sum(1 for v in snap.ready if not v.pre_roll)
+        q("#tabs", TextPanel).set_lines(
+            [
+                panels.tabs_line(
+                    self.current_view,
+                    ready=live_ready,
+                    open_positions=len(self._open),
+                    unverified=unverified,
+                    narrow=self.compact,
+                )
+            ]
+        )
         ban = panels.banner(snap)
         banner = q("#banner", TextPanel)
         banner.set_lines([ban] if ban else [])
@@ -164,9 +179,8 @@ class GrogApp(App[None]):
             [
                 [
                     (
-                        f"Compact terminal {self.size.width}x{self.size.height}: "
-                        "enlarge to >=80x24 "
-                        "(>=120x34 full layout). Scroll with arrows/PgDn; Enter shows exact SL/TP.",
+                        f"Compact {self.size.width}x{self.size.height}: enlarge to >=80x24 "
+                        "(>=120x34 full). PgDn scrolls; Enter shows exact SL/TP.",
                         "caution",
                     )
                 ]
@@ -174,7 +188,7 @@ class GrogApp(App[None]):
         )
         # Live
         q("#context", TextPanel).set_lines(panels.context_panel(snap))
-        q("#forming-title", TextPanel).set_lines([[("OPPORTUNITIES FORMING", "gold")]])
+        q("#forming-box").border_title = "OPPORTUNITIES FORMING"
         cols = panels.FORMING_COLUMNS_COMPACT if self.compact else panels.FORMING_COLUMNS
         q("#forming", StateTable).show(cols, panels.forming_rows(snap, self.compact))
         lanes = [[(panels.lanes_summary(snap, len(self._open)), "muted")]]
@@ -189,13 +203,9 @@ class GrogApp(App[None]):
         q("#positions-mini", TextPanel).set_lines(manual.live_positions_panel(rows, snap))
         q("#feed", TextPanel).set_lines(panels.feed_lines(snap, FEED_ROWS_LIVE))
         # Signals
-        q("#dev-title", TextPanel).set_lines(
-            [[("DEVELOPING / WATCHLIST — NOT TRADABLE YET", "gold")]]
-        )
+        q("#dev-box").border_title = "DEVELOPING / WATCHLIST — NOT TRADABLE YET"
         q("#dev", StateTable).show(cols, panels.forming_rows(snap, self.compact))
-        q("#ready-title", TextPanel).set_lines(
-            [[("ACTIONABLE / READY — SIMULATED (REPLAY)", "gold")]]
-        )
+        q("#ready-box").border_title = "ACTIONABLE / READY — SIMULATED (REPLAY)"
         rcols = panels.READY_COLUMNS_COMPACT if self.compact else panels.READY_COLUMNS
         q("#ready", StateTable).show(rcols, panels.ready_rows(snap, self.compact, overlay))
         note = [
@@ -223,23 +233,32 @@ class GrogApp(App[None]):
         title = "ACTIVE MANUAL POSITIONS — local journal, not broker positions"
         if self.journal is None:
             title += " (journal unavailable: no writable local state)"
-        q("#positions-title", TextPanel).set_lines([[(title, "gold")]])
-        pcols = manual.POSITION_COLUMNS_COMPACT if self.compact else manual.POSITION_COLUMNS
-        q("#positions-table", StateTable).show(
-            pcols, manual.position_rows(rows, snap, self.tracker, self.compact)
+        if manual.marks_note(rows, snap):
+            title += " · MARKS NOT FRESH (*)"
+        q("#positions-box").border_title = title
+        pcols = (
+            manual.POSITION_COLUMNS_NARROW
+            if narrow
+            else manual.POSITION_COLUMNS_COMPACT
+            if self.compact
+            else manual.POSITION_COLUMNS
         )
-        q("#positions-body", TextPanel).set_lines(manual.positions_strip(rows, snap, self.tracker))
+        q("#positions-table", StateTable).show(
+            pcols, manual.position_rows(rows, snap, self.tracker, self.compact, narrow)
+        )
+        q("#positions-body", TextPanel).set_lines(
+            [
+                [("ADVISORY EVENTS & RECONCILIATION — observations, not advice", "gold")],
+                *manual.positions_strip(rows, snap, self.tracker),
+            ]
+        )
         # Journal
         self._render_journal()
         # Diagnostics
         q("#diag", TextPanel).set_lines(panels.diagnostics_lines(snap))
-        keys = (
-            "1-5 Views  Space Play  . Step  +/- Pace  ? Help  q Quit  [No orders]"
-            if self.compact
-            else "1-5 Views  Space Play . Step +/- Pace  e/s Entry/Skip  p/m/x Part/Mod/Close  "
-            "n Unlinked  ? Help  q Quit  [No orders]"
+        q("#keys", TextPanel).set_lines(
+            [panels.key_bar(self.current_view, narrow=self.size.width < 110)]
         )
-        q("#keys", TextPanel).set_lines([[(keys, "muted")]])
 
     def _render_journal(self) -> None:
         version = self.session.pipeline.detector.params.strategy_version
@@ -264,6 +283,9 @@ class GrogApp(App[None]):
         if not rows:
             note = "No journal events yet"
         self.query_one("#journal-note", TextPanel).set_lines([[(note, "muted")]])
+        self.query_one(
+            "#journal-box"
+        ).border_title = "JOURNAL — local manual records + session REPLAY events"
         cols = panels.JOURNAL_COLUMNS_COMPACT if self.compact else panels.JOURNAL_COLUMNS
         self.query_one("#journal-table", StateTable).show(
             cols, [(r.key, r.cells) for r in reversed(shown)]
@@ -283,10 +305,9 @@ class GrogApp(App[None]):
             "signals": "#ready",
             "positions": "#positions-table",
             "journal": "#journal-table",
-            "diagnostics": None,
+            "diagnostics": "#diagnostics",  # scroll pane; never leave focus in a hidden input
         }[name]
-        if focus:
-            self.query_one(focus).focus()
+        self.query_one(focus).focus()
         self._render_all()
 
     def action_play_pause(self) -> None:

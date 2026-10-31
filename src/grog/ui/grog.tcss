@@ -1,4 +1,4 @@
-/* Grog workstation — docs/02 §2 colour tokens and responsive layout (dark only). */
+/* Grog workstation — docs/02 §2 colour tokens, §2.1 R0 visual system (dark only). */
 $g-bg: #0B111A;
 $g-panel: #121D2A;
 $g-raised: #192838;
@@ -17,21 +17,26 @@ Screen {
     layout: vertical;
 }
 
+/* ---------------------------------------------------------------- shell */
 #header {
     height: auto;
     background: $g-panel;
     padding: 0 1;
+}
+#tabs {
+    height: 2;
+    background: $g-panel;
+    padding: 0 1;
     border-bottom: hkey $g-line;
 }
-
 #banner {
     height: auto;
     padding: 0 1;
-    background: $g-raised;
+    background: #3A1518;
     color: $g-error;
+    text-style: bold;
 }
 #banner.-empty { display: none; }
-
 #notice {
     height: auto;
     padding: 0 1;
@@ -39,69 +44,100 @@ Screen {
     display: none;
 }
 Screen.-narrow #notice, Screen.-short #notice { display: block; }
+#keys {
+    height: 1;
+    background: $g-panel;
+    color: $g-muted;
+    padding: 0 1;
+}
 
 #views { height: 1fr; }
+.pane { height: 1fr; padding: 0 0; }
 
-.pane { height: 1fr; padding: 0 1; }
-
+/* ---------------------------------------------------------------- panels */
+.panel {
+    background: $g-panel;
+    height: auto;
+    padding: 0 1;
+    border: round $g-line;
+    border-title-color: $g-gold;
+    border-title-style: bold;
+    border-title-align: left;
+}
+/* table sections: full-bleed with a titled top rule so wide tables fit 120 columns */
+.box {
+    background: $g-panel;
+    height: auto;
+    border-top: hkey $g-line;
+    border-title-color: $g-gold;
+    border-title-style: bold;
+    border-title-align: left;
+    margin: 0 0 1 0;
+}
 .title { color: $g-gold; text-style: bold; height: 1; }
 .note { color: $g-muted; height: auto; }
-.panel { background: $g-panel; padding: 0 1; height: auto; }
 
-#live-top, #live-mid {
-    height: auto;
-    layout: horizontal;
-    border-bottom: hkey $g-line;
-}
-#live-top > *, #live-mid > * { width: 1fr; height: auto; }
-#forming-box { height: auto; padding: 0; }
+.row { height: auto; layout: horizontal; }
+.row > * { width: 1fr; height: auto; }
 #forming { height: auto; max-height: 6; }
-#feed { height: auto; }
+Screen.-wide #context { width: 2fr; }
+Screen.-wide #forming-box { width: 3fr; }
 
 /* 80-119 columns: stack context panels (docs/02 §2 Size) */
-Screen.-normal #live-top, Screen.-normal #live-mid,
-Screen.-narrow #live-top, Screen.-narrow #live-mid { layout: vertical; }
+Screen.-normal .row, Screen.-narrow .row { layout: vertical; }
 
+/* <80 columns or <24 rows: borders collapse to a titled top rule (docs/02 §2.1) */
+Screen.-narrow .panel, Screen.-short .panel {
+    border: none;
+    border-top: hkey $g-line;
+    padding: 0 0;
+}
+Screen.-short #tabs, Screen.-narrow #tabs { height: 1; border-bottom: none; }
+
+/* ---------------------------------------------------------------- tables */
 DataTable {
     background: $g-panel;
     height: auto;
     max-height: 12;
     scrollbar-size-vertical: 1;
 }
-DataTable > .datatable--header { background: $g-raised; color: $g-gold; }
+DataTable > .datatable--header { background: $g-raised; color: $g-gold; text-style: bold; }
 DataTable > .datatable--cursor { background: $g-raised; color: $g-text; text-style: bold; }
+DataTable:focus > .datatable--cursor { background: $g-line; color: $g-text; text-style: bold; }
 
 #journal-filter { background: $g-raised; border: tall $g-line; height: 3; }
 #journal-filter:focus { border: tall $g-gold; }
+#journal-box { height: 1fr; }
+#journal-table { height: 1fr; max-height: 100%; }
+#positions-table { max-height: 10; scrollbar-size-vertical: 0; }
 
-#keys {
-    height: auto;
-    background: $g-panel;
-    color: $g-muted;
-    padding: 0 1;
-}
-
-ModalScreen { align: center middle; background: $g-bg 60%; }
+/* ---------------------------------------------------------------- modals */
+ModalScreen { align: center middle; background: $g-bg 70%; }
 .modal {
-    width: 90%;
-    max-width: 110;
+    width: 92%;
+    max-width: 112;
     height: auto;
-    max-height: 90%;
+    max-height: 94%;
     background: $g-raised;
     border: round $g-gold;
+    border-title-color: $g-gold;
+    border-title-style: bold;
     padding: 0 1;
 }
-
-/* Manual-journal forms (docs/02 §9) */
-.form { max-width: 104; }
+Screen.-short .modal, Screen.-narrow .modal { width: 100%; max-height: 100%; }
+.section {
+    height: auto;
+    border-top: hkey $g-line;
+    border-title-color: $g-muted;
+    border-title-align: left;
+}
 .form-row { height: 1; }
 .form-label { width: 30; padding: 0 1 0 0; color: $g-muted; }
+Screen.-narrow .form-label { width: 22; }
 .form-row Input { width: 1fr; height: 1; padding: 0 1; border: none; background: $g-panel; }
 .form-row Input:focus { background: $g-line; color: $g-text; text-style: bold; }
 .form-buttons { height: 3; align-horizontal: right; }
 .form-buttons Button { margin: 0 0 0 2; min-width: 12; }
+.form-hint { color: $g-muted; height: auto; }
 #form-error { color: $g-error; height: auto; }
-#form-preview { height: auto; padding: 1 0 0 0; }
-#form-info { height: auto; padding: 0 0 1 0; }
-
-#positions-table { max-height: 10; }
+#form-preview, #form-identity, #form-info, #form-warnings { height: auto; }

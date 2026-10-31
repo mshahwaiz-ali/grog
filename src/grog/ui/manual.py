@@ -33,7 +33,7 @@ from grog.journal.positions import (
 )
 from grog.replay.session import Playback, SignalView, Snapshot
 from grog.settings import ConfigError, parse_utc_timestamp_ms
-from grog.ui.format import DASH, UNKNOWN, hms, iso_utc, price, r_long, r_short, short_id, utc
+from grog.ui.format import DASH, UNKNOWN, iso_utc, price, r_long, r_short, short_id, utc
 from grog.ui.forms import Field, JournalForm, Values
 from grog.ui.lanes import exposure
 from grog.ui.panels import JournalRow, Line, band_text, entry_labels
@@ -157,10 +157,13 @@ def entry_form(
         ],
         [(NO_ORDER, "caution")],
     ]
+    warnings: list[Line] = []
     if blocked:
-        info.append([("Signal is EXECUTION BLOCKED now: a fill is recorded OFF_PLAN.", "caution")])
+        warnings.append(
+            [("Signal is EXECUTION BLOCKED now: a fill is recorded OFF_PLAN.", "caution")]
+        )
     for w in exposure(open_positions, r.side).warnings():
-        info.append([(w, "caution")])
+        warnings.append([(w, "caution")])
     fields = [
         Field("price", f"Actual fill price ({ent}) *", placeholder="required, e.g. 4000.25"),
         Field("qty", "Filled quantity/lots *", placeholder="required, > 0"),
@@ -215,7 +218,13 @@ def entry_form(
         )
 
     return JournalForm(
-        "record-entry", "RECORD ENTRY — LOCAL JOURNAL", info, fields, preview, submit
+        "record-entry",
+        "RECORD ENTRY — LOCAL JOURNAL",
+        info,
+        fields,
+        preview,
+        submit,
+        warnings=warnings,
     )
 
 
@@ -317,12 +326,16 @@ def _position_info(pos: ManualPosition) -> list[Line]:
     ent, ex = entry_labels(pos.side)
     return [
         [
-            (f"{pos.position_id}  ", "primary"),
+            (f"Position {pos.position_id}  ", "primary"),
             (pos.side.value, "buy" if pos.side is Side.BUY else "sell"),
+            (f"  {pos.state.value}  {pos.fidelity} {pos.mode}", "primary"),
+        ],
+        [
             (
-                f"  entry {ent} {price(pos.entry_price)}  remaining {_q(pos.remaining_qty)} of "
+                f"entry {ent} {price(pos.entry_price)}  remaining {_q(pos.remaining_qty)} of "
                 f"{_q(pos.initial_qty)}  SL {ex} {price(pos.current_sl)}  TP {ex} "
-                f"{price(pos.current_tp)}  {pos.state.value}",
+                f"{price(pos.current_tp)}  initial risk "
+                f"{price(pos.initial_risk) if pos.initial_risk else UNKNOWN}",
                 "primary",
             ),
         ],
@@ -472,10 +485,10 @@ POSITION_COLUMNS = (
     "TP",
     "P&L",
     "R",
-    "UPD",
     "STATE",
-)
+)  # last-updated time is in Enter details (docs/02 §6: table fits 120 columns)
 POSITION_COLUMNS_COMPACT = ("POSITION", "SIDE", "QTY", "ENTRY", "R", "STATE")
+POSITION_COLUMNS_NARROW = ("POSITION", "SIDE", "QTY", "R", "STATE")
 
 
 def state_text(pos: ManualPosition) -> str:
@@ -499,10 +512,20 @@ def mark_for(p: ManualPosition, snap: Snapshot) -> Mark:
 
 
 def mark_cell(m: Mark) -> str:
-    """Closeable price with a freshness tag whenever it is not FRESH (never fresh-looking)."""
+    """Closeable price; ``*`` whenever the mark is not FRESH (never fresh-looking). The
+    freshness word and reason are in the table title, the advisory strip and details."""
     if m.closeable is None:
         return DASH
-    return price(m.closeable) if m.fresh else f"{price(m.closeable)} {m.freshness[:5]}"
+    return price(m.closeable) if m.fresh else f"{price(m.closeable)}*"
+
+
+def marks_note(positions: Sequence[ManualPosition], snap: Snapshot) -> str | None:
+    """One line naming the non-FRESH mark state shared by the table (docs/02 §6)."""
+    for p in positions:
+        m = mark_for(p, snap)
+        if m.closeable is not None and not m.fresh:
+            return f"* {m.reason} [{m.freshness}]"
+    return None
 
 
 def position_rows(
@@ -510,6 +533,7 @@ def position_rows(
     snap: Snapshot,
     tracker: TouchTracker,
     compact: bool = False,
+    narrow: bool = False,
 ) -> list[tuple[str, tuple[str, ...]]]:
     rows = []
     for p in positions:
@@ -532,11 +556,12 @@ def position_rows(
             tp,
             UNKNOWN,
             r,
-            hms(p.last_event_ms)[:5],
             state_text(p),
         )
-        if compact:
-            cells = (cells[0], cells[2], cells[3], cells[4], cells[9], cells[11])
+        if narrow:
+            cells = (cells[0], cells[2], cells[3], cells[9], cells[10])
+        elif compact:
+            cells = (cells[0], cells[2], cells[3], cells[4], cells[9], cells[10])
         rows.append((p.position_id, cells))
     return rows
 
@@ -549,6 +574,9 @@ def positions_strip(
         lines.append([("No manually confirmed positions. Nothing is assumed executed.", "muted")])
         lines.append([("Advisory events: none (no recorded positions).", "muted")])
         return lines
+    note = marks_note(positions, snap)
+    if note:
+        lines.append([(note, "caution")])
     rr = [p for p in positions if p.state is PositionState.RECONCILIATION_REQUIRED]
     if rr:
         lines.append(

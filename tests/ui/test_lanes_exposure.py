@@ -138,4 +138,4 @@ def test_exposure_warns_without_limit_or_blocking(tmp_path: Path) -> None:
     detail = _text(panels.signal_detail(snap, view, None, None, overlay, (open_pos,)))
     assert "EXPOSURE:" in detail and "[e] Record external fill" in detail
     form = manual.entry_form(journal, snap, view, (open_pos,))
-    assert any("EXPOSURE:" in str(x) for x in form.info)
+    assert any("EXPOSURE:" in str(x) for x in form.warnings)

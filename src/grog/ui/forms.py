@@ -20,7 +20,8 @@ from dataclasses import dataclass
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.markup import escape
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label
 
@@ -56,10 +57,12 @@ class JournalForm(ModalScreen[str | None]):
         preview: PreviewFn,
         submit: SubmitFn,
         confirm_label: str = "Confirm local record",
+        warnings: Sequence[Line] = (),
     ) -> None:
         super().__init__(id=form_id)
         self.title_text = title
         self.info = list(info)
+        self.warnings = list(warnings)
         self.fields = list(fields)
         self.preview_fn = preview
         self.submit_fn = submit
@@ -70,22 +73,45 @@ class JournalForm(ModalScreen[str | None]):
         self.submissions = 0
 
     def compose(self) -> ComposeResult:
-        with VerticalScroll(classes="modal form"):
-            yield TextPanel(id="form-title", classes="title")
-            yield TextPanel(id="form-info")
-            for f in self.fields:
-                with Horizontal(classes="form-row"):
-                    yield Label(f.label, classes="form-label")
-                    yield Input(value=f.default, placeholder=f.placeholder, id=f"f-{f.key}")
-            yield TextPanel(id="form-preview")
-            yield TextPanel(id="form-error")
+        """docs/02 §2.1 modal anatomy: identity -> plan/position -> fields -> risk preview
+        & warnings -> actions (Cancel focused)."""
+        with VerticalScroll(classes="modal form", id="form-box") as box:
+            box.border_title = escape(self.title_text)
+            yield TextPanel(id="form-identity")
+            with Vertical(classes="section", id="sec-plan") as sec:
+                sec.border_title = "PLAN / POSITION"
+                yield TextPanel(id="form-info")
+            with Vertical(classes="section", id="sec-fields") as sec:
+                sec.border_title = "YOUR ACTUAL VALUES  (* required)"
+                for f in self.fields:
+                    with Horizontal(classes="form-row"):
+                        yield Label(f.label, classes="form-label")
+                        yield Input(value=f.default, placeholder=f.placeholder, id=f"f-{f.key}")
+            with Vertical(classes="section", id="sec-preview") as sec:
+                sec.border_title = "RISK PREVIEW & WARNINGS"
+                yield TextPanel(id="form-warnings")
+                yield TextPanel(id="form-preview")
+                yield TextPanel(id="form-error")
+            yield TextPanel(id="form-hint", classes="form-hint")
             with Horizontal(classes="form-buttons"):
                 yield Button(self.confirm_label, id="confirm", variant="warning")
                 yield Button("Cancel", id="cancel", variant="default")
 
     def on_mount(self) -> None:
-        self.query_one("#form-title", TextPanel).set_lines([[(self.title_text, "gold")]])
-        self.query_one("#form-info", TextPanel).set_lines(self.info)
+        self.query_one("#form-identity", TextPanel).set_lines(self.info[:1])
+        self.query_one("#form-info", TextPanel).set_lines(self.info[1:])
+        self.query_one("#form-warnings", TextPanel).set_lines(self.warnings)
+        self.query_one("#form-hint", TextPanel).set_lines(
+            [
+                [
+                    (
+                        "Tab: next field · typing never triggers hotkeys · Esc: cancel (twice "
+                        "if edited) · saves a LOCAL record only; nothing is sent to a broker",
+                        "muted",
+                    )
+                ]
+            ]
+        )
         self._refresh_preview()
         self.query_one("#cancel", Button).focus()  # docs/02 §9: default selection Cancel
 
@@ -109,7 +135,12 @@ class JournalForm(ModalScreen[str | None]):
 
     @property
     def plain(self) -> str:
-        parts = [self.title_text, self.query_one("#form-info", TextPanel).plain]
+        parts = [
+            self.title_text,
+            self.query_one("#form-identity", TextPanel).plain,
+            self.query_one("#form-info", TextPanel).plain,
+            self.query_one("#form-warnings", TextPanel).plain,
+        ]
         parts += [f"{f.label} [{self.values()[f.key]}]" for f in self.fields]
         parts += [self.preview_plain, self.error_plain, f"[{self.confirm_label}] [Cancel]"]
         return "\n".join(parts)
@@ -177,8 +208,17 @@ class PositionDetail(ModalScreen[str | None]):
         self.saved = False
 
     def compose(self) -> ComposeResult:
-        with VerticalScroll(classes="modal"):
+        with VerticalScroll(classes="modal", id="detail-box") as box:
+            box.border_title = (
+                "POSITION DETAILS — RECONCILIATION REQUIRED"
+                if self.confirm_open_fn is not None
+                else "POSITION DETAILS — local record"
+            )
             yield TextPanel(id="detail-body")
+            if self.confirm_open_fn is not None:
+                with Vertical(classes="section", id="sec-reconcile") as sec:
+                    sec.border_title = "RECONCILIATION"
+                    yield TextPanel(id="reconcile-text")
             yield TextPanel(id="form-error")
             with Horizontal(classes="form-buttons"):
                 if self.confirm_open_fn is not None:
@@ -189,6 +229,17 @@ class PositionDetail(ModalScreen[str | None]):
 
     def on_mount(self) -> None:
         self.query_one("#detail-body", TextPanel).set_lines(self.lines)
+        if self.confirm_open_fn is not None:
+            self.query_one("#reconcile-text", TextPanel).set_lines(
+                [
+                    [
+                        (
+                            "Confirm records a local verification only. [Back] is the default.",
+                            "muted",
+                        )
+                    ],
+                ]
+            )
         self.query_one("#back", Button).focus()
 
     @property

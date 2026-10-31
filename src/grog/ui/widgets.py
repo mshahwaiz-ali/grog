@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from rich.text import Text
+from textual.markup import escape
 from textual.widgets import DataTable, Static
 
 from grog.ui.panels import Line, plain
@@ -18,6 +19,14 @@ PALETTE = {  # docs/02 §2 tokens; colour is never the only carrier of meaning
     "caution": "#F2BE60",
     "error": "bold #FF6666",
     "ok": "#33C6A1",
+    # Chips/badges (docs/02 §2.1): filled, text always carries the meaning.
+    "badge": "bold #0B111A on #E6BA63",
+    "chip_ok": "bold #0B111A on #33C6A1",
+    "chip_warn": "bold #0B111A on #F2BE60",
+    "chip_err": "bold #FFFFFF on #A83232",
+    "tab_on": "bold #0B111A on #E6BA63",
+    "tab": "#93A5B9",
+    "key": "bold #E6BA63",
 }
 
 
@@ -32,16 +41,24 @@ def to_text(lines: Sequence[Line]) -> Text:
 
 
 class TextPanel(Static):
-    """Static panel that remembers its plain text (for tests and screen snapshots)."""
+    """Static panel that remembers its plain text (for tests and screen snapshots).
+
+    With the ``boxed`` class the first line becomes the panel's border title (docs/02 §2.1)
+    and is not repeated in the body; :attr:`plain` still contains every line."""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__("", *args, **kwargs)
         self.plain = ""
+        self._key: tuple = ()
 
     def set_lines(self, lines: Sequence[Line]) -> None:
-        text = plain(lines)
-        if text != self.plain:
-            self.plain = text
+        key = tuple(tuple(line) for line in lines)  # styles matter too (active tab, chips)
+        if key != self._key:
+            self._key = key
+            self.plain = plain(lines)
+            if self.has_class("boxed") and lines:
+                self.border_title = escape("".join(t for t, _ in lines[0]).strip())
+                lines = lines[1:]
             self.update(to_text(lines))
 
 
@@ -50,7 +67,7 @@ class StateTable(DataTable):
     (docs/02 §2: never reset table focus/selection as quotes update)."""
 
     def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, cursor_type="row", zebra_stripes=False, **kwargs)
+        super().__init__(*args, cursor_type="row", zebra_stripes=False, cell_padding=1, **kwargs)
         self._columns_now: tuple[str, ...] = ()
         self._rows_now: list[tuple[str, tuple[str, ...]]] = []
 

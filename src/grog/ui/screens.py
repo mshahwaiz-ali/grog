@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import VerticalScroll
+from textual.markup import escape
 from textual.screen import ModalScreen
 
 from grog.ui.panels import Line
@@ -49,18 +50,20 @@ class Overlay(ModalScreen[None]):
         self.lines = list(lines)
 
     def compose(self) -> ComposeResult:
-        with VerticalScroll(classes="modal"):
-            panel = TextPanel(id=f"{self.id}-body")
-            yield panel
+        with VerticalScroll(classes="modal", id=f"{self.id}-box") as box:
+            if self.lines:  # docs/02 §2.1: first line is the dialog's border title
+                box.border_title = escape("".join(t for t, _ in self.lines[0]).strip())
+            yield TextPanel(id=f"{self.id}-body")
 
     def on_mount(self) -> None:
         self.query_one(TextPanel).set_lines(
-            [*self.lines, [("", "muted")], [("[Esc] Back", "muted")]]
+            [*self.lines[1:], [("", "muted")], [("[Esc] Back", "muted")]]
         )
 
     @property
     def plain(self) -> str:
-        return self.query_one(TextPanel).plain
+        title = "".join(t for t, _ in self.lines[0]) if self.lines else ""
+        return title + "\n" + self.query_one(TextPanel).plain
 
     def action_dismiss_overlay(self) -> None:
         self.dismiss(None)
