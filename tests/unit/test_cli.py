@@ -62,7 +62,7 @@ def test_version(isolated_env: dict[str, str]) -> None:
     code, out, err = run(["version"], isolated_env)
     assert code == EXIT_OK and err == ""
     assert out.splitlines()[0] == f"grog {grog.__version__}"
-    assert "Config schema: 1" in out and "State schema: 2" in out
+    assert "Config schema: 1" in out and "State schema: 3" in out
 
 
 # ---------------------------------------------------------------- doctor

@@ -89,12 +89,14 @@ class Store:
         db_path: Path,
         clock: Clock,
         migrations: list[tuple[int, str]] | None = None,
+        *,
+        busy_timeout_ms: int = BUSY_TIMEOUT_MS,
     ) -> Store:
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(db_path, isolation_level=None, timeout=BUSY_TIMEOUT_MS / 1000)
+        conn = sqlite3.connect(db_path, isolation_level=None, timeout=busy_timeout_ms / 1000)
         conn.row_factory = sqlite3.Row
         try:
-            conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+            conn.execute(f"PRAGMA busy_timeout = {int(busy_timeout_ms)}")
             conn.execute("PRAGMA foreign_keys = ON")
             conn.execute("PRAGMA journal_mode = WAL")
             store = cls(conn, clock, db_path)
@@ -140,9 +142,10 @@ class Store:
             " version INTEGER PRIMARY KEY CHECK (typeof(version) = 'integer'),"
             " applied_at_utc_ms INTEGER NOT NULL CHECK (typeof(applied_at_utc_ms) = 'integer'))"
         )
-        for version, sql in migrations:
-            if self._is_applied(version):
-                continue
+        pending = [(v, sql) for v, sql in migrations if not self._is_applied(v)]
+        if pending and self.schema_versions():
+            self._backup_before_migration(max(self.schema_versions()))
+        for version, sql in pending:
             script = (
                 "BEGIN IMMEDIATE;\n"
                 f"{sql}\n"
@@ -156,6 +159,19 @@ class Store:
                 if self._conn.in_transaction:
                     self._conn.execute("ROLLBACK")
                 raise
+
+    def _backup_before_migration(self, current_version: int) -> Path:
+        """docs/09 §7: back up the local DB before a migration that could affect persistent
+        user records. Uses SQLite's online backup API (consistent copy); never overwrites an
+        earlier backup of the same version."""
+        target = self.path.with_name(f"{self.path.name}.pre-migration-v{current_version}.bak")
+        if not target.exists():
+            dest = sqlite3.connect(target)
+            try:
+                self._conn.backup(dest)
+            finally:
+                dest.close()
+        return target
 
     def _is_applied(self, version: int) -> bool:
         row = self._conn.execute(
