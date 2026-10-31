@@ -104,3 +104,33 @@ class FeedStatus(StrEnum):
     CLOSED = "CLOSED"
     NO_DATA = "NO_DATA"
     UNKNOWN = "UNKNOWN"
+
+
+class PivotSide(StrEnum):
+    HIGH = "HIGH"
+    LOW = "LOW"
+
+
+class IndicatorStatus(StrEnum):
+    VALID = "VALID"
+    INSUFFICIENT_HISTORY = "INSUFFICIENT_HISTORY"
+    ZERO_VALUE = "ZERO_VALUE"  # e.g. ATR == 0: calculations scaled by it are unavailable
+
+
+class H1Bias(StrEnum):
+    UP = "UP"
+    DOWN = "DOWN"
+    NEUTRAL = "NEUTRAL"
+    UNKNOWN = "UNKNOWN"
+
+
+class M15Context(StrEnum):
+    SUPPORTIVE = "SUPPORTIVE"
+    CORRECTIVE = "CORRECTIVE"
+    OPPOSING = "OPPOSING"
+    UNKNOWN = "UNKNOWN"
+
+
+class Side(StrEnum):
+    BUY = "BUY"
+    SELL = "SELL"

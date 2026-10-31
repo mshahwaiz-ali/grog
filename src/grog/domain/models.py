@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
-from grog.domain.enums import BarQuality, GapKind, SourceOrigin, Timeframe
+from grog.domain.enums import BarQuality, GapKind, PivotSide, SourceOrigin, Timeframe
 from grog.domain.ids import is_valid_source_id
 
 CANONICAL_SYMBOL = "XAUUSD"
@@ -203,3 +203,30 @@ class DataHealthPolicy:
             if closure.start_ms <= time_ms < closure.end_ms:
                 return closure
         return None
+
+
+@dataclass(frozen=True, slots=True)
+class Pivot:
+    """A confirmed strict pivot (docs/04 Section 6).
+
+    ID ``(source, timeframe, pivot_bar_id, side)``. Knowable only from
+    ``available_at_ms`` (availability of the k+right bar), never at pivot time.
+    """
+
+    source_id: str
+    timeframe: Timeframe
+    side: PivotSide
+    bar_id: str
+    bar_index: int
+    price: Decimal
+    pivot_bar_start_ms: int
+    pivot_bar_end_ms: int
+    confirming_bar_id: str
+    confirmed_at_ms: int
+    available_at_ms: int
+    window_irregular: bool
+    calculation_version: str
+
+    @property
+    def pivot_id(self) -> str:
+        return f"{self.bar_id}:{self.side.value}"

@@ -49,3 +49,52 @@ class Stream:
         for t in range(start_ms, end_ms, step_ms):
             self.add(t, **kw)  # type: ignore[arg-type]
         return self
+
+
+def make_bar(
+    timeframe,
+    index: int,
+    high: str,
+    low: str,
+    close: str | None = None,
+    open_: str | None = None,
+    *,
+    base_ms: int = T10,
+    source_id: str = "syn-1",
+    available_delay_ms: int = 0,
+    quality=None,
+    ask_offset: str = "0.20",
+):
+    """A finalized synthetic BID/ASK bar at series position ``index`` (no gaps)."""
+    from grog.domain.enums import BarQuality
+    from grog.domain.models import FinalizedBar
+
+    start = base_ms + index * timeframe.duration_ms
+    end = start + timeframe.duration_ms
+    hi, lo = Decimal(high), Decimal(low)
+    cl = Decimal(close) if close is not None else (hi + lo) / 2
+    op = Decimal(open_) if open_ is not None else cl
+    off = Decimal(ask_offset)
+    return FinalizedBar(
+        source_id=source_id,
+        timeframe=timeframe,
+        start_ms=start,
+        end_ms=end,
+        open_bid=op,
+        high_bid=hi,
+        low_bid=lo,
+        close_bid=cl,
+        open_ask=op + off,
+        high_ask=hi + off,
+        low_ask=lo + off,
+        close_ask=cl + off,
+        tick_count=1,
+        first_received_ms=start,
+        last_received_ms=start,
+        closed_at_received_ms=end + available_delay_ms,
+        closing_event_key=f"bar#{index}",
+        available_at_ms=end + available_delay_ms,
+        quality=quality or BarQuality.COMPLETE,
+        missing_m1_buckets=0,
+        source_origin=SourceOrigin.SYNTHETIC,
+    )
