@@ -2,7 +2,7 @@
 
 **Topic owner:** the independent R0 (M00–M08) acceptance audit: baseline evidence, confirmed findings with source locations, the bounded fix plan and the final verification record. **It defines no trading, UX, data or architecture rule** — those remain owned by [02](02-workflows-and-ux.md)–[09](09-architecture.md) and approvals by [11](11-decisions.md). When a finding changes a contract, the owning document is edited and this record only links to it.
 
-**Status:** IN PROGRESS (opened 2026-10-31). Implementation of M00–M08 exists; **R0 is not VALIDATED by this record** until every phase below has executed evidence. Nothing here is evidence of strategy profitability, live-data readiness or broker-verified fills.
+**Status:** COMPLETE (opened and closed 2026-10-31) — R0 acceptance verdict **CONDITIONAL** (§5). Implementation of M00–M08 exists; **R0 is not VALIDATED** in the [11](11-decisions.md) sense by this record. Nothing here is evidence of strategy profitability, live-data readiness or broker-verified fills.
 
 ## 1. Baseline (Phase A)
 
@@ -57,11 +57,34 @@ Filled as commits land (short SHA → test that proves it).
 | F-01, F-02, F-03, F-08 entered/skipped lanes, exposure, blocked detail | f67fe4f | `tests/ui/test_lanes_exposure.py` (5) |
 | F-04, F-05, F-07 mark freshness, source status vs playback, R denominators | a2e34bc | `tests/integration/test_r_and_marks.py` (14), `tests/ui/test_mark_freshness_ui.py` (2), `tests/ui/test_ui_cli.py` |
 | F-09, F-10 engine code hash, window semantics | 979affd | `tests/unit/test_replay_identity.py` (5); docs/08 §10 |
+| F-07 follow-up: realized R exactly zero before any exit | 16503c5 | `tests/integration/test_r_and_marks.py` |
+| F-12 terminal redesign (visual system first) | d0d7561 (docs/02), 72b3570, 39054a9, 5c0b33e, e360915 | `tests/ui/test_r0_layout.py` (13), `tests/ui/test_r0_views.py` (2); PNG/SVG evidence outside the repo via `scripts/r0_screenshots.py` |
+| Phase D operator acceptance | 7083f9d, 8c97dec | `tests/acceptance/test_r0_operator_journey.py` (1), `tests/acceptance/test_r0_error_paths.py` (14) — [08 §15.4](08-validation.md) ACC-01..10 |
+| F-11 documentation status | 3438e7a, 85d13c1, and the docs commits of Phase E | README, [00](00-index.md), [08](08-validation.md), [09 §2.1](09-architecture.md), [10 §8–§10](10-roadmap.md), [11 §13](11-decisions.md) |
 
 ## 5. Final verification
 
-Pending.
+Run locally on 2026-10-31 (Ubuntu box, Python 3.11, `uv sync --locked`), no GitHub Actions:
+
+| Command | Result |
+| --- | --- |
+| `uv run pytest -q` | **510 passed**, 0 failed (≈190 s) — baseline was 439 |
+| `uv run pytest -q tests/acceptance` | 15 passed (journey + 14 error paths) |
+| `uv run ruff check .` | All checks passed |
+| `uv run ruff format --check .` | 109 files already formatted |
+| Offline demo (README) | synthetic → `import-ticks` → `replay` → report produced; UI launches on the same state dir |
+
+**Verdict: CONDITIONAL.** All twelve findings are fixed with regression tests and the operator journey and error paths pass end-to-end over synthetic data. Conditions before calling R0 unconditionally accepted:
+
+1. Owner decision on H1 invalidation while READY ([05 §8](05-strategies.md) vs [06 §5](06-signals-and-scoring.md)); code follows the stricter rule.
+2. An operator look at the workstation in a real terminal emulator (evidence so far is Textual Pilot plus headless-rendered SVG/PNG, not a human session).
+
+R0 acceptance means the offline research workstation behaves as specified on synthetic data. It is **not** evidence of live-data readiness, broker-verified fills or profitability.
 
 ## 6. Remaining limitations
 
-Pending.
+- No live feed: M09 (read-only MT5 reference) BLOCKED on explicit external permission ([10 §9](10-roadmap.md)). No historical real-market data evaluated; M10 prerequisites in [10 §10](10-roadmap.md).
+- OPEN thresholds (quote age, first-quote delay, spread, costs, contract) are unset by default ⇒ no READY with the default config; only the labeled fixture-only demo config declares freshness thresholds for synthetic data.
+- Net R and currency P/L UNKNOWN (no contract/fees); exposure policy OPEN (warnings only); `TP1 APPROACHING` not emitted; SQ-17 grace recovery not implemented; replay models zero-delay entry only; no journal correction event (corrections are new records).
+- Overlap: the 70×18 layout is usable via scrolling but dense; modal action buttons at 70×18 are reached by scrolling/Tab.
+- Textual's button press debounce (~0.2 s) ignores an immediate second press of the same button — harmless (prevents double submit), noted for operators.
