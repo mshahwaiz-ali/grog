@@ -1,7 +1,7 @@
 # Grok Build Roadmap — Exact Milestones, Tests and Handoffs
 
 **Updated:** 2026-10-31  
-**Status:** **Ready as a staged implementation plan once the user gives the explicit START instruction.** Offline code work is fully scoped; **real broker connectivity, live trade-risk limits, performance thresholds and profitability cannot be finalized without actual data**. Implementation status is tracked factually in Section 8 below (implemented is not the same as validated).
+**Status:** R0 (M00–M08) **IMPLEMENTED and acceptance-audited** (verdict CONDITIONAL, see [14](14-r0-acceptance-audit.md) §5); M09 is BLOCKED on external permission and M10 is data/evidence-gated (plans in §9 and §10 below). **real broker connectivity, live trade-risk limits, performance thresholds and profitability cannot be finalized without actual data**. Implementation status is tracked factually in Section 8 below (implemented is not the same as validated).
 
 **One rule:** Grok is the **external implementation bot**. Grog's running software contains **NO agent/LLM/autonomous broker execution**. Use `main` only, direct Git commits, local tests, no GitHub Actions. Work solely in Grog repo and test directories; no production systems.
 
@@ -183,6 +183,37 @@ External operations (Wine/MT5 installation, demo credentials, downloading propri
 | M06 | IMPLEMENTED | `78cf7df`, `230a582` | deterministic replay, reports (zero-delay entry only) |
 | M07 | IMPLEMENTED | `246e990`, `f3e3c2a`, `261d486` | Textual workstation |
 | M08 | IMPLEMENTED | `d0ff0fd`, `dca9ee3` | manual journal, reconciliation |
-| R0 acceptance | IN PROGRESS | see [14](14-r0-acceptance-audit.md) | audit opened at `dca9ee3`: 439 tests passing, 12 findings (F-01..F-12) |
+| R0 acceptance | ACCEPTED — CONDITIONAL | `50ea97d`…`8c97dec` (see [14](14-r0-acceptance-audit.md) §4) | audit opened at `dca9ee3` (439 tests, 12 findings F-01..F-12); all 12 fixed; 510 tests, ruff clean; operator journey + error-path acceptance tests; conditions in [14](14-r0-acceptance-audit.md) §5 |
 | M09 | BLOCKED — external permission | — | read-only MT5 demo install/connection needs explicit owner approval |
 | M10 | NOT STARTED — data/evidence-gated | — | needs real permitted BID/ASK history and a forward-paper protocol |
+
+## 9. M09 plan — read-only MT5 reference feed (BLOCKED until authorized)
+
+**Purpose:** replace the imported CSV with a *read-only* demo/reference BID/ASK stream for the same engine, tagged `REFERENCE_LIVE` and `INDICATIVE`. It is not an execution broker and does not make any fill broker-verified.
+
+**Explicit external permissions required from the owner (none granted yet):**
+
+1. Install Wine and the MetaTrader 5 terminal on a named machine (not production servers, not the ERP host).
+2. Create/use one named **demo** account on one named broker/server (credentials entered by the owner locally, never committed or given to Grok).
+3. Install/compile a small read-only MQL5 exporter script/EA in that terminal.
+4. Allow the network egress of that terminal to the broker demo server.
+5. Approve the freshness thresholds (`max_quote_age_ms`, `max_first_postclose_delay_ms`) measured from that feed; they are not reused from the fixture-only demo config.
+
+**Prerequisites:** R0 suite green; the broker's XAUUSD symbol name, digits/tick size, trading-session calendar and server timezone recorded from the demo terminal ([03](03-market-data.md)); disk location for raw exporter files; an Ubuntu host.
+
+**Ubuntu compatibility checks (before any code):** Wine version runs the current MT5 build headless or under Xvfb; terminal survives restart and reconnect; exporter file writes land in a Linux-readable path with UTC/receipt timestamps; clock sync (chrony/ntpd) verified; CPU/RAM footprint acceptable alongside the TUI; behaviour on weekend close and on demo-server disconnect observed.
+
+**Adapter boundary ([09](09-architecture.md) MT5 adapter contract):** the MQL5 side only reads ticks (`CopyTicksRange` bounded catch-up plus `OnTick` notifications) and writes append-only files; the Python adapter in `market_data/` converts them to `NormalizedQuote` with source metadata, dedups by cursor, and feeds the unchanged replay/session engine. **Forbidden in both sides:** `OrderSend`, `OrderSendAsync`, `PositionClose`, any `CTrade` call, account/wallet APIs, LLM calls. Core analysis, strategies, signals and risk do not change.
+
+**Test criteria:** recorded exporter fixture files (no live terminal in CI-free local tests) cover normal ticks, duplicates, out-of-order receipt, reconnect gap and backfill (no retroactive live READY — MD-11/12/19/22 in [08](08-validation.md)); a source scan proves no trade API symbol exists in the exporter or adapter; header shows `REFERENCE_LIVE · INDICATIVE`; feed health STALE/DEGRADED on stalled files; R0 replay unchanged. **Done** only when run against the authorized demo terminal; otherwise status stays **BLOCKED: demo access/install authorization missing**.
+
+## 10. M10 prerequisites — historical data and forward-paper evaluation (nothing claimed)
+
+No evaluation result exists. M10 may start only when all of the following exist:
+
+1. **Data:** permitted genuine XAUUSD BID/ASK tick history (source licence/permission recorded), long enough for walk-forward folds plus an untouched final holdout; import passes strict CSV v1 with gap/closure classification and declared freshness thresholds measured on that source.
+2. **Execution assumptions:** declared spread limit, commission/swap and contract size for one named venue (until then net R and currency P/L stay UNKNOWN), and an entry-delay scenario set beyond zero-delay.
+3. **Pre-registration:** frozen S1 parameter set and promotion criteria (net R, drawdown, frequency, minimum sample) written in [08](08-validation.md) before looking at out-of-sample data; owner decision on the open H1-invalidation-while-READY conflict ([05 §8](05-strategies.md) vs [06 §5](06-signals-and-scoring.md)).
+4. **Forward paper protocol:** M09 reference feed authorized and running; operator journal used for every READY (entered/skipped with reasons); evaluation period and stop rules fixed in advance.
+5. **Reporting rule:** results labelled SIMULATED/PAPER with sample sizes; no win-rate or profitability claim without the pre-registered evidence; if data is missing the status is **UNVALIDATED** with the missing item named.
+
