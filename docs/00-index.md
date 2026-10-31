@@ -1,6 +1,6 @@
 # Grog Documentation Index — Canonical Specifications
 
-**Updated:** 2026-10-31 · **Project stage:** planning/research, NOT implemented or validated.
+**Updated:** 2026-10-31 · **Project stage:** offline R0 (M00–M08) implemented; R0 acceptance audit in progress ([14](14-r0-acceptance-audit.md)); no strategy edge validated.
 
 ## How to read and change these documents
 
@@ -21,6 +21,7 @@
 | [11 — Decisions](11-decisions.md) | Approved directions, open blockers and change control |
 | [12 — References](12-references.md) | Source links and technical research context |
 | [13 — Competitor Research](13-competitor-research.md) | Reference research only, NOT automatically approved features |
+| [14 — R0 Acceptance Audit](14-r0-acceptance-audit.md) | R0 audit evidence: baseline, findings, fix log and acceptance verdict (owns no product rule) |
 
 ## Implementation entry point for Grok
 

@@ -1,7 +1,7 @@
 # Grok Build Roadmap — Exact Milestones, Tests and Handoffs
 
 **Updated:** 2026-10-31  
-**Status:** **Ready as a staged implementation plan once the user gives the explicit START instruction.** Offline code work is fully scoped; **real broker connectivity, live trade-risk limits, performance thresholds and profitability cannot be finalized without actual data**. The project is still documentation-only at the time of writing.
+**Status:** **Ready as a staged implementation plan once the user gives the explicit START instruction.** Offline code work is fully scoped; **real broker connectivity, live trade-risk limits, performance thresholds and profitability cannot be finalized without actual data**. Implementation status is tracked factually in Section 8 below (implemented is not the same as validated).
 
 **One rule:** Grok is the **external implementation bot**. Grog's running software contains **NO agent/LLM/autonomous broker execution**. Use `main` only, direct Git commits, local tests, no GitHub Actions. Work solely in Grog repo and test directories; no production systems.
 
@@ -168,3 +168,21 @@ Do not stop basic engineering for lack of a future execution broker, sample data
 External operations (Wine/MT5 installation, demo credentials, downloading proprietary market history, accessing personal accounts, real-money capital) need user permission. Don't assume consent from "start coding". Never run commands against `erp.omchouse.com` or any other production system.
 
 **Next user instruction after this documentation phase can be a single sentence:** "Grok, start Grog from AGENTS.md and docs/10-roadmap.md, follow all canonical specifications, finish M00–M08 sequentially and report progress per milestone. No GitHub Actions."
+## 8. Implementation progress — factual record
+
+**IMPLEMENTED** = code and its milestone tests exist on `main`. **ACCEPTED** = the R0 acceptance audit ([14](14-r0-acceptance-audit.md)) has executed evidence for it. **VALIDATED** in the [11](11-decisions.md) sense (reproducible evidence of a trading edge) applies to **no** milestone: synthetic tests cannot validate S1.
+
+| Milestone | Status | Commit(s) | Notes |
+| --- | --- | --- | --- |
+| M00 | IMPLEMENTED | `92b1484` | locked uv env, CLI, doctor, config validation |
+| M01 | IMPLEMENTED | `279966e`, `f3f06f9`, `66a01c3` | strict CSV v1, catalog migration 0001 |
+| M02 | IMPLEMENTED | `5e10a0e`, `67c2280` | causal bars, gaps, feed health (thresholds OPEN ⇒ UNKNOWN) |
+| M03 | IMPLEMENTED | `d2b979d`, `9b00d65`, `bd3590d` | EMA/ATR, confirmed pivots, H1/M15 context |
+| M04 | IMPLEMENTED | `4e94073`, `12e7156` | research-only S1 detector |
+| M05 | IMPLEMENTED | `357ece7`, `67315b2`, `2133b02` | SIMULATED eligibility, BID/ASK plans |
+| M06 | IMPLEMENTED | `78cf7df`, `230a582` | deterministic replay, reports (zero-delay entry only) |
+| M07 | IMPLEMENTED | `246e990`, `f3e3c2a`, `261d486` | Textual workstation |
+| M08 | IMPLEMENTED | `d0ff0fd`, `dca9ee3` | manual journal, reconciliation |
+| R0 acceptance | IN PROGRESS | see [14](14-r0-acceptance-audit.md) | audit opened at `dca9ee3`: 439 tests passing, 12 findings (F-01..F-12) |
+| M09 | BLOCKED — external permission | — | read-only MT5 demo install/connection needs explicit owner approval |
+| M10 | NOT STARTED — data/evidence-gated | — | needs real permitted BID/ASK history and a forward-paper protocol |
