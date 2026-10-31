@@ -394,6 +394,23 @@ When the user explicitly authorizes the offline R0 build, Grok may complete **M0
 | ST-14 | Same closed M5 bar reprocessed | No duplicate pivot or signal |
 | ST-15 | Additive SQLite schema migration | Historic events preserved |
 
+### 15.4 R0-ACC — operator acceptance (added by the R0 audit, [14](14-r0-acceptance-audit.md))
+
+Executed over the deterministic SYNTHETIC fixture through the real CLI import and the REPLAY workstation, with thresholds from `config/synthetic-demo.fixture-only.toml` (demo/test-only, never a real-feed value). Files: `tests/acceptance/test_r0_operator_journey.py`, `tests/acceptance/test_r0_error_paths.py`; layout: `tests/ui/test_r0_layout.py`, `tests/ui/test_r0_views.py`.
+
+| ID | Case | Expected |
+| --- | --- | --- |
+| ACC-01 | Journey: import → FORMING → READY → detail → record entry → economics → monitoring mark → partial → modify stop → close → unlinked OFF_PLAN fill → skip next READY → re-press shows "already USER_SKIPPED" → restart → RECONCILIATION_REQUIRED → confirm open → MONITORING | append-only position events in sequence; exactly one first operator action per signal; no order/broker/wallet tables; imported market files byte-identical |
+| ACC-02 | Missing/invalid price, NaN, negative, quantity 0 / negative | `NOT SAVED`, nothing persisted, form stays open |
+| ACC-03 | Duplicate confirm; second entry/skip on an entered signal | one position; overlay "already ENTERED" |
+| ACC-04 | Late/out-of-band entry | OFF_PLAN with `OUTSIDE_ENTRY_BAND`; immutable signal plan unchanged |
+| ACC-05 | Default config (thresholds unset) | feed UNKNOWN, `STALE_THRESHOLD_UNSET`, no READY, marks flagged UNVERIFIED |
+| ACC-06 | Injected DB failure after event insert | `NOT SAVED`, zero rows; retry of the same form saves exactly once |
+| ACC-07 | Replay end | `REPLAY ENDED`, mark not fresh, stepping adds no quote |
+| ACC-08 | Insufficient history | `INSUFFICIENT HISTORY` banner, no READY, Diagnostics `[ERROR]` |
+| ACC-09 | 70×18 terminal | resize notice; keyboard entry still recorded; modal opens at identity with Cancel focused |
+| ACC-10 | Typing in any modal field | never triggers a view/record hotkey |
+
 ## 16. Milestone-to-test acceptance matrix
 
 | Milestone | Case groups | Mandatory evidence |
@@ -407,6 +424,7 @@ When the user explicitly authorizes the offline R0 build, Grok may complete **M0
 | M06 | CL-09/10, MD-18, ADV-04/08, ST-11..14 | identical replay, cost caveats |
 | M07 | UI-01..14/19/20/22 | Textual Pilot and small terminal tests |
 | M08 | UI-15..18/20/21, ST-01..08/15 | safe local journal/reconciliation |
+| R0 acceptance | ACC-01..10 | executed; counts in [14 §5](14-r0-acceptance-audit.md) |
 | M09 LATER | MD-11/19, CL-12, UI-10 | user-approved read-only demo connection |
 | M10 LATER | I0..I8, walk-forward and paper trial | independent empirical results |
 
