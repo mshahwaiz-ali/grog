@@ -126,7 +126,6 @@ class GrogApp(App[None]):
                 yield TextPanel(id="signals-note", classes="note")
             with VerticalScroll(id="positions", classes="pane"):
                 yield TextPanel(id="positions-body")
-                yield StateTable(id="positions-table")
             with Vertical(id="journal", classes="pane"):
                 yield Input(
                     placeholder="Filter: signal ID, date, state or mode", id="journal-filter"
@@ -241,16 +240,6 @@ class GrogApp(App[None]):
             ]
         )
         q("#positions-body", TextPanel).set_lines(body)
-        q("#positions-table", StateTable).show(
-            ("POSITION", "SIGNAL", "SIDE", "QTY", "ENTRY", "STATE"),
-            [
-                (
-                    r.position_id,
-                    (r.position_id, r.signal_id or "OFF_PLAN", r.side, r.qty, r.entry, r.state),
-                )
-                for r in rows
-            ],
-        )
         # Journal
         self._render_journal()
         # Diagnostics
@@ -292,7 +281,7 @@ class GrogApp(App[None]):
         focus = {
             "live": "#forming",
             "signals": "#ready",
-            "positions": "#positions-table",
+            "positions": None,
             "journal": "#journal-table",
             "diagnostics": None,
         }[name]

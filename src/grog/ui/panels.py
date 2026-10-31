@@ -79,7 +79,11 @@ def header(snap: Snapshot, compact: bool = False) -> list[Line]:
         ]
     tail: Line = [
         (f"{gap}Pace {pace_label(snap.pace)}", "muted"),
-        (f"{gap}PRE-ROLL {snap.pre_roll_quotes} quotes (history)", "caution"),
+        (
+            f"{gap}PRE-ROLL {snap.pre_roll_quotes}"
+            + (" (history)" if compact else " quotes (history)"),
+            "caution",
+        ),
     ]
     if compact:
         return [title, [*source, *clock], [*quote, *tail]]
@@ -322,7 +326,17 @@ def positions_panel(rows: Sequence[object]) -> list[Line]:
         lines.append([("No manually confirmed positions.", "primary")])
         lines.append([("Nothing is assumed executed by Grog.", "muted")])
     else:
-        lines.append([(f"{len(rows)} recorded open — see 3 Positions", "caution")])
+        lines.append([(f"{len(rows)} recorded open position(s)", "caution")])
+        for r in rows:
+            lines.append(
+                [
+                    (
+                        f"{r.position_id}  {r.side}  qty {r.qty}  entry {r.entry}  {r.state}  "
+                        "P&L UNKNOWN (contract/fees unverified)",
+                        "primary",
+                    )
+                ]
+            )
     return lines
 
 
