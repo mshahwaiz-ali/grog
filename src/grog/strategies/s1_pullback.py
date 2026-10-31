@@ -382,6 +382,7 @@ class S1Detector:
             threshold = min(b.low_bid for b in prev)
             m15 = ctx.m15_sell
         atr = ctx.atr_values[0]
+        post = self.m5[cand.pair.final_pivot.bar_index + 1 : j + 1]
         return TriggerObservation(
             trigger_id="S1T-" + sha256_hex(f"{cand.candidate_id}|{bar.bar_id}".encode())[:20],
             candidate_id=cand.candidate_id,
@@ -394,6 +395,11 @@ class S1Detector:
             two_bar_threshold=threshold,
             reference_bar_ids=(self.m5[j - 1].bar_id, self.m5[j - 2].bar_id),
             pullback_extreme=extreme,
+            pullback_ask_extreme=(
+                min(b.low_ask for b in post)
+                if cand.side is Side.BUY
+                else max(b.high_ask for b in post)
+            ),
             depth=depth,
             atr_m5=atr.value,
             atr_m5_status=atr.status,
@@ -591,7 +597,11 @@ def record_to_dict(value: Any) -> Any:
     """Canonical, exact (Decimal as string) serialization for replay comparison."""
     if isinstance(value, Decimal):
         return str(value)
-    if isinstance(value, (tuple, list)):
+    if isinstance(value, dict):
+        return {str(k): record_to_dict(v) for k, v in value.items()}
+    if isinstance(value, (tuple, list, frozenset, set)):
+        if isinstance(value, (frozenset, set)):
+            return sorted(record_to_dict(v) for v in value)
         return [record_to_dict(v) for v in value]
     if hasattr(value, "__dataclass_fields__"):
         out = {k: record_to_dict(getattr(value, k)) for k in value.__dataclass_fields__}

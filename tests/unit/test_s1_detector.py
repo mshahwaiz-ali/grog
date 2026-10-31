@@ -395,7 +395,17 @@ def test_newer_pair_supersedes_forming(side: Side, mirror: bool) -> None:  # S1-
 def test_ask_prices_never_change_s1_output() -> None:
     a = run(WARM + PATTERN + [TRIGGER])
     b = run(WARM + PATTERN + [TRIGGER], ask_offset="5.00")
-    assert record_to_dict(a.events) == record_to_dict(b.events)
+
+    def bid_only(det):
+        out = record_to_dict(det.events)
+        for e in out:
+            if e["trigger"]:
+                e["trigger"].pop("pullback_ask_extreme")  # parallel ASK record for SELL stops
+        return out
+
+    assert bid_only(a) == bid_only(b)
+    ta, tb = (kinds(d, Side.BUY, K.TRIGGER_OBSERVED)[0].trigger for d in (a, b))
+    assert tb.pullback_ask_extreme - ta.pullback_ask_extreme == Decimal("4.80")
 
 
 def test_utc_only_no_local_calendar_effects() -> None:

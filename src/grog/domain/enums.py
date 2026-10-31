@@ -192,7 +192,61 @@ class ReasonCode(StrEnum):
     TRIGGER_CONFIRMED = "TRIGGER_CONFIRMED"
     FORMING_TTL_EXPIRED = "FORMING_TTL_EXPIRED"
     SUPERSEDED_BY_NEWER_PAIR = "SUPERSEDED_BY_NEWER_PAIR"
+    # Signal eligibility / execution (docs/06 Sections 3-5, docs/07)
+    DATA_STALE = "DATA_STALE"
+    FEED_HEALTH_UNKNOWN = "FEED_HEALTH_UNKNOWN"  # stale threshold unset (OPEN)
+    QUOTE_DELAY = "QUOTE_DELAY"  # first quote later than the declared maximum
+    QUOTE_DELAY_UNEVALUATED = "QUOTE_DELAY_UNEVALUATED"  # maximum delay unset (OPEN)
+    MARKET_CLOSED = "MARKET_CLOSED"
+    CONTRACT_UNDEFINED = "CONTRACT_UNDEFINED"  # no declared price step / contract metadata
+    FX_RATE_UNAVAILABLE = "FX_RATE_UNAVAILABLE"
+    ENTRY_CHASE = "ENTRY_CHASE"
+    OUTSIDE_ENTRY_BAND = "OUTSIDE_ENTRY_BAND"
+    CONFIRMATION_LOST = "CONFIRMATION_LOST"
+    SPREAD_OVER_LIMIT = "SPREAD_OVER_LIMIT"
+    SPREAD_LIMIT_UNSET = "SPREAD_LIMIT_UNSET"
+    COST_UNAVAILABLE = "COST_UNAVAILABLE"
+    SIGNAL_TTL_EXPIRED = "SIGNAL_TTL_EXPIRED"
+    PRE_ENTRY_STOP_TOUCH = "PRE_ENTRY_STOP_TOUCH"
+    CANDIDATE_NOT_ACTIVE = "CANDIDATE_NOT_ACTIVE"
+    EXPOSURE_REVIEW_REQUIRED = "EXPOSURE_REVIEW_REQUIRED"
+    M15_STRICT_VETO = "M15_STRICT_VETO"  # only in the separately versioned strict variant
     # Soft context only (never a veto in the base S1)
     M15_CORRECTIVE = "M15_CORRECTIVE"
     M15_OPPOSING = "M15_OPPOSING"
     M15_UNKNOWN = "M15_UNKNOWN"
+
+
+class ExitOutcome(StrEnum):
+    TARGET = "TARGET"  # full position at TP2
+    STOP = "STOP"
+    OPEN = "OPEN"  # neither touched yet
+    INDETERMINATE = "INDETERMINATE"  # both inside unsequenced data; never assume the order
+
+
+class GateResult(StrEnum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    UNKNOWN = "UNKNOWN"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+
+
+class SignalState(StrEnum):
+    READY = "READY"
+    EXPIRED = "EXPIRED"
+    INVALIDATED = "INVALIDATED"
+
+
+class SignalEventKind(StrEnum):
+    READY_ISSUED = "READY_ISSUED"
+    MISSED_DATA_GAP = "MISSED_DATA_GAP"
+    MISSED_PRICE_CHASE = "MISSED_PRICE_CHASE"
+    NOT_ISSUED = "NOT_ISSUED"  # any other failed or UNKNOWN hard gate on the first quote
+    EXECUTION_BLOCKED = "EXECUTION_BLOCKED"  # reversible overlay set / reasons changed
+    EXECUTION_UNBLOCKED = "EXECUTION_UNBLOCKED"
+    EXPIRED = "EXPIRED"
+    INVALIDATED = "INVALIDATED"
+
+
+class ExecutionFidelity(StrEnum):
+    SIMULATED = "SIMULATED"  # offline replay: never broker-verified

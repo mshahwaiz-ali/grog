@@ -8,7 +8,9 @@ from decimal import Decimal
 from grog.domain.enums import (
     BarQuality,
     CandidateState,
+    ExecutionFidelity,
     GapKind,
+    GateResult,
     H1Bias,
     IndicatorStatus,
     M15Context,
@@ -16,6 +18,8 @@ from grog.domain.enums import (
     ReasonCode,
     S1EventKind,
     Side,
+    SignalEventKind,
+    SignalState,
     SourceOrigin,
     Timeframe,
 )
@@ -352,7 +356,8 @@ class TriggerObservation:
     trigger_close_bid: Decimal
     two_bar_threshold: Decimal  # BUY: max(High[j-1], High[j-2]); SELL: min(Low[j-1], Low[j-2])
     reference_bar_ids: tuple[str, str]  # (j-1, j-2)
-    pullback_extreme: Decimal  # P including the completed trigger bar
+    pullback_extreme: Decimal  # P (BID) including the completed trigger bar
+    pullback_ask_extreme: Decimal  # parallel ASK extreme over the same bars (SELL stop, docs/07)
     depth: Decimal
     atr_m5: Decimal | None
     atr_m5_status: IndicatorStatus
@@ -419,3 +424,68 @@ class S1Event:
     trigger: TriggerObservation | None
     quality_flags: tuple[str, ...]
     parameter_set_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class GateCheck:
+    gate: str
+    result: GateResult
+    reason: ReasonCode | None = None
+    blocking: bool = True  # False: recorded evidence that never vetoes in this variant
+
+
+@dataclass(frozen=True, slots=True)
+class SignalRecord:
+    """Immutable original S1 signal (docs/09 Section 3.5). Live eligibility is a separate
+    overlay; nothing here is ever overwritten. SIMULATED in offline replay."""
+
+    signal_id: str
+    candidate_id: str
+    trigger_id: str
+    strategy_version: str
+    signal_rules_version: str
+    side: Side
+    original_source_id: str
+    first_ready_ms: int  # receipt time of the first executable post-trigger quote
+    first_quote_provider_ms: int
+    first_quote_event_key: str
+    original_bid: Decimal
+    original_ask: Decimal
+    e0: Decimal
+    sl0: Decimal
+    tp1: Decimal
+    tp2: Decimal
+    frozen_atr: Decimal
+    entry_low: Decimal
+    entry_high: Decimal
+    retention_threshold: Decimal
+    structural_low: Decimal  # frozen L.bid_low
+    structural_high: Decimal  # frozen H.bid_high
+    expiry_ms: int  # next M5 close after READY
+    execution_fidelity: ExecutionFidelity
+    original_risk_price: Decimal
+    price_step: Decimal
+    exit_policy: str
+    estimated_cost_model_id: str | None
+    evidence_snapshot_json: str
+    parameter_set_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class SignalEvent:
+    event_id: str
+    sequence: int
+    kind: SignalEventKind
+    source_id: str
+    side: Side
+    candidate_id: str
+    trigger_id: str
+    signal_id: str | None  # None when no signal was issued
+    decision_time_ms: int  # receipt time of the input that caused the event
+    event_time_ms: int  # quote provider time / bar end / expiry boundary
+    state: SignalState | None
+    blocked: bool
+    reason_codes: tuple[ReasonCode, ...]
+    gates: tuple[GateCheck, ...]
+    quote_bid: Decimal | None
+    quote_ask: Decimal | None
