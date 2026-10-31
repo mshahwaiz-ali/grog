@@ -213,7 +213,7 @@ No evaluation result exists. M10 may start only when all of the following exist:
 
 1. **Data:** permitted genuine XAUUSD BID/ASK tick history (source licence/permission recorded), long enough for walk-forward folds plus an untouched final holdout; import passes strict CSV v1 with gap/closure classification and declared freshness thresholds measured on that source.
 2. **Execution assumptions:** declared spread limit, commission/swap and contract size for one named venue (until then net R and currency P/L stay UNKNOWN), and an entry-delay scenario set beyond zero-delay.
-3. **Pre-registration:** frozen S1 parameter set and promotion criteria (net R, drawdown, frequency, minimum sample) written in [08](08-validation.md) before looking at out-of-sample data; owner decision on the open H1-invalidation-while-READY conflict ([05 §8](05-strategies.md) vs [06 §5](06-signals-and-scoring.md)).
+3. **Pre-registration:** frozen S1 parameter set and promotion criteria (net R, drawdown, frequency, minimum sample) written in [08](08-validation.md) before looking at out-of-sample data; the H1-STRICT provisional baseline vs the RQ-H1 alternative compared only under the pre-registered protocol of [08 §17](08-validation.md).
 4. **Forward paper protocol:** M09 reference feed authorized and running; operator journal used for every READY (entered/skipped with reasons); evaluation period and stop rules fixed in advance.
 5. **Reporting rule:** results labelled SIMULATED/PAPER with sample sizes; no win-rate or profitability claim without the pre-registered evidence; if data is missing the status is **UNVALIDATED** with the missing item named.
 

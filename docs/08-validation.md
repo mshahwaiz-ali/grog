@@ -429,3 +429,12 @@ Executed over the deterministic SYNTHETIC fixture through the real CLI import an
 | M10 LATER | I0..I8, walk-forward and paper trial | independent empirical results |
 
 **R0 PASS** means an offline program passes specified functional tests under documented synthetic/proxy assumptions. It does **NOT** establish profitable S1 signals or verified broker fills. Documented cases are not executed test results: Grok must create tests, run them and report actual pass/fail counts and commit SHAs as required by [10](10-roadmap.md).
+
+## 17. Pre-registered research questions (not runtime options)
+
+### RQ-H1 — H1 invalidation while READY
+
+- **Baseline (runtime, PROVISIONAL):** H1-STRICT ([05 §8](05-strategies.md)) — a newly confirmed H1 bar with any bias other than the side's required bias (NEUTRAL, UNKNOWN or opposite) invalidates READY.
+- **Alternative (research only):** H1-OPPOSITE — only a newly confirmed *opposite* H1 bias invalidates; NEUTRAL/UNKNOWN keep READY until TTL or another terminal rule.
+- The alternative is never selectable in the workstation or live session. It may only be evaluated offline as a counterfactual over the same READY set, under the M10 comparison protocol (§18), on real permitted BID/ASK data. No result is claimed.
+

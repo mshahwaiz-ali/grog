@@ -1,7 +1,7 @@
 # Grog — Instructions for Grok and Other External Coding Assistants
 
 **Project:** private `mshahwaiz-ali/grog` | **Branch:** `main` only | **Working language:** English  
-**State:** Documentation-only until the human user gives the explicit instruction to **start implementation**. This file guides the external coding assistant; Grog itself is **NOT** an AI agent.
+**State:** R0 (M00–M08) implemented and acceptance-audited ([docs/14](docs/14-r0-acceptance-audit.md)); M09 offline adapter work only within the limits of [docs/10 §9](docs/10-roadmap.md) — installing/connecting MT5, Wine, broker accounts or data sources requires separate explicit owner permission. This file guides the external coding assistant; Grog itself is **NOT** an AI agent.
 
 ## Mission — unchangeable without explicit user approval
 

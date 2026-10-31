@@ -113,7 +113,7 @@ Do not require M1 confirmation in the baseline. If tested independently:
 | --- | --- |
 | A pullback becomes a true reversal | Hard invalidate frozen L/H structural thesis and never resurrect same pair |
 | Single candle spike then immediate failure | Keep closed-M5 trigger as baseline; test trigger-strength/retest filters separately |
-| Higher H1 trend changes before manual entry | Invalidate READY when **newly confirmed H1** no longer matches S1; no repainting |
+| Higher H1 trend changes before manual entry | **Provisional research baseline (H1-STRICT):** on each **newly confirmed H1 bar** while READY, if the H1 bias is not the side's required bias (UP for BUY, DOWN for SELL — so NEUTRAL, UNKNOWN or opposite) the READY becomes terminal `INVALIDATED` (`H1_BIAS_MISMATCH`); a provisional/unclosed H1 never invalidates; no repainting. The looser alternative (only an *opposite* confirmed bias invalidates) is research question RQ-H1 in [08 §17](08-validation.md), not a runtime option. Neither rule is approved or empirically validated for live use. |
 | M15 corrective while H1 trends | Watch/score rather than veto; test strict veto separately |
 | M15 opposing | Explain structural warning, compare soft penalty vs veto; not hidden certainty |
 | Candidate ages without M5 recovery | EXPIRED; require a new valid impulse pair |

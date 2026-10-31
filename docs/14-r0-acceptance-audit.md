@@ -16,7 +16,7 @@
 | Failures at baseline | none |
 | Rendered UI evidence | earlier PNG/SVG captures (outside the repo) at 120×34 and 80×24; none at 70×18 |
 
-Conservative decisions already in force and **kept** by this audit: OPEN thresholds stay unset (feed health `UNKNOWN`, default config issues no READY); SQ-17 grace recovery not implemented; H1 invalidation while READY follows the stricter [05 §8](05-strategies.md) wording (conflict with [06 §5](06-signals-and-scoring.md) still OPEN with the owner); replay has only the zero-delay entry scenario; operator skips are stored in `signal_decisions`; no journal correction event; `TP1 APPROACHING` not emitted (distance threshold OPEN).
+Conservative decisions already in force and **kept** by this audit: OPEN thresholds stay unset (feed health `UNKNOWN`, default config issues no READY); SQ-17 grace recovery not implemented; H1 invalidation while READY follows the stricter [05 §8](05-strategies.md) wording (since reconciled: H1-STRICT is the provisional research baseline, see §5); replay has only the zero-delay entry scenario; operator skips are stored in `signal_decisions`; no journal correction event; `TP1 APPROACHING` not emitted (distance threshold OPEN).
 
 ## 2. Confirmed findings
 
@@ -76,7 +76,7 @@ Run locally on 2026-10-31 (Ubuntu box, Python 3.11, `uv sync --locked`), no GitH
 
 **Verdict: CONDITIONAL.** All twelve findings are fixed with regression tests and the operator journey and error paths pass end-to-end over synthetic data. Conditions before calling R0 unconditionally accepted:
 
-1. Owner decision on H1 invalidation while READY ([05 §8](05-strategies.md) vs [06 §5](06-signals-and-scoring.md)); code follows the stricter rule.
+1. ~~Owner decision on H1 invalidation while READY~~ — **resolved 2026-10-31 (M09-A Phase 1):** the stricter rule is kept as the PROVISIONAL S1 research baseline, [05 §8](05-strategies.md) and [06 §5](06-signals-and-scoring.md) reconciled, the looser rule is research question RQ-H1 ([08 §17](08-validation.md)). Not a validation of S1.
 2. An operator look at the workstation in a real terminal emulator (evidence so far is Textual Pilot plus headless-rendered SVG/PNG, not a human session).
 
 R0 acceptance means the offline research workstation behaves as specified on synthetic data. It is **not** evidence of live-data readiness, broker-verified fills or profitability.
@@ -88,3 +88,10 @@ R0 acceptance means the offline research workstation behaves as specified on syn
 - Net R and currency P/L UNKNOWN (no contract/fees); exposure policy OPEN (warnings only); `TP1 APPROACHING` not emitted; SQ-17 grace recovery not implemented; replay models zero-delay entry only; no journal correction event (corrections are new records).
 - Small terminals: the 70×18 layout is usable via scrolling but dense; modal action buttons at 70×18 are reached by scrolling/Tab.
 - Textual's button press debounce (~0.2 s) ignores an immediate second press of the same button — harmless (prevents double submit), noted for operators.
+
+## 7. Final UI review items (recorded, not yet changed)
+
+| ID | Item | Status |
+| --- | --- | --- |
+| UI-R1 | **Possible duplicate FORMING / READY representation.** On Live (120×34 evidence `live-ready-wide-120x34.png`) the same moment shows a FORMING row in *Opportunities forming* and a READY card in *Actionable proposals*; the operator may read one S1 setup as two opportunities, or a new FORMING candidate on the same side right after a READY as a duplicate. The rendered evidence points to the **same** pair: the event feed shows `TRIGGER S1-SELL-b11be1` and `READY_ISSUED SIG-c32961` at 11:30 while the forming table still lists `S1-SELL-b11be1 FORMING`. Review whether a triggered candidate should leave the forming list (or be tagged `→ SIG-…`), and whether the panel should state the relation (e.g. "new pair after SIG-…"). | OPEN — for the final operator UI review; no redesign now |
+

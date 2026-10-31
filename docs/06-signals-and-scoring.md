@@ -67,7 +67,7 @@ At the moment of issuance, freeze:
 - Confirmation retention check: long live BID `>= frozen_trigger_threshold − 0.10*atr0`; short live BID `<= frozen_trigger_threshold + 0.10*atr0`.
 - **TTL:** up to the **next finalized M5 bar close** after READY (typically <=5 minutes, but depends on actual quote/finalization). Define expiry by event time and process as soon as knowable, never by UI-render timing.
 
-On every valid quote, recompute **current eligibility** (band, spread, contract/trading hours and defined safety checks). Temporarily outside band or spread too high → `EXECUTION_BLOCKED` overlay; restored inside original frozen constraints before expiry → same READY ID. A confirmed H1 opposite bias, fixed structural invalidation, frozen stop touched before entry or TTL crossed → terminal INVALIDATED/EXPIRED.
+On every valid quote, recompute **current eligibility** (band, spread, contract/trading hours and defined safety checks). Temporarily outside band or spread too high → `EXECUTION_BLOCKED` overlay; restored inside original frozen constraints before expiry → same READY ID. A newly confirmed H1 bar whose bias no longer matches the side (provisional baseline H1-STRICT owned by [05 §8](05-strategies.md): NEUTRAL, UNKNOWN or opposite), fixed structural invalidation, frozen stop touched before entry or TTL crossed → terminal INVALIDATED/EXPIRED.
 
 If first quote is already too far away (fail no-chase) or delayed (missing quote beyond approved limit), record **MISSED_PRICE_CHASE / MISSED_DATA_GAP** and do not issue. If the user still reports an actual late fill, permit journaling with `OFF_PLAN` status and recompute actual economics, but never rewrite the original signal to pretend it was well timed.
 
