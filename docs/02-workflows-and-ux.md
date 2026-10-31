@@ -199,6 +199,7 @@ Mandatory actual exit price, full remaining quantity (default prefilled and vali
 | REPLAY paused or reached end | Display last event time + `REPLAY ENDED/PAUSED`; do not show live timestamp |
 | MT5 demo disconnected | Red `FEED OFFLINE` with time-of-last-quote and no new READY |
 | Reference feed vs external broker | `INDICATIVE QUOTE — verify execution venue`; no false 'broker verified' |
+| Reference feed not configured / unavailable (M09) | `REFERENCE NOT_CONFIGURED` (no `[reference]` config) or link state `NO_DATA / CATCHING_UP / OFFLINE / DISCONNECTED / MARKET_CLOSED / UNKNOWN` ([09 §5.1](09-architecture.md)); no mock or replayed quotes shown as live; fixture-producer files always read `FIXTURE · SIMULATED` |
 | Order/position price touched only in chart | `TOUCHED — execution unconfirmed`; never auto-close |
 | Source gaps / missing ATR | Explicit `DATA UNKNOWN`; no fake zero-risk values |
 | 80-column terminal | Stack panels, hide nonessential columns; selected signal still has exact SL/TP in details |

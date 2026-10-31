@@ -175,3 +175,14 @@ Recorded by the R0 audit ([14](14-r0-acceptance-audit.md)); each is a bounded en
 | R0 terminal visual system and modal anatomy (Cancel default, typing never triggers hotkeys, 120×34 / 80×24 / 70×18). | APPROVED (UX) | [02 §2.1](02-workflows-and-ux.md) |
 | H1 invalidation while READY: the stricter rule (H1-STRICT — any newly confirmed H1 bias other than the required one invalidates) is the **PROVISIONAL S1 research baseline**; [05 §8](05-strategies.md) and [06 §5](06-signals-and-scoring.md) now say the same. The looser opposite-only rule is pre-registered research question RQ-H1 ([08 §17](08-validation.md)), not a runtime option. | PROVISIONAL (owner, 2026-10-31) — EXPERIMENTAL, not approved or validated for live use | [05](05-strategies.md), [06](06-signals-and-scoring.md) |
 
+## 14. M09-A offline reference-adapter decisions — 2026-10-31
+
+| Decision | Status | Owner doc |
+| --- | --- | --- |
+| Transport = append-only rotated text files `GROG-MT5-REF/1` written by a read-only MQL5 exporter; no socket/server/DB bridge. | APPROVED (engineering, owner M09-A brief) | [09 §5.1](09-architecture.md) |
+| Dedup key = content + per-ms occurrence index within a delivery segment; timestamp alone is never a key. | APPROVED (engineering) | [09 §5.1](09-architecture.md), [03 §8](03-market-data.md) |
+| Durable cursor as an atomically replaced JSON file in the state dir; no new SQLite table for M09-A. | APPROVED (engineering) | [09 §5.1](09-architecture.md) |
+| LIVE eligibility requires mode `L`, outside catch-up, and quote age ≤ `live.max_quote_age_ms`; everything else is BACKFILL and can never yield an actionable READY. | APPROVED (engineering) | [09 §5.1](09-architecture.md), [06](06-signals-and-scoring.md) |
+| `reference.max_heartbeat_age_ms` is a new OPEN threshold (unset ⇒ link UNKNOWN, never LIVE). | OPEN — measure on the authorized demo feed | [10 §9](10-roadmap.md) |
+| Installing/running MT5, Wine or any broker software, any broker/data connection, credentials or market-data download. | **NOT AUTHORIZED** — separate explicit owner permission | [10 §9](10-roadmap.md) |
+

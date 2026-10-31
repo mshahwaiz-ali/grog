@@ -167,7 +167,7 @@ Every partial/modify/close is an append-only `PositionEvent` with stable action 
 | Replay | immutable quotes + virtual clock + frozen config | same ordered events and deterministic reports each run | real wall-clock scheduling |
 | Journal | operator-confirmed action, position state | append-only event and updated position read model transactionally | brokerage order handling |
 | Textual UI | immutable engine state/observable events | visible formatted screen, journal-action intents to validated service | direct SQL manipulation/engine rule changes |
-| MT5 reference adapter (later) | read-only demo terminal quotes/history | normalized quote batches/cursor, source health | `OrderSend`, trade modification, live orders, LLM |
+| MT5 reference adapter (§5.1) | `GROG-MT5-REF/1` files from the read-only exporter | NormalizedQuote stream (LIVE / BACKFILL), durable cursor, link + feed state | `OrderSend`, trade modification, live orders, journal writes, LLM |
 
 **Single direction of dependencies:** adapters → market_data → analysis → strategies → signals/risk → journal/replay → UI (UI calls explicit safe local journal command port only). Domain and analysis never import adapters/UI. No circular imports.
 
@@ -180,6 +180,65 @@ Every partial/modify/close is an append-only `PositionEvent` with stable action 
 `EXECUTION_VERIFIED` (future readiness state, not initial build): only when instrument metadata, execution conventions and user-reported fill observations for actual venue are validated. It remains **manual execution**, not a trading API. No automatic mode switch merely because an MT5 demo is connected.
 
 The eventual broker is **NOT required** for `REPLAY` or for researching price structure, indicators or hypothetical S1. Source and execution venue may differ; never silently relabel reference results as broker-verified.
+
+### 5.1 M09 read-only MT5 reference adapter — implementation contract
+
+Smallest design that satisfies [03 §8](03-market-data.md) without touching the pure engine. Status: **offline Python side implemented (M09-A); MQL5 exporter authored but uncompiled and untested in MT5; no terminal, Wine, broker account or network connection used** ([10 §9](10-roadmap.md)).
+
+```text
+MT5 terminal (Wine, demo server, one XAUUSD symbol)
+  └─ mql5/GrogReferenceExporter.mq5   read-only: SymbolInfoTick / CopyTicksRange / timer heartbeat
+        │ append-only rotated text files  (transport GROG-MT5-REF/1)
+        ▼
+  market_data/reference_format.py   parse + validate one line → typed record or RecordError(code)
+  market_data/reference_feed.py     ReferenceNormalizer (UTC, side carry-forward, dedup, order)
+                                    ReferenceReader (rotation, complete lines only, durable cursor)
+  live/session.py                   ReferenceSession: LinkMonitor (heartbeat, injectable clock)
+                                    + the unchanged S1ResearchPipeline (bars → analysis → S1 → signals)
+        ▼
+  CLI `grog reference-status` (read-only)   ·   `grog ui --mode reference` → NOT_CONFIGURED until wired
+```
+
+**One source.** One exporter instance = one `source_id`, one demo server, one raw symbol mapped to `XAUUSD`. No aggregation, no second broker.
+
+**Transport `GROG-MT5-REF/1`.** Directory `reference.exporter_dir`; files `<source_id>__<session start UTC YYYYMMDDTHHMMSSZ>__<part 000001>.grogref`, UTF-8, `\n`-terminated lines, comma-separated, no quoting; processed in lexical file-name order. A line is consumed only when its `\n` exists (a torn last line is never parsed). Field 2 of every record is a per-file line sequence starting at 1 and increasing by exactly 1 (a jump = `TRANSPORT_SEQ_GAP`, counted, feed DEGRADED-reportable).
+
+| Record | Fields | Meaning |
+| --- | --- | --- |
+| `M` | `M,1,GROG-MT5-REF/1,<producer>,<source_id>,<server>,<raw_symbol>,<digits>,<server_offset_s>,<exporter_version>` | must be line 1 of every file; `producer` = `MQL5_EXPORTER` or `FIXTURE` (fixtures are always displayed FIXTURE / SIMULATED, never as live reference prices) |
+| `T` | `T,<seq>,<mode L\|B>,<time_msc>,<bid>,<ask>,<flags>` | one `MqlTick`: `time_msc` exactly as MT5 reports (trade-server clock, ms), prices with ≤ `digits` decimals, `flags` the integer `MqlTick.flags`; `L` = live poll, `B` = catch-up (`CopyTicksRange`) |
+| `H` | `H,<seq>,<server_time_msc>,<connected 0\|1>,<session OPEN\|CLOSED\|UNKNOWN>,<server_offset_s>` | timer heartbeat (exporter default every 1 s), also written when no tick arrives |
+| `B` / `E` | `B,<seq>,<from_msc>` · `E,<seq>,<to_msc>,<count>` | catch-up block begin/end (inclusive `from_msc` overlap with the cursor) |
+| `Z` | `Z,<seq>,<next file name or ->` | clean end of file (rotation or shutdown) |
+
+**Exact values.** Prices are parsed to `Decimal` from the text (never via float); more decimals than `digits` → `PRICE_PRECISION`. `provider_time_ms = time_msc − server_offset_s × 1000`, using the offset from the latest `M`/`H` record (the exporter computes `TimeTradeServer() − TimeGMT()`; Grog never guesses broker timezones/DST). `received_time_ms` = Grog's clock when the line was read (true availability), forced non-decreasing.
+
+**Price sides.** `flags & 2` = BID changed, `flags & 4` = ASK changed (MT5 `TICK_FLAG_BID/ASK`). An unchanged side may be empty/0 and is carried forward from the last accepted value; the quote carries `BID_CHANGED` / `ASK_CHANGED` and `ASK_CARRIED` / `BID_CARRIED` flags. A side flagged as changed must be a positive price. A tick before both sides are known → `SIDE_UNKNOWN` (held out, counted). Ticks with neither flag (last/volume only) → `NON_QUOTE` (ignored, counted). `ask < bid` → `CROSSED` (quarantined).
+
+**Identity and dedup.** `source_event_key = <source_id>:<time_msc>:<bid>:<ask>:<flags>:<n>` where `n` is the occurrence index of that exact content within that millisecond **inside one delivery segment** (the live stream, or one `B…E` block). Distinct same-ms ticks therefore always get distinct keys; an identical re-delivery from an overlapping catch-up gets the same key and is dropped as `DUPLICATE`. A tick older than the last accepted `provider_time_ms` that is not a known key → `OUT_OF_ORDER` (counted, never inserted into the causal stream). Recent keys (bounded window) are part of the cursor.
+
+**Durable cursor.** `<state_dir>/reference/<source_id>.cursor.json`, written atomically (temp file, fsync, rename) only after the records up to it were handed to the session: file name, byte offset, expected next line sequence, last bid/ask, offset, last accepted time, segment occurrence counters and recent keys. Restart resumes exactly at the cursor: no tick is skipped and none is re-emitted. No new SQLite table is needed for M09-A.
+
+**Backfill vs live.** A quote is **LIVE-eligible** only if it is mode `L`, outside a `B…E` block, **and** `received − provider ≤ live.max_quote_age_ms`. Everything else (catch-up, backlog read after a Grog restart, late lines) is **BACKFILL**: it advances bars/analysis causally, but any READY issued while processing it is recorded as *historical* and is never shown as actionable. With `max_quote_age_ms` unset nothing is LIVE-eligible. On start the session first replays retained files up to the cursor as history (warm-up), then continues.
+
+**Link and feed state (timer-driven).** `ReferenceSession.poll()` is called from a timer (UI/CLI) and evaluates at the injected clock's now, so staleness is found **without waiting for another tick**:
+
+| Link state | Condition (first match) |
+| --- | --- |
+| `NOT_CONFIGURED` | no `[reference]` config / exporter dir |
+| `NO_DATA` | configured, no record read yet |
+| `DISCONNECTED` | latest heartbeat reports `connected=0` |
+| `OFFLINE` | heartbeat age (Grog receive clock) > `reference.max_heartbeat_age_ms` |
+| `UNKNOWN` | `max_heartbeat_age_ms` unset (`HEARTBEAT_THRESHOLD_UNSET`) |
+| `CATCHING_UP` | inside an open `B…E` block |
+| `MARKET_CLOSED` | heartbeat session `CLOSED` (or a declared closure) |
+| `LIVE` | otherwise |
+
+Feed health is the existing `assess_feed` evaluated at clock now (FRESH/STALE/DEGRADED/CLOSED/UNKNOWN). **Actionable** = READY issued on a LIVE-eligible quote **and** link `LIVE` **and** feed `FRESH` now. Reference prices are labeled `REFERENCE · INDICATIVE` (fixture producer: `FIXTURE · SIMULATED`), never broker-verified; P/L stays UNKNOWN.
+
+**Safety.** Prices never create journal records (the session has no journal dependency). Neither side contains order/position/account mutation calls (`OrderSend`, `OrderSendAsync`, `CTrade`, `PositionClose`, `OrderModify`, …); a test scans both sources and checks the session's public API. REPLAY code paths are unchanged.
+
+**Config (all unset by default).** `[reference] source_id`, `exporter_dir`, `max_heartbeat_age_ms`; freshness still from `[live] max_quote_age_ms`, `max_first_postclose_delay_ms`. Thresholds must be measured on the authorized demo feed ([10 §9](10-roadmap.md)).
 
 ## 6. Simple offline import format v1 — publish fixture and parser
 

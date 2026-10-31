@@ -93,6 +93,8 @@ source_timezone_definition, data_quality_flags, adapter_version
 - **cTrader caution:** historical tick requests cover at most one week per request, may return partial results, and must honor `hasMore` plus actual documented rate limits. Account-specific authorization must not silently grant order rights in Grog's application.
 - **Dukascopy caution:** vendor-supplied historical bid/ask may support offline fixtures, but final S1 assessment needs matched broker feeds/costs and representative forward testing.
 
+**M09 contract:** the concrete transport (`GROG-MT5-REF/1`), dedup key, cursor, backfill-vs-live and timer-driven link states are specified once in [09 §5.1](09-architecture.md); MT5 tick times are trade-server times converted to UTC only with the exporter-reported offset (never a guessed broker timezone/DST).
+
 **Local transport:** prefer simple append-only, crash-recoverable batches (or another explicitly verified read-only bridge); record checksums, batch IDs, start/end timestamps and committed cursor. **No high-frequency server/database/web dashboard is needed.** File timestamps alone and writing one CSV row per `OnTick` without testing throughput/recovery are not accepted as proven lossless.
 
 ## 9. Market-data audit and broker trial — before any live signal

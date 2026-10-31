@@ -184,28 +184,31 @@ External operations (Wine/MT5 installation, demo credentials, downloading propri
 | M07 | IMPLEMENTED | `246e990`, `f3e3c2a`, `261d486` | Textual workstation |
 | M08 | IMPLEMENTED | `d0ff0fd`, `dca9ee3` | manual journal, reconciliation |
 | R0 acceptance | ACCEPTED — CONDITIONAL | `50ea97d`…`8c97dec` (see [14](14-r0-acceptance-audit.md) §4) | audit opened at `dca9ee3` (439 tests, 12 findings F-01..F-12); all 12 fixed; 510 tests, ruff clean; operator journey + error-path acceptance tests; conditions in [14](14-r0-acceptance-audit.md) §5 |
-| M09 | BLOCKED — external permission | — | read-only MT5 demo install/connection needs explicit owner approval |
+| M09-A | IN PROGRESS → see commits | — | offline adapter pieces per §9; no MT5/broker/network |
+| M09-B | BLOCKED — external permission | — | read-only MT5 demo install/connection needs explicit owner approval |
 | M10 | NOT STARTED — data/evidence-gated | — | needs real permitted BID/ASK history and a forward-paper protocol |
 
-## 9. M09 plan — read-only MT5 reference feed (BLOCKED until authorized)
+## 9. M09 plan — read-only MT5 reference feed
 
-**Purpose:** replace the imported CSV with a *read-only* demo/reference BID/ASK stream for the same engine, tagged `REFERENCE_LIVE` and `INDICATIVE`. It is not an execution broker and does not make any fill broker-verified.
+**Purpose:** feed the unchanged engine from a *read-only* demo/reference BID/ASK stream, tagged `REFERENCE_LIVE` and `INDICATIVE`. It is not an execution broker and does not make any fill broker-verified. Implementation contract: [09 §5.1](09-architecture.md).
+
+**M09-A — offline, authorized 2026-10-31 (no MT5/Wine/broker/network/credentials/market data):** transport parser/validator, normalizer (UTC offset, side carry-forward, dedup, ordering), durable reader with atomic cursor, backfill-vs-live separation, timer-driven link monitor with injectable clock, live `ReferenceSession` over the existing pipeline, `NOT_CONFIGURED` CLI/UI behavior, read-only `grog reference-status`, and the MQL5 exporter **source** (uncompiled, untested in MT5). Tests use recorded-format fixture files only (producer `FIXTURE`).
+
+**M09-B — BLOCKED until the owner grants every permission below:** compile/run the exporter, measure thresholds, wire the reference session into the workstation views, run the acceptance list.
 
 **Explicit external permissions required from the owner (none granted yet):**
 
-1. Install Wine and the MetaTrader 5 terminal on a named machine (not production servers, not the ERP host).
-2. Create/use one named **demo** account on one named broker/server (credentials entered by the owner locally, never committed or given to Grok).
-3. Install/compile a small read-only MQL5 exporter script/EA in that terminal.
-4. Allow the network egress of that terminal to the broker demo server.
-5. Approve the freshness thresholds (`max_quote_age_ms`, `max_first_postclose_delay_ms`) measured from that feed; they are not reused from the fixture-only demo config.
+1. Install Wine and the MetaTrader 5 terminal on a named Ubuntu machine (not production servers, not the ERP host).
+2. Open/use one named **demo** account on one named broker/server; credentials typed by the owner into the terminal locally, never committed, never given to Grok/Grog.
+3. Copy `mql5/GrogReferenceExporter.mq5` into the terminal's `MQL5/Experts`, compile it in MetaEditor and attach it to one XAUUSD chart (AutoTrading/Algo-trading may stay **disabled** — the exporter needs no trade permission).
+4. Allow that terminal's network egress to the demo server.
+5. Approve the measured thresholds `live.max_quote_age_ms`, `live.max_first_postclose_delay_ms`, `reference.max_heartbeat_age_ms` (fixture/demo values are never reused).
 
-**Prerequisites:** R0 suite green; the broker's XAUUSD symbol name, digits/tick size, trading-session calendar and server timezone recorded from the demo terminal ([03](03-market-data.md)); disk location for raw exporter files; an Ubuntu host.
+**Machine requirements:** Ubuntu 22.04/24.04 x86-64, ≥ 4 GB RAM free for terminal + Grog, Wine (stable) or the official MetaQuotes Linux installer, Xvfb if headless, NTP/chrony time sync, a local directory shared between the terminal's `MQL5/Files/grog` (Common Files) and Grog's `reference.exporter_dir`, ≥ 1 GB disk for rotated files.
 
-**Ubuntu compatibility checks (before any code):** Wine version runs the current MT5 build headless or under Xvfb; terminal survives restart and reconnect; exporter file writes land in a Linux-readable path with UTC/receipt timestamps; clock sync (chrony/ntpd) verified; CPU/RAM footprint acceptable alongside the TUI; behaviour on weekend close and on demo-server disconnect observed.
+**Ubuntu compatibility checks (before relying on data):** terminal starts and reconnects under Wine; exporter compiles with zero warnings about trade functions; files appear in the Linux path with complete lines; `TimeTradeServer() − TimeGMT()` offset matches the broker's published server time; behavior across weekend close, demo-server disconnect, terminal restart and DST change observed; CPU/RAM acceptable beside the TUI.
 
-**Adapter boundary ([09](09-architecture.md) MT5 adapter contract):** the MQL5 side only reads ticks (`CopyTicksRange` bounded catch-up plus `OnTick` notifications) and writes append-only files; the Python adapter in `market_data/` converts them to `NormalizedQuote` with source metadata, dedups by cursor, and feeds the unchanged replay/session engine. **Forbidden in both sides:** `OrderSend`, `OrderSendAsync`, `PositionClose`, any `CTrade` call, account/wallet APIs, LLM calls. Core analysis, strategies, signals and risk do not change.
-
-**Test criteria:** recorded exporter fixture files (no live terminal in CI-free local tests) cover normal ticks, duplicates, out-of-order receipt, reconnect gap and backfill (no retroactive live READY — MD-11/12/19/22 in [08](08-validation.md)); a source scan proves no trade API symbol exists in the exporter or adapter; header shows `REFERENCE_LIVE · INDICATIVE`; feed health STALE/DEGRADED on stalled files; R0 replay unchanged. **Done** only when run against the authorized demo terminal; otherwise status stays **BLOCKED: demo access/install authorization missing**.
+**M09-B acceptance:** `grog reference-status` shows `LIVE` with real heartbeats; killing the terminal → `OFFLINE` within the heartbeat threshold with no new tick; disconnect → `DISCONNECTED`; weekend → `MARKET_CLOSED`; restart Grog/terminal → no lost or duplicated tick (cursor/dedup counters); catch-up produces no actionable READY; header reads `REFERENCE · INDICATIVE`; R0 replay outputs unchanged; source scan clean. Otherwise status stays **BLOCKED: demo access/install authorization missing**.
 
 ## 10. M10 prerequisites — historical data and forward-paper evaluation (nothing claimed)
 

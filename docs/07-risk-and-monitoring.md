@@ -105,6 +105,8 @@ After `ENTERED` user confirmation:
 6. **Hold / partial / tighten / exit** recommendations require a separately specified, backtested and accepted rule. Until then display factual conditions and original stop/targets, **not ungrounded instruction**.
 7. Only explicit operator confirmation moves broker fill state. Terminal may ask the operator to confirm whether a touch resulted in execution.
 
+**Reference-feed monitoring (M09, [09 §5.1](09-architecture.md)):** marks from the MT5 reference feed are `INDICATIVE` (fixture files: `FIXTURE · SIMULATED`), never broker-verified; mark freshness is re-evaluated on a wall-clock timer, so a silent feed turns the mark STALE / OFFLINE / DISCONNECTED / MARKET_CLOSED without waiting for another tick; BACKFILL quotes update history but never produce a touch observation presented as live. Reference prices **never** create, close or modify a journal record — only operator confirmation does.
+
 The program continues market analysis while tracking manually entered trades; new overlap/conflict policy remains OPEN and must prevent duplicate risk being represented as independent profitable signals.
 
 ## 8. Position lifecycle, journal and recovery
