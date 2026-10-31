@@ -17,11 +17,14 @@ Pure: quotes + frozen config in, a :class:`ReplayResult` out. No wall clock, no 
 
 from __future__ import annotations
 
+import hashlib
 from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
+from functools import cache
+from pathlib import Path
 from typing import Any
 
 from grog import __version__
@@ -106,9 +109,36 @@ def data_hash(batch_sha256s: Sequence[str]) -> str:
     return sha256_hex(canonical_json(sorted(batch_sha256s)).encode())
 
 
+# Packages whose source determines replay results (docs/08 §2; docs/14 F-09). UI, CLI and
+# journal code are excluded: they cannot change a simulated outcome.
+ENGINE_PACKAGES = ("domain", "market_data", "analysis", "strategies", "signals", "risk")
+ENGINE_FILES = ("replay/runner.py",)
+
+
+@cache
+def engine_code_hash() -> str:
+    """sha256 over the engine sources (sorted relative paths + LF-normalized bytes).
+
+    Editing any engine file changes the run identity, even without a version bump, so a
+    stored run can never be silently re-used for different code."""
+    root = Path(__file__).resolve().parent.parent  # src/grog
+    files = [f for pkg in ENGINE_PACKAGES for f in (root / pkg).rglob("*.py")]
+    files += [root / rel for rel in ENGINE_FILES]
+    h = hashlib.sha256()
+    for f in sorted(set(files), key=lambda x: x.relative_to(root).as_posix()):
+        h.update(f.relative_to(root).as_posix().encode() + b"\0")
+        h.update(f.read_bytes().replace(b"\r\n", b"\n") + b"\0")
+    return h.hexdigest()
+
+
+def code_version() -> str:
+    return f"{__version__}+engine.{engine_code_hash()[:12]}"
+
+
 def run_identity(cfg: ReplayConfig, data_sha: str, pipeline: S1ResearchPipeline) -> dict:
     return {
-        "code_version": __version__,
+        "code_version": code_version(),
+        "engine_code_hash": engine_code_hash(),
         "report_version": REPORT_VERSION,
         "source_id": cfg.source_id,
         "data_hash": data_sha,
