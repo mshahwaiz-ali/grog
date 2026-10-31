@@ -432,7 +432,7 @@ Files: `tests/unit/test_reference_format.py`, `tests/integration/test_reference_
 
 ### 15.6 M09-H — integrity hardening (offline, H1–H4)
 
-File: `tests/acceptance/test_m09_integrity.py` (ported from the read-only review's scratch repros: each failed before its fix). Producer-byte fixture: `tests/fixtures/reference/producer_bytes/`. **Offline only — MT5 runtime behavior stays UNVERIFIED (M09-B).**
+File: `tests/acceptance/test_m09_integrity.py` (ported from the read-only review's scratch repros: each failed before its fix). Producer-byte fixture: `tests/fixtures/reference_producer_bytes/`. **Offline only — MT5 runtime behavior stays UNVERIFIED (M09-B).**
 
 | ID | Defect / case | Expected |
 | --- | --- | --- |

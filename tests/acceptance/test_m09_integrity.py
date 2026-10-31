@@ -685,7 +685,7 @@ def test_exporter_catch_up_is_timer_driven_and_sessions_may_wrap() -> None:  # #
 
 
 # REF-13 producer-byte fixture through the full pipeline (H4) -------------------------
-PRODUCER_BYTES = Path(__file__).resolve().parents[1] / "fixtures" / "reference" / "producer_bytes"
+PRODUCER_BYTES = Path(__file__).resolve().parents[1] / "fixtures" / "reference_producer_bytes"
 
 
 def test_producer_byte_fixture_is_lf_only_utf8() -> None:
