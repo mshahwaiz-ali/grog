@@ -54,7 +54,8 @@ def test_engine_free_of_ui_and_network_imports() -> None:
 def test_strategy_layer_is_pure() -> None:
     # docs/09: analysis -> strategies; no UI, persistence, journal or network coupling.
     code = (
-        "import sys, grog.market_data.bars, grog.analysis.contexts, grog.strategies.s1_pullback; "
+        "import sys, grog.market_data.bars, grog.analysis.contexts, "
+        "grog.strategies.s1_pullback, grog.signals.pipeline; "
         "bad=[m for m in ('textual','rich','sqlite3','urllib.request','http.client',"
         "'grog.journal','grog.journal.store') if m in sys.modules]; print(','.join(bad))"
     )
