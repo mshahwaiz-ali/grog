@@ -682,3 +682,34 @@ def test_exporter_catch_up_is_timer_driven_and_sessions_may_wrap() -> None:  # #
     session = _mq5_function("InSession")
     assert "previous_day" in session and re.search(r"f\s*<\s*t", session)
     assert "yday" in _mq5_function("SessionState")
+
+
+# REF-13 producer-byte fixture through the full pipeline (H4) -------------------------
+PRODUCER_BYTES = Path(__file__).resolve().parents[1] / "fixtures" / "reference" / "producer_bytes"
+
+
+def test_producer_byte_fixture_is_lf_only_utf8() -> None:
+    (f,) = sorted(PRODUCER_BYTES.glob("*.grogref"))
+    data = f.read_bytes()
+    assert b"\r" not in data and data.endswith(b"\n")
+    assert "Démo-Server" in data.decode("utf-8")  # strict UTF-8, non-ASCII preserved
+
+
+def test_producer_byte_fixture_passes_the_full_pipeline(tmp_path: Path) -> None:
+    import shutil
+
+    exp = tmp_path / "exp"
+    shutil.copytree(PRODUCER_BYTES, exp)
+    clock = StepClock(T0 + 2_100)
+    s = ReferenceSession(exp, SRC, POLICY, clock, HB_AGE)
+    st = s.poll()
+    rs = s.reader.state
+    assert rs.faults == {} and rs.server == "Démo-Server"
+    assert st.link is LinkStatus.LIVE and st.label == "FIXTURE · SIMULATED"
+    c = st.counters
+    assert c == {"ACCEPTED_BACKFILL": 3, "ACCEPTED_LIVE": 2}
+    last = s.pipeline.aggregator.last_quote
+    assert last is not None
+    assert (last.provider_time_ms, str(last.bid), str(last.ask)) == (T0 + 900, "4000.20", "4000.35")
+    assert {"ASK_CHANGED", "LIVE", "FIXTURE"} <= set(last.flags)
+    assert st.actionable == () and "FIXTURE_SIMULATED" in st.blockers
