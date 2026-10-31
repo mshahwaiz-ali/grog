@@ -5,7 +5,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
-from grog.domain.enums import BarQuality, GapKind, PivotSide, SourceOrigin, Timeframe
+from grog.domain.enums import (
+    BarQuality,
+    GapKind,
+    H1Bias,
+    IndicatorStatus,
+    M15Context,
+    PivotSide,
+    Side,
+    SourceOrigin,
+    Timeframe,
+)
 from grog.domain.ids import is_valid_source_id
 
 CANONICAL_SYMBOL = "XAUUSD"
@@ -230,3 +240,63 @@ class Pivot:
     @property
     def pivot_id(self) -> str:
         return f"{self.bar_id}:{self.side.value}"
+
+
+@dataclass(frozen=True, slots=True)
+class IndicatorValue:
+    """One timestamped feature value (docs/04 Section 3): never used before ``available_at_ms``."""
+
+    name: str
+    timeframe: Timeframe
+    source_id: str
+    bar_id: str | None
+    event_time_ms: int | None  # end of the bar the value was computed on
+    available_at_ms: int | None
+    value: Decimal | None
+    status: IndicatorStatus
+    bars_seen: int
+    required_bars: int
+    calculation_version: str
+
+
+@dataclass(frozen=True, slots=True)
+class M15Assessment:
+    """Side-specific M15 structural context (docs/04 Section 8)."""
+
+    side: Side
+    context: M15Context
+    reference_pivot_id: str | None
+    reference_price: Decimal | None
+    reference_available_at_ms: int | None
+    close_bid: Decimal | None
+    ema: Decimal | None
+    ema_previous: Decimal | None
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class AnalysisContext:
+    """docs/09 Section 3.3, built strictly from features available at ``decision_time_ms``.
+
+    ``m15_context`` from the contract is side-specific, so it is carried as
+    ``m15_buy`` and ``m15_sell``.
+    """
+
+    source_id: str
+    decision_time_ms: int
+    last_confirmed_h1_id: str | None
+    last_confirmed_m15_id: str | None
+    last_confirmed_m5_id: str | None
+    h1_bias: H1Bias
+    h1_bias_reasons: tuple[str, ...]
+    h1_strength_spread_atr: Decimal | None
+    h1_strength_slope_atr: Decimal | None
+    m15_buy: M15Assessment
+    m15_sell: M15Assessment
+    ema_values: tuple[IndicatorValue, ...]
+    atr_values: tuple[IndicatorValue, ...]
+    confirmed_pivots: tuple[Pivot, ...]
+    relevant_level_ids: tuple[str, ...]
+    quality_flags: tuple[str, ...]
+    calculation_version: str
+    parameter_set_hash: str
