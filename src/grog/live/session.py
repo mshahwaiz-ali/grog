@@ -10,11 +10,12 @@ restart warm-up history) is historical and never actionable. Prices never touch 
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
 
 from grog.adapters.mt5_reference.feed import (
+    CursorLock,
     CursorPosition,
     FeedEvent,
     ReferenceReader,
@@ -61,6 +62,7 @@ class ReferenceStatus:
     counters: dict[str, int]
     simulated: tuple[str, ...] = ()  # FIXTURE producer: would-be READY, never actionable
     blockers: tuple[str, ...] = ()  # why nothing can be actionable right now (empty = none)
+    reconstructed: bool = False  # engine history rebuilt from retained files at restart
 
     @property
     def broker_verified(self) -> bool:
@@ -101,6 +103,8 @@ class ReferenceSession:
         self.max_heartbeat_age_ms = max_heartbeat_age_ms
         self.commit_cursor = commit and state_dir is not None
         cursor = cursor_path_for(state_dir, source_id) if state_dir is not None else None
+        # One cursor writer per source: refuse a second committing session (docs/09 §5.1).
+        self._lock = CursorLock(state_dir, source_id) if self.commit_cursor else None
         age = policy.health.max_quote_age_ms
         # Timestamp boundary (docs/09 §5.1): UNVERIFIED until an authorized MT5 observation;
         # the future-skew tolerance is OPEN. Both stay actionable blockers by default.
@@ -115,6 +119,10 @@ class ReferenceSession:
         self.events: deque[FeedEvent] = deque(maxlen=200)  # bounded diagnostics tail
         self._uncommitted = 0
         self._last_commit_ms: int | None = None
+        self.reconstructed = False
+        # Startup fence: the first poll's backlog is BACKFILL, so a READY the previous
+        # process may have shown is never replayed as a new opportunity.
+        self._fenced = True
         self._warm_up(cursor if cursor is not None and cursor.exists() else None)
 
     # ------------------------------------------------------------------ ingestion
@@ -133,7 +141,10 @@ class ReferenceSession:
         )
         for ev in history.iter_events(CursorPosition(stop.file, stop.offset, stop.next_seq)):
             if ev.kind == "QUOTE" and ev.quote is not None:
-                self._feed(ev.quote, live=False)
+                # RECONSTRUCTED: receipt times are not persisted, so availability = restart.
+                q = replace(ev.quote, flags=ev.quote.flags | {"RECONSTRUCTED"})
+                self._feed(q, live=False)
+                self.reconstructed = True
 
     def _feed(self, quote: NormalizedQuote, live: bool) -> None:
         step = self.pipeline.on_quote(quote)
@@ -147,7 +158,7 @@ class ReferenceSession:
         start = self.reader.position
         for ev in self.reader.iter_events():
             if ev.kind == "QUOTE" and ev.quote is not None:
-                self._feed(ev.quote, ev.live)
+                self._feed(ev.quote, ev.live and not self._fenced)
             self.events.append(ev)
             self._uncommitted += 1
             if self._uncommitted >= COMMIT_LINES:
@@ -158,6 +169,7 @@ class ReferenceSession:
             )
             if due and self._uncommitted:
                 self._commit()
+        self._fenced = False
         return self.status()
 
     def _commit(self) -> None:
@@ -170,6 +182,13 @@ class ReferenceSession:
         """Commit any read-but-uncommitted progress now (e.g. on a clean shutdown)."""
         if self._uncommitted:
             self._commit()
+
+    def shutdown(self) -> None:
+        """Flush and release the cursor lock (process exit releases it too)."""
+        self.flush()
+        if self._lock is not None:
+            self._lock.release()
+            self._lock = None
 
     # ------------------------------------------------------------------ evaluation
 
@@ -223,6 +242,7 @@ class ReferenceSession:
             dict(st.counters),
             simulated,
             blockers,
+            self.reconstructed,
         )
 
     def _blockers(self, link: LinkStatus, feed: FeedHealth | None) -> tuple[str, ...]:

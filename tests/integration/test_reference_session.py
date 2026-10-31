@@ -185,6 +185,7 @@ def test_restart_warms_up_from_retained_files_and_never_writes_journal(tmp_path:
     }  # noqa: SLF001
     for q in qs[2_000:2_100]:
         w.tick(q.provider_time_ms, str(q.bid), str(q.ask), mode="B")
+    a.shutdown()  # a real restart is a new process; the cursor lock is released on exit
     b = session(exp, clock, state)  # restart: history up to the cursor is replayed first
     assert b.pipeline.aggregator.last_quote.provider_time_ms == qs[1_999].provider_time_ms
     assert {tf: b.pipeline.aggregator.history.count(tf) for tf in bars_before} == bars_before
@@ -193,4 +194,4 @@ def test_restart_warms_up_from_retained_files_and_never_writes_journal(tmp_path:
     assert b.reader.state.counters.get("DUPLICATE", 0) == 0
     # Prices never create journal records: the only file written is the reference cursor.
     written = sorted(p.relative_to(state).as_posix() for p in state.rglob("*") if p.is_file())
-    assert written == [f"reference/{SRC}.cursor.json"]
+    assert written == [f"reference/{SRC}.cursor.json", f"reference/{SRC}.lock"]

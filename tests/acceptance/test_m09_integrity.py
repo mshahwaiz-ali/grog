@@ -8,7 +8,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from grog.adapters.mt5_reference.feed import ReferenceReader, cursor_path_for
+import pytest
+
+from grog.adapters.mt5_reference.feed import (
+    CursorCorruptError,
+    CursorLockedError,
+    ReferenceReader,
+    cursor_path_for,
+)
 from grog.live.session import LinkStatus, ReferenceSession
 from reference_support import HB_AGE, OFFSET_S, POLICY, SRC, T0, StepClock, Writer, srv
 from ui_support import synthetic_quotes
@@ -485,3 +492,96 @@ def test_idle_polls_never_rewrite_the_cursor(tmp_path: Path) -> None:
     clock.now = T0 + 31_000
     s.poll()  # progress after the commit interval: committed
     assert writes == [T0 + 100, T0 + 31_000]
+
+
+# REF-22 ------------------------------------------------------ review #17/#18/#19, fence
+def test_second_cursor_writer_is_refused(tmp_path: Path) -> None:  # review h1
+    exp, state = tmp_path / "exp", tmp_path / "state"
+    w = Writer(exp)
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")
+    clock = StepClock(T0 + 100)
+    a = ReferenceSession(exp, SRC, POLICY, clock, HB_AGE, state_dir=state)
+    with pytest.raises(CursorLockedError, match="CURSOR_LOCKED"):
+        ReferenceSession(exp, SRC, POLICY, clock, HB_AGE, state_dir=state)
+    # a read-only status reader never commits and needs no lock
+    ReferenceSession(exp, SRC, POLICY, clock, HB_AGE, state_dir=state, commit=False).poll()
+    a.shutdown()
+    ReferenceSession(exp, SRC, POLICY, clock, HB_AGE, state_dir=state).shutdown()
+
+
+def test_corrupt_cursor_is_reported_explicitly(tmp_path: Path) -> None:  # review h2
+    exp, state = tmp_path / "exp", tmp_path / "state"
+    Writer(exp).hb(T0)
+    p = cursor_path_for(state, SRC)
+    p.parent.mkdir(parents=True)
+    p.write_text('{"version": 1, "position": {"fi')  # torn write
+    with pytest.raises(CursorCorruptError, match="CURSOR_CORRUPT"):
+        ReferenceSession(exp, SRC, POLICY, StepClock(T0), HB_AGE, state_dir=state)
+
+
+def test_restart_warm_up_is_reconstructed_and_never_actionable(tmp_path: Path) -> None:
+    """review j1: receipt times are not persisted, so warm-up bars carry the restart time
+    as availability; the warm-up is marked RECONSTRUCTED and its READY is historical."""
+    exp, state = tmp_path / "exp", tmp_path / "state"
+    qs = synthetic_quotes()[:3_000]
+    w = Writer(exp)
+    w.hb(qs[0].provider_time_ms)
+    clock = StepClock(qs[0].received_time_ms)
+    a = ReferenceSession(exp, SRC, POLICY, clock, HB_AGE, state_dir=state)
+    for q in qs:
+        clock.now = q.received_time_ms
+        w.tick(q.provider_time_ms, str(q.bid), str(q.ask))
+        a.poll()
+    a.flush()
+    a.shutdown()
+    clock.now = qs[-1].received_time_ms + 3_600_000  # restart one hour later
+    b = ReferenceSession(exp, SRC, POLICY, clock, HB_AGE, state_dir=state)
+    last = b.pipeline.aggregator.last_quote
+    assert last is not None and "RECONSTRUCTED" in last.flags
+    st = b.status()
+    assert st.reconstructed and b.live_ready == set()
+    b.shutdown()
+
+
+def test_startup_backlog_is_fenced_as_backfill(tmp_path: Path) -> None:
+    """A restart re-reads the uncommitted tail (crash before commit). Those lines may have
+    produced a READY the previous process already showed, so the first poll after start is
+    BACKFILL: nothing it issues can be replayed as a new actionable opportunity."""
+    w = Writer(tmp_path, producer="MQL5_EXPORTER")
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")
+    w.tick(T0 + 500, "4000.10", "4000.30")  # LIVE-eligible by age at restart time
+    clock = StepClock(T0 + 1_000)
+    s = ReferenceSession(tmp_path, SRC, POLICY, clock, HB_AGE)
+    fed: list[bool] = []
+    real = s._feed  # noqa: SLF001
+    s._feed = lambda q, live: (fed.append(live), real(q, live))[1]  # type: ignore[method-assign]
+    st = s.poll()
+    assert st.counters["ACCEPTED_LIVE"] == 2  # the reader alone would call them live
+    assert fed == [False, False]  # ... the startup fence makes them BACKFILL
+    w.hb(T0 + 1_500)
+    w.tick(T0 + 1_500, "4000.20", "4000.40")
+    clock.now = T0 + 1_600
+    s.poll()
+    assert fed == [False, False, True]  # after the fence, live ticks are live again
+
+
+def test_reference_status_reports_a_corrupt_cursor_without_a_traceback(
+    tmp_path: Path, isolated_env: dict[str, str]
+) -> None:
+    import io
+
+    from grog.cli import EXIT_CONFIG, main
+
+    exp, state = tmp_path / "exp", tmp_path / "state"
+    Writer(exp).hb(T0)
+    p = cursor_path_for(state, SRC)
+    p.parent.mkdir(parents=True)
+    p.write_text("{")
+    cfg = tmp_path / "ref.toml"
+    cfg.write_text(f'config_version = 1\n[reference]\nsource_id = "syn"\nexporter_dir = "{exp}"\n')
+    out, err = io.StringIO(), io.StringIO()
+    argv = ["reference-status", "--config", str(cfg), "--state-dir", str(state)]
+    code = main(argv, env=isolated_env, stdout=out, stderr=err)
+    assert code == EXIT_CONFIG and "code=CURSOR_CORRUPT" in err.getvalue()

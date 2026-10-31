@@ -351,6 +351,7 @@ def _utc(ms: int) -> str:
 def _cmd_reference_status(
     args: argparse.Namespace, env: Mapping[str, str], out: TextIO, err: TextIO
 ) -> int:
+    from grog.adapters.mt5_reference.feed import CursorCorruptError
     from grog.domain.clock import SystemClock
     from grog.domain.enums import SourceOrigin
     from grog.live.session import ReferenceSession
@@ -366,17 +367,25 @@ def _cmd_reference_status(
         )
         return EXIT_CONFIG
     state_dir, _origin = resolve_state_dir(args.state_dir, env)
-    session = ReferenceSession(
-        Path(ref.exporter_dir),
-        ref.source_id,
-        policy_from_settings(settings, {SourceOrigin.REFERENCE_LIVE}),
-        SystemClock(),
-        ref.max_heartbeat_age_ms,
-        state_dir=state_dir,
-        commit=False,
-    )
+    try:
+        session = ReferenceSession(
+            Path(ref.exporter_dir),
+            ref.source_id,
+            policy_from_settings(settings, {SourceOrigin.REFERENCE_LIVE}),
+            SystemClock(),
+            ref.max_heartbeat_age_ms,
+            state_dir=state_dir,
+            commit=False,
+        )
+    except CursorCorruptError as exc:
+        err.write(f"GROG ERROR code=CURSOR_CORRUPT reason={exc}\n")
+        return EXIT_CONFIG
     st = session.poll()
     rs = session.reader.state
+    if st.reconstructed:
+        out.write(
+            "History: RECONSTRUCTED from retained files (restart warm-up, never actionable)\n"
+        )
     out.write(
         f"Source: {ref.source_id}  Server: {rs.server or '-'}  Symbol: {rs.raw_symbol or '-'}"
         f"  Producer: {rs.producer or '-'}  Label: {st.label}  Broker-verified: NO\n"

@@ -9,6 +9,7 @@ an atomic JSON cursor. Neither writes to the journal or talks to any broker/netw
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
@@ -43,6 +44,14 @@ READ_BLOCK = 1 << 20  # bytes read per block
 MAX_LINE = 64 * 1024  # a longer run without LF is corrupt transport
 LIVE, BACKFILL, FIXTURE = "LIVE", "BACKFILL", "FIXTURE"
 FUTURE_TIME, OFFSET_ASSUMED = "FUTURE_TIME", "OFFSET_ASSUMED"
+
+
+class CursorCorruptError(ValueError):
+    """The durable cursor cannot be read: never silently reset (docs/09 §5.1)."""
+
+
+class CursorLockedError(RuntimeError):
+    """Another Grog process already commits this source's cursor."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -407,12 +416,18 @@ class ReferenceReader:
         state = None
         self.position = CursorPosition(None, 0, 1)
         if cursor_path is not None and cursor_path.exists():
-            data = json.loads(cursor_path.read_text(encoding="utf-8"))
-            if data.get("version") != CURSOR_VERSION:
-                raise ValueError(f"unsupported cursor version in {cursor_path}")
-            p = data["position"]
-            self.position = CursorPosition(p["file"], p["offset"], p["next_seq"])
-            state = NormalizerState.from_json(data["normalizer"])
+            try:
+                data = json.loads(cursor_path.read_text(encoding="utf-8"))
+                if data.get("version") != CURSOR_VERSION:
+                    raise ValueError(f"unsupported cursor version {data.get('version')!r}")
+                p = data["position"]
+                self.position = CursorPosition(p["file"], int(p["offset"]), int(p["next_seq"]))
+                state = NormalizerState.from_json(data["normalizer"])
+            except (ValueError, KeyError, TypeError, AttributeError) as exc:
+                raise CursorCorruptError(
+                    f"CURSOR_CORRUPT: {cursor_path}: {exc}. Next: move the cursor file aside; "
+                    "the retained exporter files are then re-read as history (no data is lost)."
+                ) from exc
         self.normalizer = ReferenceNormalizer(
             source_id, max_quote_age_ms, state, max_future_skew_ms
         )
@@ -551,6 +566,35 @@ class ReferenceReader:
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp, self.cursor_path)
+        dir_fd = os.open(self.cursor_path.parent, os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)  # make the rename itself durable
+        finally:
+            os.close(dir_fd)
+
+
+class CursorLock:
+    """Exclusive advisory lock: one cursor writer per source and state dir."""
+
+    def __init__(self, state_dir: Path, source_id: str) -> None:
+        path = Path(state_dir) / "reference" / f"{source_id}.lock"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._fd: int | None = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            os.close(self._fd)
+            self._fd = None
+            raise CursorLockedError(
+                f"CURSOR_LOCKED: {path} is held by another Grog process for source "
+                f"{source_id!r}. Next: stop the other session (status is read-only and allowed)."
+            ) from exc
+
+    def release(self) -> None:
+        if self._fd is not None:
+            fcntl.flock(self._fd, fcntl.LOCK_UN)
+            os.close(self._fd)
+            self._fd = None
 
 
 def _fingerprint(first_line: bytes) -> str:
@@ -567,6 +611,9 @@ __all__ = [
     "FUTURE_TIME",
     "OFFSET_ASSUMED",
     "LIVE",
+    "CursorCorruptError",
+    "CursorLock",
+    "CursorLockedError",
     "CursorPosition",
     "FeedEvent",
     "Heartbeat",
