@@ -53,7 +53,10 @@ Filled as commits land (short SHA → test that proves it).
 
 | Finding | Commit | Regression evidence |
 | --- | --- | --- |
-| — | — | — |
+| F-06 journal check-then-act races | 60d3ce0 | `tests/integration/test_journal_concurrency.py` (15: interleaved races, threaded stress, failure recovery, migration 0004 backfill) |
+| F-01, F-02, F-03, F-08 entered/skipped lanes, exposure, blocked detail | f67fe4f | `tests/ui/test_lanes_exposure.py` (5) |
+| F-04, F-05, F-07 mark freshness, source status vs playback, R denominators | a2e34bc | `tests/integration/test_r_and_marks.py` (14), `tests/ui/test_mark_freshness_ui.py` (2), `tests/ui/test_ui_cli.py` |
+| F-09, F-10 engine code hash, window semantics | 979affd | `tests/unit/test_replay_identity.py` (5); docs/08 §10 |
 
 ## 5. Final verification
 
