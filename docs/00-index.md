@@ -1,6 +1,6 @@
 # Grog Documentation Index — Canonical Specifications
 
-**Updated:** 2026-10-31 · **Project stage:** offline R0 (M00–M08) implemented; R0 acceptance audit in progress ([14](14-r0-acceptance-audit.md)); no strategy edge validated.
+**Updated:** 2026-10-31 · **Project stage:** offline R0 (M00–M08) implemented and acceptance-audited — verdict CONDITIONAL ([14](14-r0-acceptance-audit.md) §5); M09 BLOCKED on external permission; no strategy edge validated.
 
 ## How to read and change these documents
 
@@ -27,7 +27,7 @@
 
 When the user tells Grok to **start**, the sole external agent instructions are at [AGENTS.md](../AGENTS.md). It leads to [11 — Decisions](11-decisions.md) and the ordered [10 — Roadmap](10-roadmap.md). This is **not** a Grog application agent or feature. The first independent offline release M00–M08 requires **no execution broker**. MT5 demo bridge and performance qualification are later permission/evidence-gated milestones. Terminal wireframes/keyboard/modal behavior reside in [02 — UX](02-workflows-and-ux.md); storage/data contracts in [09 — Architecture](09-architecture.md); test IDs and milestone coverage in [08 — Validation](08-validation.md).
 
-**Implementation readiness:** Docs are ready for offline engineering handoff, but **no source code, live feed or performance test has yet been run**. Approved engineering direction does not make S1 strategy thresholds validated or profitable.
+**Implementation status:** R0 code exists on `main` with local tests (run instructions in the [README](../README.md)); **no live feed has been connected and no performance test on real data has been run**. Approved engineering direction does not make S1 strategy thresholds validated or profitable.
 
 ## Source precedence
 
@@ -51,4 +51,4 @@ When the user tells Grok to **start**, the sole external agent instructions are 
 
 **Latest research milestones:** Phase 18 refined evidence-first signal decisions in [06](06-signals-and-scoring.md) and SQ-01..SQ-18 in [08](08-validation.md). Market-data research now **selects MT5 as the preferred read-only reference adapter** while leaving real-money broker selection optional for early development, as recorded in [11](11-decisions.md). Feed integrity, demo-server requirements and offline replay are in [03](03-market-data.md), real bid/ask economics in [07](07-risk-and-monitoring.md), and MD-01..MD-22 test cases in [08](08-validation.md). Unapproved choices are logged in [11](11-decisions.md). No new active topic file was created.
 
-This is our documentation structure; no code has been written.
+This is our documentation structure; implementation status is tracked factually in [10 §8](10-roadmap.md).

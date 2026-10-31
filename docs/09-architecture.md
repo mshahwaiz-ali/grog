@@ -1,7 +1,7 @@
 # Grog Software Architecture — Canonical Implementation Contract
 
 **Updated:** 2026-10-31  
-**Status:** This is the **approved implementation architecture baseline when the user tells Grok to start**. The strategy's experimental numeric parameters and live execution assumptions retain their research/OPEN statuses in the owning documents. No implementation has been run.
+**Status:** This is the **approved implementation architecture baseline when the user tells Grok to start**. The strategy's experimental numeric parameters and live execution assumptions retain their research/OPEN statuses in the owning documents. **R0 (M00–M08) is implemented against this contract** (as-built notes in §2.1; acceptance evidence in [14](14-r0-acceptance-audit.md)); the MT5 reference adapter is not built.
 
 **Goal:** local, deterministic, low-maintenance Python Gold (XAUUSD) research/terminal software. Only improve measurable manual trade selection and monitoring. No LLM/agent runtime, wallet, account dashboard, copy trading, remote SaaS, automatic broker execution, or GitHub Actions.
 
@@ -87,6 +87,16 @@ grog/
 ```
 
 **No need to pre-create all empty files.** The file tree describes clear logical ownership. Grok creates only the files relevant to the current milestone. Do not add `agents/`, `trade_executor/`, `wallet/`, `exchange/`, `frontend/`, `server/`, `api/` or `cloud/` directories.
+
+### 2.1 As built at R0 (differences from the initial tree above)
+
+- `market_data/source.py` / `normalize.py` were not needed: validation lives in `import_csv.py`, reading in `batches.py` (`SourceReader`). `adapters/mt5_reference/` does **not** exist (M09 BLOCKED).
+- `signals/pipeline.py` wires bars → analysis → S1 → eligibility for replay and UI; reason codes live in `domain/enums.py`.
+- `replay/`: `session.py` (stepwise UI session, virtual clock, playback states), `service.py` (CLI wiring), `synthetic.py` (deterministic SYNTHETIC generator). `runner.py` derives `code_version = <package>+engine.<12 hex>` from `engine_code_hash()` (SHA-256 over LF-normalized sources of `domain`, `market_data`, `analysis`, `strategies`, `signals`, `risk` and `replay/runner.py`), so engine changes never reuse a stored run ID.
+- `journal/`: `store.py` (catalog, WAL, migrations 0001–0004), `research.py` (research runs/events), `positions.py` (manual journal: every validation inside `BEGIN IMMEDIATE`; `Mark` with `freshness`; `r_breakdown` gross R presentation per [07 §6.1](07-risk-and-monitoring.md)).
+- `ui/`: `app.py` (shell, views, bindings), `panels.py` (header/tabs/key bar, signal/diagnostic/journal text), `lanes.py` (engine state vs operator overlay, exposure warnings — no limit), `manual.py` (positions/marks/journal rows, form models), `forms.py` (sectioned modals, Cancel default), `screens.py` (overlays), `widgets.py` (palette, boxed panels, tables), `format.py`, `grog.tcss` (visual system of [02 §2.1](02-workflows-and-ux.md)).
+- `config/synthetic-demo.fixture-only.toml` declares **demo/test-only** freshness thresholds for the synthetic fixture; `config/research.example.toml` keeps every OPEN threshold unset.
+- `scripts/r0_screenshots.py` renders SVG/PNG evidence outside the repo; `tests/acceptance/` holds the R0 operator journey and error-path tests.
 
 ## 3. Canonical domain contracts — data types, fields, invariants
 

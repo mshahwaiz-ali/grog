@@ -148,7 +148,7 @@ No code has been implemented; no trade win rate or profitability verified by the
 
 ## 12. Implementation-readiness audit and research-only authorization — 2026-10-31
 
-**Status: ENGINEERING SPECIFICATIONS READY FOR EXPLICIT HANDOFF; SOFTWARE NOT BUILT.** The user requested complete documentation, premium terminal UX, precise technical contracts, tests, and a single Grok starting instruction. We consolidated by canonical topic, with only the **root AGENTS.md** added as the external coding-agent entry, not another S1 research revision.
+**Status (historical, as of the handoff): ENGINEERING SPECIFICATIONS READY FOR EXPLICIT HANDOFF.** R0 has since been built and audited — see §13. The user requested complete documentation, premium terminal UX, precise technical contracts, tests, and a single Grok starting instruction. We consolidated by canonical topic, with only the **root AGENTS.md** added as the external coding-agent entry, not another S1 research revision.
 
 **Approved architecture and UI direction for implementation once told to START:** Python 3.11, uv lock, pure deterministic quote/MTF/strategy engine, SQLite operational journal, Textual TUI with five minimal screens and an XAUUSD-only scope. No AI/agent runtime, broker-order execution, wallet, generic dashboards, extra instruments or CI Actions workflows.
 
@@ -159,3 +159,19 @@ No code has been implemented; no trade win rate or profitability verified by the
 **Documents directly enabling a no-guess offline build:** [02 UX](02-workflows-and-ux.md) gives screens/bindings/input states; [09 Architecture](09-architecture.md) gives Python layout, type contracts, CSV, SQLite and CLI; [10 Roadmap](10-roadmap.md) lists M00–M10 with exact deliverables/tests/commits; [08 Validation](08-validation.md) includes CLI, UI, persistence, MD, S1 and signal cases. [00 Index](00-index.md) resolves precedence. [AGENTS.md](../AGENTS.md) tells Grok exactly how to begin without code or trading automation.
 
 **Completion criterion:** Repo documentation prepared for the user to hand to Grok. No invented win-rate, untested profitability or claim of a working app. Grok must report real tests and commits once it starts.
+
+## 13. R0 acceptance-audit decisions — 2026-10-31
+
+Recorded by the R0 audit ([14](14-r0-acceptance-audit.md)); each is a bounded engineering decision, none sets a trading threshold.
+
+| Decision | Status | Owner doc |
+| --- | --- | --- |
+| Operator actions are a separate overlay lane; signal records stay immutable; at most one first operator action per signal (migration 0004 `signal_operator_actions`, append-only, backfilled). | APPROVED (engineering) | [09 §7](09-architecture.md), [07](07-risk-and-monitoring.md) |
+| Overlap/exposure is shown as factual warnings only; **no automatic exposure limit** (§6 stays OPEN). | APPROVED (engineering) | [02](02-workflows-and-ux.md), [07](07-risk-and-monitoring.md) |
+| Mark freshness (FRESH / UNVERIFIED / STALE / DEGRADED / MARKET_CLOSED / OFFLINE / REPLAY_ENDED / UNAVAILABLE) is always shown with a mark; source status is separated from playback. | APPROVED (engineering) | [02 §6, §8](02-workflows-and-ux.md) |
+| Gross R presentation: per-unit move R, realized R and unrealized remaining-position R share the original full-position risk denominator; net R and currency stay UNKNOWN without contract and fees. | APPROVED (engineering) | [07 §6.1](07-risk-and-monitoring.md) |
+| Replay run identity includes `engine_code_hash`; window membership by provider time, `--to` exclusive. | APPROVED (engineering) | [08 §10](08-validation.md), [09 §2.1](09-architecture.md) |
+| `config/synthetic-demo.fixture-only.toml` may declare freshness thresholds **for synthetic demo/tests only**; defaults stay unset and these values must never be reused for a real feed. | APPROVED (engineering) | [10 §9](10-roadmap.md) |
+| R0 terminal visual system and modal anatomy (Cancel default, typing never triggers hotkeys, 120×34 / 80×24 / 70×18). | APPROVED (UX) | [02 §2.1](02-workflows-and-ux.md) |
+| H1 invalidation while READY: [05 §8](05-strategies.md) (stricter) vs [06 §5](06-signals-and-scoring.md) wording. | **OPEN** — owner decision; code follows the stricter rule | [05](05-strategies.md), [06](06-signals-and-scoring.md) |
+

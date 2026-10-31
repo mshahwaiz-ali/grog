@@ -42,7 +42,7 @@ uv run grog report --run-id <RUN-id printed above> --state-dir /tmp/grog-demo
 uv run grog ui --mode replay --source-id syn --config config/synthetic-demo.fixture-only.toml --state-dir /tmp/grog-demo
 ```
 
-`config/synthetic-demo.fixture-only.toml` declares **test/demo-only** freshness thresholds so the synthetic replay can reach READY; they are not broker-derived values. With `config/grog.example.toml` (or no config) feed health stays UNKNOWN and no READY is issued — by design.
+`config/synthetic-demo.fixture-only.toml` declares **test/demo-only** freshness thresholds so the synthetic replay can reach READY; they are not broker-derived values. With `config/research.example.toml` (or no config) feed health stays UNKNOWN and no READY is issued — by design.
 
 Workstation keys: `1`–`5` views (Live, Signals, Positions, Journal, Diagnostics), `Space` play/pause, `.` step, `+`/`-` pace, `Enter` details (on Positions: confirm-open reconciliation), `e` record entry, `s` skip, `p` partial, `x` close, `m` modify SL/TP, `n` unlinked external fill, `?` help, `q` quit; the Journal view has a filter field. Every modal opens with **Cancel focused**; typing in a field never triggers a hotkey.
 
