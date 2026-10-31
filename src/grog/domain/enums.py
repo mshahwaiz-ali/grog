@@ -134,3 +134,65 @@ class M15Context(StrEnum):
 class Side(StrEnum):
     BUY = "BUY"
     SELL = "SELL"
+
+
+class CandidateState(StrEnum):
+    """S1 candidate states owned by the detector (docs/06 Section 2 vocabulary).
+
+    READY / SKIPPED / MISSED / ENTERED belong to signal eligibility (M05+) and are
+    never produced by the strategy detector.
+    """
+
+    FORMING = "FORMING"
+    SUPERSEDED = "SUPERSEDED"
+    EXPIRED = "EXPIRED"
+    INVALIDATED = "INVALIDATED"
+
+
+TERMINAL_CANDIDATE_STATES = frozenset(
+    {CandidateState.SUPERSEDED, CandidateState.EXPIRED, CandidateState.INVALIDATED}
+)
+
+
+class S1EventKind(StrEnum):
+    PAIR_REJECTED = "PAIR_REJECTED"  # newly confirmed pivot did not form a valid impulse pair
+    CANDIDATE_CREATED = "CANDIDATE_CREATED"
+    CANDIDATE_UPDATED = "CANDIDATE_UPDATED"  # a completed post-impulse M5 bar was evaluated
+    SUPERSEDED = "SUPERSEDED"
+    INVALIDATED = "INVALIDATED"
+    EXPIRED = "EXPIRED"
+    TRIGGER_OBSERVED = "TRIGGER_OBSERVED"  # immutable closed-bar trigger; NOT a READY signal
+
+
+class ReasonCode(StrEnum):
+    """Versioned S1 reason codes (docs/06 Section 10.4 vocabulary, frozen for S1 v0.2)."""
+
+    # Data
+    DATA_GAP = "DATA_GAP"
+    HISTORY_INCOMPLETE = "HISTORY_INCOMPLETE"
+    # Pair formation (docs/05 Section 4)
+    NO_PRECEDING_PIVOT = "NO_PRECEDING_PIVOT"
+    IMPULSE_NOT_POSITIVE = "IMPULSE_NOT_POSITIVE"
+    IMPULSE_BELOW_ATR = "IMPULSE_BELOW_ATR"
+    IMPULSE_TOO_OLD = "IMPULSE_TOO_OLD"
+    M5_ATR_UNAVAILABLE = "M5_ATR_UNAVAILABLE"
+    M5_ATR_ZERO = "M5_ATR_ZERO"
+    DUPLICATE_PAIR = "DUPLICATE_PAIR"
+    # Setup (docs/05 Sections 3, 5, 6)
+    H1_BIAS_MISMATCH = "H1_BIAS_MISMATCH"
+    PULLBACK_TOO_FEW_BARS = "PULLBACK_TOO_FEW_BARS"
+    PULLBACK_SHALLOW = "PULLBACK_SHALLOW"
+    PULLBACK_HEALTHY = "PULLBACK_HEALTHY"
+    PULLBACK_INVALID = "PULLBACK_INVALID"  # depth > 0.75
+    STRUCTURE_INVALIDATED = "STRUCTURE_INVALIDATED"  # frozen L/H endpoint reached
+    TRIGGER_NOT_ELIGIBLE_BAR = "TRIGGER_NOT_ELIGIBLE_BAR"  # bar closed before pair observable
+    TRIGGER_CLOSE_NOT_BEYOND = "TRIGGER_CLOSE_NOT_BEYOND"  # close did not break 2-bar extreme
+    TRIGGER_BODY_WRONG_DIRECTION = "TRIGGER_BODY_WRONG_DIRECTION"
+    TRIGGER_ALREADY_OBSERVED = "TRIGGER_ALREADY_OBSERVED"
+    TRIGGER_CONFIRMED = "TRIGGER_CONFIRMED"
+    FORMING_TTL_EXPIRED = "FORMING_TTL_EXPIRED"
+    SUPERSEDED_BY_NEWER_PAIR = "SUPERSEDED_BY_NEWER_PAIR"
+    # Soft context only (never a veto in the base S1)
+    M15_CORRECTIVE = "M15_CORRECTIVE"
+    M15_OPPOSING = "M15_OPPOSING"
+    M15_UNKNOWN = "M15_UNKNOWN"

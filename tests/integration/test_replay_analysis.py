@@ -5,30 +5,7 @@ from __future__ import annotations
 from grog.analysis.contexts import AnalysisEngine, context_to_dict
 from grog.domain.enums import H1Bias, Timeframe
 from grog.market_data.bars import BarAggregator
-from quote_stream import MIN, T10, Stream
-
-DAYS = 11
-
-
-def stress_stream(seed: int = 7) -> Stream:
-    """~11 days of 1-minute quotes: LCG random walk, a trend, an outage and late receipts."""
-    s = Stream()
-    state, cents = seed, 400_000
-    for i in range(DAYS * 24 * 60):
-        if 5000 <= i < 5040:  # 40-minute data outage -> GAPPED bars
-            continue
-        state = (state * 1103515245 + 12345) % 2**31
-        cents += (state >> 16) % 61 - 30 + (3 if (i // 1440) % 2 == 0 else -2)
-        t = T10 + i * MIN
-        late = 50_000 if i % 997 == 0 else (state >> 8) % 3  # some late receipts
-        spread = 15 + (state >> 4) % 20
-        s.add(
-            t,
-            bid=f"{cents // 100}.{cents % 100:02d}",
-            ask=f"{(cents + spread) // 100}.{(cents + spread) % 100:02d}",
-            received_ms=t + late if not s.quotes else max(t + late, s.quotes[-1].received_time_ms),
-        )
-    return s
+from quote_stream import Stream, stress_stream
 
 
 def run(stream: Stream, every: int = 60) -> tuple[AnalysisEngine, BarAggregator, list[dict]]:

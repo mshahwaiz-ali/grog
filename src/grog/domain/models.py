@@ -7,11 +7,14 @@ from decimal import Decimal
 
 from grog.domain.enums import (
     BarQuality,
+    CandidateState,
     GapKind,
     H1Bias,
     IndicatorStatus,
     M15Context,
     PivotSide,
+    ReasonCode,
+    S1EventKind,
     Side,
     SourceOrigin,
     Timeframe,
@@ -299,4 +302,120 @@ class AnalysisContext:
     relevant_level_ids: tuple[str, ...]
     quality_flags: tuple[str, ...]
     calculation_version: str
+    parameter_set_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class FrozenPair:
+    """An S1 impulse pair frozen at confirmation (docs/05 Section 4). Never mutated.
+
+    ``pair_key = (strategy_version, LONG|SHORT, first pivot bar_id, second pivot bar_id)``
+    in impulse order: LONG is (L, H), SHORT is (H, L).
+    """
+
+    strategy_version: str
+    side: Side
+    low: Pivot
+    high: Pivot
+    impulse: Decimal  # H.bid_high - L.bid_low
+    atr_m5: Decimal  # ATR14_M5 known at the second pivot's confirmation
+    impulse_bars: int  # |H.index - L.index| completed M5 bars
+    confirmed_at_ms: int  # confirmation (bar end) of the second pivot
+    available_at_ms: int  # availability of the second pivot: when the pair became observable
+
+    @property
+    def direction(self) -> str:
+        return "LONG" if self.side is Side.BUY else "SHORT"
+
+    @property
+    def final_pivot(self) -> Pivot:
+        return self.high if self.side is Side.BUY else self.low
+
+    @property
+    def pair_key(self) -> tuple[str, str, str, str]:
+        first, second = (self.low, self.high) if self.side is Side.BUY else (self.high, self.low)
+        return (self.strategy_version, self.direction, first.bar_id, second.bar_id)
+
+
+@dataclass(frozen=True, slots=True)
+class TriggerObservation:
+    """Immutable closed-bar M5 trigger (docs/05 Section 6). Not a READY signal: first
+    executable quote and eligibility are evaluated later (docs/06 Section 4, M05)."""
+
+    trigger_id: str
+    candidate_id: str
+    side: Side
+    trigger_bar_id: str
+    trigger_bar_end_ms: int
+    available_at_ms: int  # when the trigger became knowable (trigger bar availability)
+    trigger_open_bid: Decimal
+    trigger_close_bid: Decimal
+    two_bar_threshold: Decimal  # BUY: max(High[j-1], High[j-2]); SELL: min(Low[j-1], Low[j-2])
+    reference_bar_ids: tuple[str, str]  # (j-1, j-2)
+    pullback_extreme: Decimal  # P including the completed trigger bar
+    depth: Decimal
+    atr_m5: Decimal | None
+    atr_m5_status: IndicatorStatus
+    h1_bias: H1Bias
+    m15_context: M15Context
+    m15_reference_pivot_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class S1Candidate:
+    """Current read model of one S1 candidate (docs/09 Section 3.4). Pair is frozen;
+    progress fields are replaced (never the pair) as completed M5 bars arrive."""
+
+    candidate_id: str
+    strategy_id: str
+    strategy_version: str
+    source_id: str
+    side: Side
+    state: CandidateState
+    pair: FrozenPair
+    pullback_extreme: Decimal | None  # P over completed post-pivot M5 bars
+    depth: Decimal | None
+    post_pivot_bars: int
+    last_closed_m5_id: str | None
+    first_detected_ms: int
+    last_changed_ms: int
+    reason_codes: tuple[ReasonCode, ...]
+    trigger: TriggerObservation | None
+    parameter_set_hash: str
+    source_origin: SourceOrigin
+
+    @property
+    def pair_id(self) -> str:
+        return "|".join(self.pair.pair_key)
+
+
+@dataclass(frozen=True, slots=True)
+class S1Event:
+    """One auditable S1 detector event (docs/05 Section 2)."""
+
+    event_id: str
+    sequence: int
+    kind: S1EventKind
+    strategy_id: str
+    strategy_version: str
+    source_id: str
+    side: Side
+    decision_time_ms: int  # when the input became available (UTC epoch ms)
+    event_time_ms: int  # bar end / quote provider time / pivot confirmation
+    candidate_id: str | None
+    pair_key: tuple[str, ...] | None
+    previous_state: CandidateState | None
+    new_state: CandidateState | None
+    reason_codes: tuple[ReasonCode, ...]
+    h1_bias: H1Bias
+    m15_context: M15Context
+    last_confirmed_h1_id: str | None
+    last_confirmed_m15_id: str | None
+    last_confirmed_m5_id: str | None
+    atr_m5: Decimal | None
+    pullback_extreme: Decimal | None
+    depth: Decimal | None
+    post_pivot_bars: int | None
+    trigger: TriggerObservation | None
+    quality_flags: tuple[str, ...]
     parameter_set_hash: str
