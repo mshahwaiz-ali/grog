@@ -1,6 +1,6 @@
 # Grog Documentation Index — Canonical Specifications
 
-**Updated:** 2026-10-31 · **Project stage:** offline R0 (M00–M08) implemented and acceptance-audited — verdict CONDITIONAL ([14](14-r0-acceptance-audit.md) §5); M09 BLOCKED on external permission; no strategy edge validated.
+**Updated:** 2026-10-31 · **Project stage:** offline R0 (M00–M08) implemented and acceptance-audited — verdict CONDITIONAL ([14](14-r0-acceptance-audit.md) §5); M09-A offline reference-adapter parts implemented on fixtures, M09-B (real MT5 demo) BLOCKED on external permission; M10 protocol structure defined with values OPEN; no strategy edge validated.
 
 ## How to read and change these documents
 
