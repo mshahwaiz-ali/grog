@@ -333,8 +333,15 @@ class ReplaySession:
             warm = _warmup(ctx, counts, params)
         else:
             warm = WarmUp(0, params.h1_warmup_bars, 0, params.m15_warmup_bars, None)
+        # UI-R1 (docs/14 §7): a triggered candidate whose signal was issued is shown once, in
+        # its signal lane - not again as FORMING (the detector state itself is unchanged).
+        signalled = {rec.candidate_id for rec in eng.signals.values()}
         forming = tuple(
-            c for c in det.active.values() if c is not None and c.state is CandidateState.FORMING
+            c
+            for c in det.active.values()
+            if c is not None
+            and c.state is CandidateState.FORMING
+            and not (c.trigger is not None and c.candidate_id in signalled)
         )
         thresholds = {c.candidate_id: self._next_trigger_level(c) for c in forming}
         signals = tuple(

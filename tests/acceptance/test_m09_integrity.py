@@ -436,7 +436,11 @@ from reference_support import HB_AGE, POLICY, SRC, StepClock, T0
 from grog.live.session import ReferenceSession
 s = ReferenceSession(Path(sys.argv[1]), SRC, POLICY, StepClock(T0 + 10**9), HB_AGE)
 st = s.poll()
-print(st.counters.get("ACCEPTED_BACKFILL", 0), resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+# VmHWM is this process image's own peak RSS; ru_maxrss is kept across execve on Linux and
+# would report the (large) pytest parent's peak when the suite has already grown.
+hwm = [ln.split()[1] for ln in open("/proc/self/status") if ln.startswith("VmHWM:")]
+peak = int(hwm[0]) if hwm else resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+print(st.counters.get("ACCEPTED_BACKFILL", 0), peak)
 """
 RSS_LINES = 400_000
 RSS_CEILING_KIB = 200 * 1024  # engineering guard: the unbounded reader needed ~1 KiB/line
@@ -713,3 +717,22 @@ def test_producer_byte_fixture_passes_the_full_pipeline(tmp_path: Path) -> None:
     assert (last.provider_time_ms, str(last.bid), str(last.ask)) == (T0 + 900, "4000.20", "4000.35")
     assert {"ASK_CHANGED", "LIVE", "FIXTURE"} <= set(last.flags)
     assert st.actionable == () and "FIXTURE_SIMULATED" in st.blockers
+
+
+# REF-24 UI-R1 (docs/14 §7) -------------------------------------------------------------
+def test_ui_r1_triggered_candidate_with_a_signal_is_not_listed_as_forming() -> None:
+    from grog.domain.enums import SignalEventKind
+    from ui_support import session as replay_session
+    from ui_support import step_until
+
+    s = replay_session()
+    sid = step_until(s, SignalEventKind.READY_ISSUED)
+    snap = s.snapshot()
+    rec = s.pipeline.signals.signals[sid]
+    assert rec.candidate_id in {v.record.candidate_id for v in snap.ready}
+    assert rec.candidate_id not in {c.candidate_id for c in snap.forming}, (
+        "same S1 setup shown as FORMING and READY"
+    )
+    # the detector itself is unchanged: the candidate is still FORMING with its trigger
+    det = s.pipeline.detector.active
+    assert any(c is not None and c.candidate_id == rec.candidate_id for c in det.values())

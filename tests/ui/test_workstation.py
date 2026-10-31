@@ -232,6 +232,7 @@ def test_ui02_normal_screen_stacks_and_detail_has_exact_sl_tp() -> None:
         rec = s.pipeline.signals.signals[sid]
         app = GrogApp(s, autoplay_timer=False)
         async with app.run_test(size=NORMAL) as pilot:
+            await pilot.pause()  # let the size-class relayout settle before measuring regions
             assert app.screen.has_class("-normal") and app.compact
             context = app.query_one("#context").region
             forming = app.query_one("#forming-box").region
