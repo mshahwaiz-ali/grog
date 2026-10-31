@@ -20,7 +20,7 @@ Every MTF computation must use only information with `available_at_utc <= decisi
 
 ## 3. Feed health
 
-Status: FRESH, DEGRADED, OFFLINE / GAP, each with last good provider/receive time, current spread, observed age, reason and latest finalized bars. A malformed/stale feed means **no new actionable signals** and active-trade monitoring displays **UNAVAILABLE / STALE**, never a false all-clear.
+Status: FRESH, DEGRADED, OFFLINE / GAP, each with last good provider/receive time, current spread, observed age, reason and latest finalized bars. A malformed/stale feed means **no new actionable signals** and active-trade monitoring displays **UNAVAILABLE / STALE**, never a false all-clear. A detected transport/integrity fault is not "degraded but usable": it blocks actionable READY until an explicit recovery procedure (OPEN) is defined.
 
 Maximum quote age, maximum delay between M5 close and first usable quote, and gap-tolerance thresholds are **OPEN and must be calibrated against the actual source**. Do not silently choose constants.
 
@@ -93,7 +93,7 @@ source_timezone_definition, data_quality_flags, adapter_version
 - **cTrader caution:** historical tick requests cover at most one week per request, may return partial results, and must honor `hasMore` plus actual documented rate limits. Account-specific authorization must not silently grant order rights in Grog's application.
 - **Dukascopy caution:** vendor-supplied historical bid/ask may support offline fixtures, but final S1 assessment needs matched broker feeds/costs and representative forward testing.
 
-**M09 contract:** the concrete transport (`GROG-MT5-REF/1`), dedup key, cursor, backfill-vs-live and timer-driven link states are specified once in [09 §5.1](09-architecture.md); MT5 tick times are trade-server times converted to UTC only with the exporter-reported offset (never a guessed broker timezone/DST).
+**M09 contract:** the concrete transport (`GROG-MT5-REF/1`: binary UTF-8, LF-only), dedup key, cursor, integrity faults, backfill-vs-live and timer-driven link states are specified once in [09 §5.1](09-architecture.md). MT5 tick times are converted to UTC only with the exporter-reported offset (never a guessed broker timezone/DST) — and that conversion is **UNVERIFIED** until observed in MT5 (M09-B): history converted with an offset that later changes, ticks older than the first offset observation, provider times ahead of receipt and an unset skew tolerance all block actionable READY. Transport corruption (sequence gaps, unexpected EOF, malformed/missing/changed metadata, block-count mismatch, explicit gaps, missing/truncated/replaced files, side inconsistencies) is a latched integrity fault, never a healthy source. Fixture data is never actionable.
 
 **Local transport:** prefer simple append-only, crash-recoverable batches (or another explicitly verified read-only bridge); record checksums, batch IDs, start/end timestamps and committed cursor. **No high-frequency server/database/web dashboard is needed.** File timestamps alone and writing one CSV row per `OnTick` without testing throughput/recovery are not accepted as proven lossless.
 
@@ -129,6 +129,9 @@ Evaluate a representative broker **demo/read-only** XAUUSD connection during ord
 8. Broker changes XAUUSD symbol suffix, price digits or contract metadata: pin source metadata version and suspend unsafe calculations.
 9. Long inactive period with *no ticks* versus dead connection: use separate heartbeat/market-session state, not price age alone.
 10. Source historical tick window is partially returned: paginate/retry/check coverage, never treat truncated data as complete.
+11. Inclusive history-range boundaries: adjacent windows must not re-deliver the boundary ms; an inclusive resume point re-delivers only identical content, which is dropped, while a genuine identical same-ms tick is kept.
+12. Provider time ahead of receipt (clock skew, wrong offset): never LIVE; blocked until a measured tolerance exists.
+13. History crossing an offset change (DST) converted with one offset: block READY; real offset history needs source observation.
 
 **Implementation-ready offline input:** The single normalized BID/ASK **CSV v1 header, timestamp units, Decimal string and file identity/strict-rejection format** are defined in [09 — Architecture, Section 6](09-architecture.md); source validity/availability belongs here. The user does **not** need to choose a broker to build/test this importer. SYNTHETIC fixtures may declare their own price increment for examples; never infer real broker stop/tick or trade economics from it.
 

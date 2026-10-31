@@ -418,17 +418,37 @@ Files: `tests/unit/test_reference_format.py`, `tests/integration/test_reference_
 | ID | Case | Expected |
 | --- | --- | --- |
 | REF-01 | Record parsing | exact Decimal prices from text, precision ≤ digits, strict arity/fields, codes for every rejection |
-| REF-02 | UTC conversion | `time_msc − server_offset`; offset change via heartbeat applies forward only |
+| REF-02 | UTC conversion | `time_msc − server_offset`; an offset change applies forward only **and** latches `OFFSET_CHANGED` (history across an offset change blocks READY) |
 | REF-03 | Several ticks in one ms, incl. identical content | all kept, distinct keys (occurrence index) |
 | REF-04 | BID-only / ASK-only updates | other side carried with `*_CARRIED` flag; unknown side held out (`SIDE_UNKNOWN`) |
 | REF-05 | Invalid, crossed, non-quote, duplicate (catch-up overlap), out-of-order | rejected with code and counted; never fed to the engine |
-| REF-06 | Torn line, rotation, missing `Z`, sequence gap | complete lines only; counters `PARTIAL_LINE_DISCARDED`, `FILE_ENDED_WITHOUT_Z`, `TRANSPORT_SEQ_GAP` |
+| REF-06 | Torn line, rotation, missing `Z`, sequence gap | complete lines only; `PARTIAL_LINE_DISCARDED`, `FILE_ENDED_WITHOUT_Z`, `TRANSPORT_SEQ_GAP` counted **and latched as integrity faults** (link `INTEGRITY_FAULT`) |
 | REF-07 | Restart / crash before commit | every tick after the committed cursor delivered exactly once; engine warmed up from retained files |
-| REF-08 | Backfill vs live | catch-up, late backlog and unset freshness ⇒ BACKFILL; READY from BACKFILL never actionable |
+| REF-08 | Backfill vs live | catch-up, late backlog, startup backlog (fence) and unset freshness ⇒ BACKFILL; READY from BACKFILL never actionable |
 | REF-09 | Timer-driven link/feed | OFFLINE / STALE without any new tick; DISCONNECTED; MARKET_CLOSED; CATCHING_UP; UNKNOWN when heartbeat threshold unset; NO_DATA |
 | REF-10 | Engine compatibility | live READY plan identical to the REPLAY pipeline on the same ticks; replay engine hash and config hash unaffected |
 | REF-11 | No journal / no trade API | prices create no journal record (DB bytes unchanged); runtime imports no journal/broker module; Python + MQL5 scan for order/position/account mutation calls is empty |
 | REF-12 | NOT_CONFIGURED / labels | no `[reference]` ⇒ `NOT_CONFIGURED` in CLI and UI; fixture files read `FIXTURE · SIMULATED`, never `REFERENCE · INDICATIVE`; never broker-verified |
+
+### 15.6 M09-H — integrity hardening (offline, H1–H4)
+
+File: `tests/acceptance/test_m09_integrity.py` (ported from the read-only review's scratch repros: each failed before its fix). Producer-byte fixture: `tests/fixtures/reference/producer_bytes/`. **Offline only — MT5 runtime behavior stays UNVERIFIED (M09-B).**
+
+| ID | Defect / case | Expected |
+| --- | --- | --- |
+| REF-13 | Producer bytes: CR LF, code page, `FILE_TXT`/`FILE_ANSI` in the exporter | exporter source writes binary UTF-8 + LF; CR LF and non-UTF-8 lines rejected (`BAD_LINE_END`/`BAD_ENCODING`) and latched; the documented producer-byte fixture passes end to end |
+| REF-14 | Inclusive `CopyTicksRange` windows | exporter windows `[a, b−1]` (source check); identical re-delivery at a block start dropped; genuine identical same-ms live tick after a block kept (exact count and order) |
+| REF-15 | Failed / partial history | `G` record and `E` count mismatch latch `SOURCE_GAP` / `CATCHUP_COUNT_MISMATCH`; never marked complete; exporter retries then emits `G` (source check) |
+| REF-16 | Writes and watermark | exporter checks every write, saves the watermark atomically and never past unwritten data; same-second restart never reuses a file name (source checks); truncated / replaced / missing cursor file ⇒ fault |
+| REF-17 | Time boundary | future provider time never LIVE; offset change and catch-up before the first offset observation flagged/latched; `TIME_BASIS_UNVERIFIED` and `FUTURE_SKEW_TOLERANCE_UNSET` block actionable READY |
+| REF-18 | Metadata | changed server/symbol/digits/producer, malformed META and source mismatch reject the file's records and latch a fault; no inheritance of an earlier file's META |
+| REF-19 | Integrity link state | sequence gap / unexpected EOF ⇒ link `INTEGRITY_FAULT`, nothing actionable |
+| REF-20 | Side semantics | unchanged-flag side with a contradicting value ⇒ `SIDE_INCONSISTENT` fault |
+| REF-21 | Fixture lane | FIXTURE READY never actionable; shown only in the simulated lane |
+| REF-22 | Recovery | warm-up RECONSTRUCTED and historical; startup fence; corrupt cursor ⇒ `CURSOR_CORRUPT`; second writer ⇒ `CURSOR_LOCKED` |
+| REF-23 | Bounded ingestion | streaming reader; RSS ceiling on a large synthetic file; idle polls write nothing |
+| REF-24 | UI-R1 | a triggered candidate with an issued signal is not listed again as FORMING |
+
 
 ## 16. Milestone-to-test acceptance matrix
 
@@ -445,6 +465,7 @@ Files: `tests/unit/test_reference_format.py`, `tests/integration/test_reference_
 | M08 | UI-15..18/20/21, ST-01..08/15 | safe local journal/reconciliation |
 | R0 acceptance | ACC-01..10 | executed; counts in [14 §5](14-r0-acceptance-audit.md) |
 | M09-A | REF-01..12 | offline adapter on FIXTURE files (executed) |
+| M09-H | REF-13..24 | offline integrity hardening (executed); MT5 behavior UNVERIFIED |
 | M09-B LATER | MD-11/19, CL-12, UI-10, [10 §9](10-roadmap.md) acceptance | user-approved read-only demo connection |
 | M10 LATER | I0..I8, walk-forward and paper trial | independent empirical results |
 

@@ -186,3 +186,17 @@ Recorded by the R0 audit ([14](14-r0-acceptance-audit.md)); each is a bounded en
 | `reference.max_heartbeat_age_ms` is a new OPEN threshold (unset ⇒ link UNKNOWN, never LIVE). | OPEN — measure on the authorized demo feed | [10 §9](10-roadmap.md) |
 | Installing/running MT5, Wine or any broker software, any broker/data connection, credentials or market-data download. | **NOT AUTHORIZED** — separate explicit owner permission | [10 §9](10-roadmap.md) |
 
+## 15. M09 integrity-hardening decisions (owner, fail-closed defaults) — 2026-10-31
+
+| Decision | Status | Owner doc |
+| --- | --- | --- |
+| Offline M09 integrity hardening H1–H4 and the narrow UI-R1 fix approved, exactly per the review plan. | APPROVED (owner) | [10 §9](10-roadmap.md) |
+| Future-time tolerance, retry/backoff and memory/batch limits stay OPEN/unset as policy; anything depending on them blocks READY. Batch/streaming sizes and the exporter's retry count are documented engineering constants, not trading thresholds; retry exhaustion emits a `G` gap record, and gaps block actionability. | APPROVED (owner default) — tolerance OPEN | [09 §5.1](09-architecture.md) |
+| Exporter writes binary UTF-8 with LF; the Python parser stays strict LF. | APPROVED (owner default) | [09 §5.1](09-architecture.md) |
+| FIXTURE READY is never actionable; it is shown in a simulated lane. | APPROVED (owner default) | [09 §5.1](09-architecture.md) |
+| Unchanged-side value contradicting state → `SIDE_INCONSISTENT`, blocks actionability. | APPROVED (owner default) | [09 §5.1](09-architecture.md) |
+| History crossing an offset change blocks READY; the real timestamp interpretation stays UNVERIFIED (`TIME_BASIS_UNVERIFIED` blocks actionable READY). | APPROVED (owner default) — verification needs M09-B | [03 §8](03-market-data.md) |
+| Restart warm-up is RECONSTRUCTED and non-actionable. | APPROVED (owner default) | [09 §5.1](09-architecture.md) |
+| Tick-history depth vs warm-up, broker session table, offset history, unchanged-side semantics: UNVERIFIED. | OPEN — M09-B observation | [10 §9](10-roadmap.md) |
+| Recovery procedure after a latched integrity fault (faults never clear automatically). | OPEN — define from M09-B evidence | [09 §5.1](09-architecture.md) |
+

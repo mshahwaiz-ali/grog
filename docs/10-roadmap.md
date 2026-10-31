@@ -194,6 +194,13 @@ External operations (Wine/MT5 installation, demo credentials, downloading propri
 
 **M09-A — offline, authorized 2026-10-31 (no MT5/Wine/broker/network/credentials/market data):** transport parser/validator, normalizer (UTC offset, side carry-forward, dedup, ordering), durable reader with atomic cursor, backfill-vs-live separation, timer-driven link monitor with injectable clock, live `ReferenceSession` over the existing pipeline, `NOT_CONFIGURED` CLI/UI behavior, read-only `grog reference-status`, and the MQL5 exporter **source** (uncompiled, untested in MT5). Tests use recorded-format fixture files only (producer `FIXTURE`).
 
+**M09-H — offline integrity hardening, approved 2026-10-31 (still no MT5/Wine/broker/network/credentials/market data).** Found by the read-only review of `667d8ef`; contract in [09 §5.1](09-architecture.md), tests REF-13..24 ([08 §15.6](08-validation.md)).
+
+- **H1 transport/exporter reliability** — exporter source: binary UTF-8 LF bytes, input validation, unique file names, checked writes, non-overlapping windows, bounded retries + `G` gap record, atomic watermark, timer-driven catch-up with heartbeats, wrapping sessions. Source revised, **still uncompiled and unrun**.
+- **H2 normalization/integrity** — per-file metadata, source-switch rejection, `E`-count check, cross-segment dedup, side consistency, latched integrity faults and the `INTEGRITY_FAULT` link state, fixture never actionable. **Timestamp conversion is a boundary marked UNVERIFIED** (offset change / offset-assumed history / future time / unset tolerance block READY).
+- **H3 recovery/bounded ingestion** — streaming reader, throttled commits, cursor lock, `CURSOR_CORRUPT`, missing/truncated/replaced files, RECONSTRUCTED warm-up, startup fence.
+- **H4 offline verification** — scratch repros ported as acceptance tests, producer-byte fixture, RSS ceiling, UI-R1 display fix.
+
 **M09-B — BLOCKED until the owner grants every permission below:** compile/run the exporter, measure thresholds, wire the reference session into the workstation views, run the acceptance list.
 
 **Explicit external permissions required from the owner (none granted yet):**
@@ -202,7 +209,8 @@ External operations (Wine/MT5 installation, demo credentials, downloading propri
 2. Open/use one named **demo** account on one named broker/server; credentials typed by the owner into the terminal locally, never committed, never given to Grok/Grog.
 3. Copy `mql5/GrogReferenceExporter.mq5` into the terminal's `MQL5/Experts`, compile it in MetaEditor and attach it to one XAUUSD chart (AutoTrading/Algo-trading may stay **disabled** — the exporter needs no trade permission).
 4. Allow that terminal's network egress to the demo server.
-5. Approve the measured thresholds `live.max_quote_age_ms`, `live.max_first_postclose_delay_ms`, `reference.max_heartbeat_age_ms` (fixture/demo values are never reused).
+5. Approve the measured thresholds `live.max_quote_age_ms`, `live.max_first_postclose_delay_ms`, `reference.max_heartbeat_age_ms` and the future-skew tolerance (fixture/demo values are never reused).
+6. Observe and record (M09-H left these UNVERIFIED): actual exporter bytes, the `time_msc` convention and its UTC relationship, the offset history across a DST change, what `COPY_TICKS_INFO` supplies for unchanged sides, `CopyTicksRange` failure/partial-return behavior and error codes, the broker's session table (midnight-wrapping sessions), the available tick-history depth versus the 250-H1-bar warm-up, and the recovery procedure after an integrity fault.
 
 **Machine requirements:** Ubuntu 22.04/24.04 x86-64, ≥ 4 GB RAM free for terminal + Grog, Wine (stable) or the official MetaQuotes Linux installer, Xvfb if headless, NTP/chrony time sync, a local directory shared between the terminal's `MQL5/Files/grog` (Common Files) and Grog's `reference.exporter_dir`, ≥ 1 GB disk for rotated files.
 
