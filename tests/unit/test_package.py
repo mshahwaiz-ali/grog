@@ -49,3 +49,16 @@ def test_engine_free_of_ui_and_network_imports() -> None:
         [sys.executable, "-c", code], capture_output=True, text=True, timeout=60, check=True
     )
     assert result.stdout.strip() == ""
+
+
+def test_strategy_layer_is_pure() -> None:
+    # docs/09: analysis -> strategies; no UI, persistence, journal or network coupling.
+    code = (
+        "import sys, grog.market_data.bars, grog.analysis.contexts, grog.strategies.s1_pullback; "
+        "bad=[m for m in ('textual','rich','sqlite3','urllib.request','http.client',"
+        "'grog.journal','grog.journal.store') if m in sys.modules]; print(','.join(bad))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, timeout=60, check=True
+    )
+    assert result.stdout.strip() == ""
