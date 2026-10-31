@@ -30,6 +30,17 @@
 - **Theme:** dark only in initial build; light mode not needed. Avoid flashing/blinking, loud sounds, automatic scrolling away from user selection or resetting table focus when quotes update. Do not require mouse; optional mouse use can follow Textual defaults.
 - **App title:** `GROG / GOLD WORKSTATION`, environment tag (`REPLAY`, `REFERENCE`) and data freshness continuously visible. Source and last update time must be shown.
 
+### 2.1 R0 premium terminal visual system (normative for the R0 build)
+
+The tokens above are unchanged; this section fixes how they are composed so every view and modal reads the same way.
+
+- **Shell, top to bottom:** (1) **header** — `GROG / GOLD WORKSTATION`, `XAUUSD`, a filled **mode badge** (`REPLAY • <ORIGIN>`), `SIMULATED`, playback state, virtual UTC clock; second line `Source: <id> [<source status>]`, BID / ASK / spread, pace and PRE-ROLL count. (2) **view tabs** — `1 LIVE  2 SIGNALS  3 POSITIONS  4 JOURNAL  5 DIAGNOSTICS`, active tab filled gold, counts of READY signals and open/unverified positions on their tabs. (3) **critical banner** (only when a safety state applies, docs/02 §11 precedence). (4) the view. (5) **context key bar** — only the keys valid in the current view, always ending with `[No orders]`.
+- **Panels:** every panel is a bordered box (`round`, border token) whose **border title** is the panel name in gold caps; content never repeats the title visually. Inner padding 1 column. A panel shows at most one idea per line; numbers that belong together (side, price, SL, TP) stay on one line with BID/ASK labels.
+- **Status chips:** `[FRESH]` ok colour; `[UNKNOWN]`, `[STALE]`, `[DEGRADED]` caution; `[OFFLINE]`, `[MARKET_CLOSED]` error; text always carries the meaning. A safety blocker is never drawn in gold/green.
+- **Tables:** gold header on raised background; selected row bold on raised background; secondary columns hidden below 120 columns; states always use full words (e.g. `RECONCILIATION REQUIRED`); cell padding is 1 column so the full Positions table fits 120 columns.
+- **Breakpoints:** `>=120x34` full layout (side-by-side Live panels); `80-119` columns stacked panels with compact columns; `<80` columns or `<24` rows (tested at **70x18**) single column, panel borders reduced to a top rule that still carries the title, the resize notice shown, header/tabs/banner/key bar always visible, and every value still reachable by scrolling or `Enter` details.
+- **Modal anatomy (all journal modals: Record Entry, Skip, Unlinked, Partial, Modify, Close; and Position Details / Reconciliation):** one bordered dialog with sections in this fixed order — **(1) identity** (border title = action, then signal/position ID, side, mode label), **(2) plan / position** (immutable original plan or current recorded position), **(3) fields** (your actual values; required fields marked `*`), **(4) risk preview & warnings** (live preview, exposure/OFF_PLAN/stop-further-away warnings, `NOT SAVED — reason` errors), **(5) actions** — `Confirm …` and `Cancel`, with **Cancel focused by default**. A hint line states that typing never triggers hotkeys, Esc cancels (twice when edited) and nothing is sent to a broker. Details overlays use the same box with a gold border title and `[Esc] Back`.
+
 Authoritative Textual API references: https://github.com/Textualize/textual/blob/main/docs/guide/app.md and https://github.com/Textualize/textual/blob/main/docs/widgets/data_table.md
 
 ## 3. Navigation and keyboard bindings — exact MVP contract
@@ -103,12 +114,15 @@ Two vertically separated tables by **state**, not one mixed table:
  First entry ASK: 4000.20    Current ASK: 4000.25    Valid band: [3999.99 - 4000.62]
  SL BID: 3998.00   TP1 BID: 4002.40   TP2 BID: 4004.60   Gross target: 2.0R
  Net risk/return: UNKNOWN (execution broker fees not confirmed)
- Eligibility: PASS (reference-only)     Warning: M15 corrective; monitor structural low
+ Issued: READY at 09:37:15 UTC (immutable plan)   Now: READY
+ Eligibility at issuance: PASS (reference-only)   Warning: M15 corrective; monitor structural low
  Action: [e] Record external manual fill    [s] Skip    [Esc] Back
  No automatic broker order is created.
 ```
 
 **Example values are illustrative;** the displayed price band must be computed by [06](06-signals-and-scoring.md) using actual frozen ATR and quote; timestamps must be consistent with actual snapshots. In the example, H1 was last confirmed at 09:00 UTC. A later unclosed H1 bar may be displayed as provisional but cannot be used for READY. Never fabricate available M15 pivots.
+
+**Issued vs now (R0, docs/14 F-08):** the detail always separates the immutable issuance (`Issued: READY at …`) from the current state (`Now: READY | EXECUTION BLOCKED | EXPIRED | INVALIDATED`) and any local journal action (`ENTERED`, `USER_SKIPPED`). `[e]`/`[s]` appear only while the signal is still READY with no local action; when EXECUTION BLOCKED the hint reads `Record external fill (OFF_PLAN)`; otherwise the detail states why there is no on-plan action. A signal already ENTERED or USER_SKIPPED is never listed as a fresh opportunity on Live; same-side/opposite-side open positions are shown as `EXPOSURE:` warnings that never block and apply no limit (overlap policy OPEN).
 
 A numeric quality percentage is **NOT** part of MVP: [06](06-signals-and-scoring.md) explicitly forbids uncalibrated '85% probability' labels. Show **why** the setup is ready and what would invalidate it.
 
@@ -116,7 +130,7 @@ A numeric quality percentage is **NOT** part of MVP: [06](06-signals-and-scoring
 
 ## 6. Screen 3 — ACTIVE MANUAL POSITIONS
 
-Table columns: `position ID`, `signal ID`, `side`, `qty`, `actual entry`, `current closeable quote`, `initial/current SL`, `TP status`, `gross/net estimated P&L`, `R`, `last updated`, `STATE`.
+Table columns: `position ID`, `signal ID`, `side`, `qty`, `actual entry`, `current closeable quote`, `initial/current SL`, `TP status`, `gross/net estimated P&L`, `R`, `STATE`; `last updated` and the full event list are in `Enter` details so the table fits 120 columns (R0). 80-119 columns: position, side, qty, entry, R, state; <80 columns: position, side, qty, R, state.
 
 - **Mark freshness is explicit** (docs/14 F-04): every mark carries `FRESH`, `UNVERIFIED` (thresholds not configured), `STALE`, `DEGRADED`, `MARKET_CLOSED`, `OFFLINE`, `REPLAY_ENDED` or `UNAVAILABLE`. Any non-`FRESH` mark is tagged in the table, the Live strip and the detail, with its reason; it never looks fresh.
 - **R column** is gross total R = (realized + unrealized remaining) / original full-position risk (docs/07 §6.1). Details show per-unit move R, realized R, unrealized remaining R, total, the denominator, and `Net R: UNKNOWN`.
