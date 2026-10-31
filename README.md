@@ -2,7 +2,7 @@
 
 **XAUUSD Gold scalping research and manual trading decision-support software.**
 
-**State:** M00–M07 implemented offline: `grog --help`, `grog version`, read-only `grog doctor`, validated config, and `grog import-ticks` (strict canonical BID/ASK CSV v1, checksummed immutable batches, SQLite source/batch catalog) plus causal M1/M5/M15/H1 BID/ASK bars, gap records and feed-health states, and pure no-lookahead analysis (EMA/Wilder ATR with documented SMA/mean-TR seeds, confirmed strict 2/2 M5/M15 pivots, H1 bias and M15 context under the offline research parameter set `S1_RESEARCH_V0_2`, UNKNOWN kept explicit), and the research-only S1 v0.2 detector (frozen M5 L/H pairs, one FORMING candidate per side, pullback depth/invalidation/expiry/supersession with reason codes, closed-bar trigger observations), and SIMULATED signal eligibility (first executable post-trigger BID/ASK quote, immutable E0/SL/TP1/TP2 and gross R, reversible EXECUTION_BLOCKED overlay, next-M5-close TTL, MISSED_DATA_GAP / MISSED_PRICE_CHASE). OPEN thresholds (quote age, first-quote delay, price step, spread, costs) default to unset/UNKNOWN, so no READY is issued until they are explicitly declared; no score, probability, lot sizing or orders, plus deterministic research replay (M06): `grog replay --source-id ID [--from ISO_UTC --to ISO_UTC] [--config PATH]` runs pre-roll + window on a virtual UTC clock, records a SIMULATED run (run/config/data/params hashes, append-only events, restart-idempotent checkpoints) and prints an evidence report; read-only `grog report --run-id ID [--format text|json]`; full-position TP2-or-SL outcomes on ordered BID/ASK ticks (INDETERMINATE on gaps, gross R only without declared costs, rejected setups as labeled counterfactuals, no win-rate claim); deterministic SYNTHETIC generator `python -m grog.replay.synthetic --out PATH`; and the view-only Textual workstation (M07) `grog ui --mode replay --source-id ID [--from ISO_UTC] [--config PATH] [--state-dir PATH]`: five views (1 Live, 2 Signals, 3 Positions, 4 Journal, 5 Diagnostics), responsive 120×34 / 80×24 / compact layouts, causal pre-roll then PAUSED start, Space play/pause, `.` step, `+`/`-` 50 / 500 / FAST events per second, REPLAY/SIMULATED badges, state opened read-only, no orders (manual journal recording arrives in M08). Local checks: `uv sync --locked`, `uv run pytest -q`, `uv run ruff check .`, `uv run ruff format --check .`. No manual-fill journal (M08), live data feed, proven accuracy or profitability yet.  
+**State:** offline release **R0 (M00–M08) implemented and acceptance-audited** ([docs/14](docs/14-r0-acceptance-audit.md)): strict BID/ASK CSV import, causal bars and feed health, no-lookahead analysis, the research-only S1 v0.2 detector, SIMULATED signal eligibility, deterministic replay with evidence reports, and the Textual workstation with a local manual journal (entry, skip, partial/close, stop/target modify, unlinked external fills, restart reconciliation). Grog places **no orders**, has **no live data feed** yet (M09 MT5 reference feed is planned, not built), and **no strategy edge, live-data readiness, broker-verified fill or profitability is claimed**. OPEN thresholds (quote age, first-quote delay, spread, costs, contract) default to unset, so the default config issues no READY.  
 **Repository:** private; default branch `main`.  
 **Last update:** 2026-10-31.
 
@@ -25,13 +25,32 @@ Grog is **rule-based software**, not GPT/Claude/LLM, an AI agent, an auto-trader
 
 Proposed strategies/indicator periods have **not** been tested; an attractive quality score is **not** a win probability. Phase 18 specifies evidence-first signals and tests. **MT5 is now the preferred reference-price adapter**, regardless of the eventual execution broker. First build broker-neutral offline BID/ASK parsing, causal MTF analysis and replay; then connect an MT5 demo data source when separately approved. The actual broker/server and live feed are not selected or installed. Numerical ranking remains experimental.
 
-## One-message Grok launch (only when you want implementation to begin)
+## Run it locally (offline demo)
 
-**Grok's entrypoint:** [AGENTS.md](AGENTS.md), followed by [docs/00-index.md](docs/00-index.md), [docs/11-decisions.md](docs/11-decisions.md), [docs/09-architecture.md](docs/09-architecture.md) and [docs/10-roadmap.md](docs/10-roadmap.md). All specific rules, terminal wireframes, CLI/SQLite contracts, test cases and progress format are already documented. M00–M08 can be built **offline, without an execution broker or GitHub Actions**. MT5 demo connection and credible profitability testing are later separate milestones.
+Requires Python 3.11 and [uv](https://docs.astral.sh/uv/). Everything below is offline and uses deterministic **SYNTHETIC** data (no market claim).
 
-> Start Grog implementation from the existing GitHub main repository. Follow AGENTS.md and all canonical docs, especially docs/10-roadmap.md. Implement M00–M08 sequentially with local tests and one clear commit/report per milestone. Work offline without waiting for a broker, do not use GitHub Actions, do not add trading automation or unrelated features, and stop only for actual outside permissions or contradictions.
+```bash
+uv sync --locked
+uv run grog --help && uv run grog doctor
+mkdir -p /tmp/grog-demo
+uv run python -m grog.replay.synthetic --out /tmp/grog-demo/syn.csv          # 20 synthetic days, seed 7
+uv run grog import-ticks --file /tmp/grog-demo/syn.csv --source-id syn --origin SYNTHETIC --state-dir /tmp/grog-demo
+# research replay + evidence report (SIMULATED, gross R only)
+uv run grog replay --source-id syn --config config/synthetic-demo.fixture-only.toml --state-dir /tmp/grog-demo
+uv run grog report --run-id <RUN-id printed above> --state-dir /tmp/grog-demo
+# interactive workstation (best at 120x34; works down to 70x18)
+uv run grog ui --mode replay --source-id syn --config config/synthetic-demo.fixture-only.toml --state-dir /tmp/grog-demo
+```
 
-**The above is a future instruction for Grok. The application is not yet built, and no claims of strategy accuracy have been verified.**
+`config/synthetic-demo.fixture-only.toml` declares **test/demo-only** freshness thresholds so the synthetic replay can reach READY; they are not broker-derived values. With `config/grog.example.toml` (or no config) feed health stays UNKNOWN and no READY is issued — by design.
+
+Workstation keys: `1`–`5` views (Live, Signals, Positions, Journal, Diagnostics), `Space` play/pause, `.` step, `+`/`-` pace, `Enter` details (on Positions: confirm-open reconciliation), `e` record entry, `s` skip, `p` partial, `x` close, `m` modify SL/TP, `n` unlinked external fill, `?` help, `q` quit; the Journal view has a filter field. Every modal opens with **Cancel focused**; typing in a field never triggers a hotkey.
+
+Local checks (no GitHub Actions): `uv run pytest -q`, `uv run ruff check .`, `uv run ruff format --check .`. Screenshot evidence: `uv run python scripts/r0_screenshots.py --out /path/outside/repo` (needs headless Chrome for PNG; SVG otherwise).
+
+## Working on Grog
+
+Agent/developer entrypoint: [AGENTS.md](AGENTS.md), then [docs/00-index.md](docs/00-index.md), [docs/11-decisions.md](docs/11-decisions.md), [docs/09-architecture.md](docs/09-architecture.md) and [docs/10-roadmap.md](docs/10-roadmap.md). Next milestones (M09 read-only MT5 reference feed, M10 historical-data and forward-paper evaluation) need explicit external permissions listed in [docs/10](docs/10-roadmap.md); nothing beyond R0 is authorized by default.
 
 ## Active documentation — single source of truth
 
@@ -50,6 +69,7 @@ Start with [docs/00-index.md](docs/00-index.md) for the full canonical topic map
 - [Approved decisions, open blockers and documentation standards](docs/11-decisions.md)
 - [Research references](docs/12-references.md)
 - [Competitor lessons (research only)](docs/13-competitor-research.md)
+- [R0 acceptance audit](docs/14-r0-acceptance-audit.md)
 
 **Historical only:** [Archived S1 draft snapshots](docs/archive/2026-10-30/README.md). These are **not current instructions for Grok**. Exact original Git contents also remain in repository commit history.
 
@@ -62,4 +82,3 @@ Start with [docs/00-index.md](docs/00-index.md) for the full canonical topic map
 - Test realistic bid/ask spreads, latency and out-of-sample/forward outcomes before promoting a strategy.
 - Never commit broker secrets or private customer/account data. This is not financial advice and there are no guaranteed trading results.
 
-No strategy code was authorized by this documentation maintenance.
