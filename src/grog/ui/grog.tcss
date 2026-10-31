@@ -1,0 +1,93 @@
+/* Grog workstation — docs/02 §2 colour tokens and responsive layout (dark only). */
+$g-bg: #0B111A;
+$g-panel: #121D2A;
+$g-raised: #192838;
+$g-muted: #93A5B9;
+$g-text: #E7EDF5;
+$g-gold: #E6BA63;
+$g-buy: #33C6A1;
+$g-sell: #FF7D7D;
+$g-caution: #F2BE60;
+$g-error: #FF6666;
+$g-line: #2B3C50;
+
+Screen {
+    background: $g-bg;
+    color: $g-text;
+    layout: vertical;
+}
+
+#header {
+    height: auto;
+    background: $g-panel;
+    padding: 0 1;
+    border-bottom: hkey $g-line;
+}
+
+#banner {
+    height: auto;
+    padding: 0 1;
+    background: $g-raised;
+    color: $g-error;
+}
+#banner.-empty { display: none; }
+
+#notice {
+    height: auto;
+    padding: 0 1;
+    color: $g-caution;
+    display: none;
+}
+Screen.-narrow #notice, Screen.-short #notice { display: block; }
+
+#views { height: 1fr; }
+
+.pane { height: 1fr; padding: 0 1; }
+
+.title { color: $g-gold; text-style: bold; height: 1; }
+.note { color: $g-muted; height: auto; }
+.panel { background: $g-panel; padding: 0 1; height: auto; }
+
+#live-top, #live-mid {
+    height: auto;
+    layout: horizontal;
+    border-bottom: hkey $g-line;
+}
+#live-top > *, #live-mid > * { width: 1fr; height: auto; }
+#forming-box { height: auto; padding: 0; }
+#forming { height: auto; max-height: 6; }
+#feed { height: auto; }
+
+/* 80-119 columns: stack context panels (docs/02 §2 Size) */
+Screen.-normal #live-top, Screen.-normal #live-mid,
+Screen.-narrow #live-top, Screen.-narrow #live-mid { layout: vertical; }
+
+DataTable {
+    background: $g-panel;
+    height: auto;
+    max-height: 12;
+    scrollbar-size-vertical: 1;
+}
+DataTable > .datatable--header { background: $g-raised; color: $g-gold; }
+DataTable > .datatable--cursor { background: $g-raised; color: $g-text; text-style: bold; }
+
+#journal-filter { background: $g-raised; border: tall $g-line; height: 3; }
+#journal-filter:focus { border: tall $g-gold; }
+
+#keys {
+    height: auto;
+    background: $g-panel;
+    color: $g-muted;
+    padding: 0 1;
+}
+
+ModalScreen { align: center middle; background: $g-bg 60%; }
+.modal {
+    width: 90%;
+    max-width: 110;
+    height: auto;
+    max-height: 90%;
+    background: $g-raised;
+    border: round $g-gold;
+    padding: 0 1;
+}

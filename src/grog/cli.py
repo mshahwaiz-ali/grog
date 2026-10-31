@@ -2,8 +2,9 @@
 
 Only finished commands are registered: ``version``, a read-only ``doctor``,
 ``import-ticks`` (M01, local state only), ``replay`` (M06, SIMULATED research run in local
-state) and a read-only ``report`` (M06). There are no buy/sell/trade/order commands, and none will
-be added: Grog never places broker orders.
+state), a read-only ``report`` (M06) and the view-only Textual workstation ``ui`` (M07).
+There are no buy/sell/trade/order commands, and none will be added: Grog never places
+broker orders.
 """
 
 from __future__ import annotations
@@ -51,7 +52,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "Grog — offline XAUUSD research and manual decision-support terminal. "
             "Rule-based local software: no AI agent, no broker orders, no automated trading."
         ),
-        epilog="Commands available in this build: version, doctor, import-ticks, replay, report.",
+        epilog=(
+            "Commands available in this build: version, doctor, import-ticks, replay, report, ui."
+        ),
     )
     sub = parser.add_subparsers(dest="command", metavar="COMMAND", parser_class=_Parser)
 
@@ -135,7 +138,83 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help="isolated local state directory (default: $XDG_DATA_HOME/grog); never created",
     )
+    ui = sub.add_parser(
+        "ui",
+        help="interactive offline research workstation (Textual, view only)",
+        description=(
+            "Textual workstation over one imported source. REPLAY pre-rolls causal history "
+            "for MTF warm-up and starts PAUSED: Space play/pause, . step one quote, +/- pacing "
+            "50 ev/s, 500 ev/s, FAST. SIMULATED research only; no broker, no orders; writes "
+            "nothing (state is opened read-only)."
+        ),
+    )
+    ui.add_argument("--mode", required=True, choices=["replay", "reference"], help="UI mode")
+    ui.add_argument("--source-id", metavar="ID", help="imported source ID (replay mode)")
+    ui.add_argument("--from", dest="from_ts", metavar="ISO_UTC", help="visible window start")
+    ui.add_argument("--config", metavar="PATH", help="TOML config file")
+    ui.add_argument(
+        "--state-dir",
+        metavar="PATH",
+        help="isolated local state directory (default: $XDG_DATA_HOME/grog); never created",
+    )
     return parser
+
+
+def build_ui_session(args: argparse.Namespace, env: Mapping[str, str]):
+    """Load a source read-only and build the paused replay session (no writes)."""
+    from grog.domain.clock import SystemClock
+    from grog.journal.store import LATEST_SCHEMA_VERSION, Store
+    from grog.market_data.batches import load_source_quotes
+    from grog.replay.service import policy_from_settings
+    from grog.replay.session import ReplaySession, SourceInfo
+    from grog.settings import parse_utc_timestamp_ms
+
+    settings = load_settings(args.config, env)
+    from_ms = None if args.from_ts is None else parse_utc_timestamp_ms(args.from_ts, "--from")
+    state_dir, _origin = resolve_state_dir(args.state_dir, env)
+    db = state_dir / STATE_DB_FILENAME
+    if not db.is_file():
+        return None
+    store = Store.open_read_only(db, SystemClock())
+    try:
+        source = store.get_source(args.source_id)
+        if source is None:
+            return None
+        batches = store.list_batches(args.source_id)
+        quotes = load_source_quotes(store, state_dir, args.source_id)
+    finally:
+        store.close()
+    origins = {b.origin for b in batches}
+    info = SourceInfo(
+        source_id=source.source_id,
+        origin="/".join(sorted(o.value for o in origins)) or source.kind.value,
+        raw_symbol=quotes[0].raw_symbol if quotes else source.symbol,
+        batch_sha256s=tuple(b.sha256 for b in batches),
+        batch_paths=tuple(b.path for b in batches),
+        config_hash=settings.config_hash,
+        config_version=settings.config_version,
+        state_schema_version=LATEST_SCHEMA_VERSION,
+    )
+    return ReplaySession(quotes, info, policy_from_settings(settings, origins), from_ms=from_ms)
+
+
+def _cmd_ui(args: argparse.Namespace, env: Mapping[str, str], out: TextIO, err: TextIO) -> int:
+    if args.mode == "reference":
+        err.write(
+            "GROG ERROR code=NOT_CONFIGURED reason=no read-only reference feed is configured "
+            "(later milestone); no live or mock quotes are shown\n"
+        )
+        err.write("Next: grog ui --mode replay --source-id ID [--state-dir PATH]\n")
+        return EXIT_CONFIG
+    if not args.source_id:
+        raise UsageError("--source-id is required for --mode replay")
+    session = build_ui_session(args, env)
+    if session is None:
+        return _not_found(err, f"source {args.source_id!r}")
+    from grog.ui.app import GrogApp
+
+    GrogApp(session).run()
+    return EXIT_OK
 
 
 def _cmd_replay(args: argparse.Namespace, env: Mapping[str, str], out: TextIO, err: TextIO) -> int:
@@ -325,6 +404,8 @@ def main(
             return _cmd_replay(args, env, out, err)
         if args.command == "report":
             return _cmd_report(args, env, out, err)
+        if args.command == "ui":
+            return _cmd_ui(args, env, out, err)
     except UsageError as exc:
         err.write(f"GROG ERROR code=USAGE_ERROR reason={exc}\n")
         return EXIT_USAGE

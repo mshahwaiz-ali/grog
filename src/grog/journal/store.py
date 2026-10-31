@@ -104,6 +104,16 @@ class Store:
             raise
         return store
 
+    @classmethod
+    def open_read_only(cls, db_path: Path, clock: Clock) -> Store:
+        """Existing database, SQLite read-only mode: never created, migrated or written."""
+        if not db_path.is_file():
+            raise FileNotFoundError(db_path)
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=BUSY_TIMEOUT_MS / 1000)
+        conn.row_factory = sqlite3.Row
+        conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+        return cls(conn, clock, db_path)
+
     def close(self) -> None:
         self._conn.close()
 

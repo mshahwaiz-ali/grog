@@ -113,6 +113,10 @@ class BarHistory:
         self._bars[bar.timeframe].append(bar)
         avail.append(bar.available_at_ms)
 
+    def count(self, timeframe: Timeframe) -> int:
+        """Number of finalized bars recorded so far (regardless of availability)."""
+        return len(self._bars[timeframe])
+
     def all(self, timeframe: Timeframe) -> tuple[FinalizedBar, ...]:
         return tuple(self._bars[timeframe])
 
