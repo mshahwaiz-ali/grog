@@ -449,6 +449,18 @@ File: `tests/acceptance/test_m09_integrity.py` (ported from the read-only review
 | REF-23 | Bounded ingestion | streaming reader; RSS ceiling on a large synthetic file; idle polls write nothing |
 | REF-24 | UI-R1 | a triggered candidate with an issued signal is not listed again as FORMING |
 
+**Measured ingestion (2026-10-31, this box, synthetic FIXTURE catch-up file, one `B…E` block, Python 3.11).** Before = `667d8ef` reader (whole remainder read + event list); after = M09-H streaming reader.
+
+| Lines (file size) | Path | Before: time · throughput · peak RSS | After: time · throughput · peak RSS |
+| --- | --- | --- | --- |
+| 200 k (8.5 MB) | reader | 2.9 s · 69 k lines/s · 219 MiB | 2.3 s · 86 k lines/s · 38 MiB |
+| 1 M (43 MB) | reader | 15.2 s · 66 k lines/s · 992 MiB | 12.2 s · 82 k lines/s · 39 MiB |
+| 2 M (87 MB) | reader | 31.0 s · 64 k lines/s · 1 958 MiB | 23.6 s · 85 k lines/s · 39 MiB |
+| 1 M (43 MB) | session incl. S1 pipeline | 25.6 s · 39 k lines/s · 993 MiB | 25.9 s · 39 k lines/s · 44 MiB |
+| idle timer poll | session | 7 ms, rewrote an 820 KB cursor with fsync each poll | 0.04 ms, no write |
+
+The RSS ceiling test (`test_large_history_is_streamed_with_bounded_memory`, 400 k lines in a subprocess, ceiling 200 MiB as an engineering guard) measured 514 MiB before and 39 MiB after.
+
 
 ## 16. Milestone-to-test acceptance matrix
 

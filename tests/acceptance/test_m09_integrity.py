@@ -417,3 +417,71 @@ def test_rejected_older_redelivery_does_not_reset_live_occurrences(tmp_path: Pat
     r = _reader(tmp_path, StepClock(T0 + 100))
     r.poll()
     assert r.state.counters["ACCEPTED_LIVE"] == 2 and "DUPLICATE" not in r.state.counters
+
+
+# REF-23 ---------------------------------------------------------------- review #20/#21
+_RSS_SCRIPT = """
+import resource, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[2])
+from reference_support import HB_AGE, POLICY, SRC, StepClock, T0
+from grog.live.session import ReferenceSession
+s = ReferenceSession(Path(sys.argv[1]), SRC, POLICY, StepClock(T0 + 10**9), HB_AGE)
+st = s.poll()
+print(st.counters.get("ACCEPTED_BACKFILL", 0), resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+"""
+RSS_LINES = 400_000
+RSS_CEILING_KIB = 200 * 1024  # engineering guard: the unbounded reader needed ~1 KiB/line
+
+
+def _large_file(d: Path, n: int) -> Path:
+    d.mkdir(parents=True)
+    p = d / f"{SRC}__20261001T000000Z__000001.grogref"
+    off = OFFSET_S * 1000
+    with p.open("w", encoding="utf-8", newline="") as fh:
+        fh.write(f"M,1,GROG-MT5-REF/1,FIXTURE,{SRC},S,XAUUSD,2,{OFFSET_S},x\n")
+        fh.write(f"B,2,{T0 + off}\n")
+        for i in range(n):
+            b = 400_000 + (i * 7_919) % 2_000
+            fh.write(f"T,{i + 3},B,{T0 + off + i * 250},{b / 100:.2f},{(b + 20) / 100:.2f},6\n")
+        fh.write(f"E,{n + 3},{T0 + off + n * 250},{n}\n")
+    return p
+
+
+def test_large_history_is_streamed_with_bounded_memory(tmp_path: Path) -> None:
+    import subprocess
+    import sys
+
+    _large_file(tmp_path / "exp", RSS_LINES)
+    tests_dir = str(Path(__file__).resolve().parents[1])
+    out = subprocess.run(
+        [sys.executable, "-c", _RSS_SCRIPT, str(tmp_path / "exp"), tests_dir],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    accepted, maxrss_kib = int(out[0]), int(out[1])
+    print(f"{accepted} lines, maxRSS {maxrss_kib / 1024:.0f} MiB")
+    assert accepted == RSS_LINES
+    assert maxrss_kib < RSS_CEILING_KIB
+
+
+def test_idle_polls_never_rewrite_the_cursor(tmp_path: Path) -> None:
+    exp, state = tmp_path / "exp", tmp_path / "state"
+    w = Writer(exp)
+    w.hb(T0)
+    w.tick(T0, "4000.00", "4000.20")
+    clock = StepClock(T0 + 100)
+    s = ReferenceSession(exp, SRC, POLICY, clock, HB_AGE, state_dir=state)
+    writes: list[int] = []
+    real = s.reader.commit
+    s.reader.commit = lambda: (writes.append(clock.now), real())[1]  # type: ignore[method-assign]
+    s.poll()  # first progress: committed
+    for i in range(1, 30):  # idle timer polls
+        clock.now = T0 + 100 + i * 1_000
+        s.poll()
+    assert writes == [T0 + 100]
+    w.hb(T0 + 31_000)
+    clock.now = T0 + 31_000
+    s.poll()  # progress after the commit interval: committed
+    assert writes == [T0 + 100, T0 + 31_000]

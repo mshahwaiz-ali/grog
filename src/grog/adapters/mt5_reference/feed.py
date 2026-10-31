@@ -13,9 +13,11 @@ import hashlib
 import json
 import os
 from collections import deque
+from collections.abc import Generator, Iterator
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
+from typing import BinaryIO
 
 from grog.adapters.mt5_reference.format import (
     FILE_NAME,
@@ -36,6 +38,9 @@ from grog.domain.models import CANONICAL_SYMBOL, NormalizedQuote
 
 RECENT_KEYS = 20_000  # bounded dedup memory (re-delivery overlap is milliseconds to minutes)
 CURSOR_VERSION = 1
+# Engineering constants (bounded ingestion; not trading thresholds, docs/09 §5.1).
+READ_BLOCK = 1 << 20  # bytes read per block
+MAX_LINE = 64 * 1024  # a longer run without LF is corrupt transport
 LIVE, BACKFILL, FIXTURE = "LIVE", "BACKFILL", "FIXTURE"
 FUTURE_TIME, OFFSET_ASSUMED = "FUTURE_TIME", "OFFSET_ASSUMED"
 
@@ -427,43 +432,76 @@ class ReferenceReader:
         return sorted(names)
 
     def poll(self, stop_at: CursorPosition | None = None) -> list[FeedEvent]:
-        """Consume every complete new line (optionally only up to ``stop_at``)."""
-        events: list[FeedEvent] = []
+        """Consume every complete new line (optionally only up to ``stop_at``) as a list.
+
+        Convenience for small reads/tests; the session streams with :meth:`iter_events`.
+        """
+        return list(self.iter_events(stop_at))
+
+    def iter_events(self, stop_at: CursorPosition | None = None) -> Iterator[FeedEvent]:
+        """Stream every complete new line as an event, in file order (bounded memory).
+
+        Files are read in ``READ_BLOCK`` blocks; ``self.position`` always points just after the
+        last yielded line, so a consumer may commit or stop at any event boundary.
+        """
         files = self.files()
-        pos = self.position
         norm = self.normalizer
-        if pos.file is None:
+        if self.position.file is None:
             if not files:
-                return events
-            pos = CursorPosition(files[0], 0, 1)
+                return
+            self.position = CursorPosition(files[0], 0, 1)
             norm.begin_file()
         while True:
+            pos = self.position
             if stop_at is not None and (pos.file, pos.offset) >= (stop_at.file, stop_at.offset):
-                break
+                return
+            limit = stop_at.offset if stop_at is not None and stop_at.file == pos.file else None
             path = self.directory / pos.file
-            data = b""
+            tail = b""
             if not path.exists():
                 if not norm.state.file_closed:  # unread tail unknowable: never silent
                     norm.file_fault("CURSOR_FILE_MISSING", pos.file, pos.next_seq)
             else:
                 with path.open("rb") as fh:
-                    head = fh.readline()
                     if pos.offset > 0 and norm.state.file_head is not None:
-                        if _fingerprint(head) != norm.state.file_head:
+                        if _fingerprint(fh.readline(MAX_LINE)) != norm.state.file_head:
                             norm.file_fault("FILE_REPLACED", pos.file, pos.next_seq)
-                    size = os.fstat(fh.fileno()).st_size
-                    if size < pos.offset:
+                    if os.fstat(fh.fileno()).st_size < pos.offset:
                         norm.file_fault("FILE_TRUNCATED", pos.file, pos.next_seq)
                     else:
                         fh.seek(pos.offset)
-                        data = fh.read()
-            end = data.rfind(b"\n")
-            if stop_at is not None and stop_at.file == pos.file:
-                end = min(end, stop_at.offset - pos.offset - 1)
-            consumed = data[: end + 1] if end >= 0 else b""
-            offset = pos.offset
-            seq = pos.next_seq
-            for raw in consumed.split(b"\n")[:-1]:
+                        tail = yield from self._stream(fh, pos, limit)
+            pos = self.position
+            later = [f for f in files if f > pos.file]
+            if not later or limit is not None:
+                return
+            if tail:
+                norm.fault("PARTIAL_LINE_DISCARDED", pos.file, pos.next_seq)
+            if (
+                not norm.state.file_closed
+                and pos.offset > 0
+                and "CURSOR_FILE_MISSING" not in norm.state.file_flags
+            ):
+                norm.fault("FILE_ENDED_WITHOUT_Z", pos.file, pos.next_seq)
+            self.position = CursorPosition(later[0], 0, 1)
+            norm.begin_file()
+
+    def _stream(
+        self, fh: BinaryIO, pos: CursorPosition, limit: int | None
+    ) -> Generator[FeedEvent, None, bytes]:
+        """Yield the complete lines of one open file; returns the unterminated tail bytes."""
+        norm = self.normalizer
+        offset, seq, buf = pos.offset, pos.next_seq, b""
+        while True:
+            block = fh.read(READ_BLOCK)
+            if not block:
+                return buf
+            buf += block
+            lines = buf.split(b"\n")
+            buf = lines.pop()
+            for raw in lines:
+                if limit is not None and offset >= limit:
+                    return b""
                 if offset == 0:
                     norm.state.file_head = _fingerprint(raw + b"\n")
                 offset += len(raw) + 1
@@ -471,23 +509,11 @@ class ReferenceReader:
                 if ev.seq != seq:
                     norm.fault("TRANSPORT_SEQ_GAP", pos.file, ev.seq)
                 seq = ev.seq + 1
-                events.append(ev)
-            pos = CursorPosition(pos.file, offset, seq)
-            later = [f for f in files if f > pos.file]
-            if not later or (stop_at is not None and stop_at.file == pos.file):
-                break
-            if len(data) > len(consumed):
-                norm.fault("PARTIAL_LINE_DISCARDED", pos.file, seq)
-            if (
-                not norm.state.file_closed
-                and offset > 0
-                and "CURSOR_FILE_MISSING" not in (norm.state.file_flags)
-            ):
-                norm.fault("FILE_ENDED_WITHOUT_Z", pos.file, seq)
-            pos = CursorPosition(later[0], 0, 1)
-            norm.begin_file()
-        self.position = pos
-        return events
+                self.position = CursorPosition(pos.file, offset, seq)
+                yield ev
+            if len(buf) > MAX_LINE:  # no LF within a sane line length: corrupt transport
+                norm.file_fault("LINE_TOO_LONG", pos.file, seq)
+                return b""
 
     def _line(self, raw: bytes, file: str, seq: int) -> FeedEvent:
         received = self.clock.now_ms()
