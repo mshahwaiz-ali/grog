@@ -185,6 +185,7 @@ External operations (Wine/MT5 installation, demo credentials, downloading propri
 | M08 | IMPLEMENTED | `d0ff0fd`, `dca9ee3` | manual journal, reconciliation |
 | R0 acceptance | ACCEPTED — CONDITIONAL | `50ea97d`…`8c97dec` (see [14](14-r0-acceptance-audit.md) §4) | audit opened at `dca9ee3` (439 tests, 12 findings F-01..F-12); all 12 fixed; 510 tests, ruff clean; operator journey + error-path acceptance tests; conditions in [14](14-r0-acceptance-audit.md) §5 |
 | M09-A | IMPLEMENTED (offline) | `a88fd3f`, `d2709fe`, `f945500`, `be3479c`, `c712b18` | adapter, session, CLI, uncompiled exporter source; REF-01..12 ([08 §15.5](08-validation.md)); no MT5/broker/network used |
+| M09-H | IMPLEMENTED (offline) | `ddbd506`, `4df393f`, `14916ec`, `c56e18d`, `8a52beb`, `ccf99be`, `4f53840`, `7981928`, `1539514`, `2f4f7de`, `fe43454` | integrity hardening H1–H4 + UI-R1: REF-13..24 ([08 §15.6](08-validation.md)); exporter source v0.2 still never compiled/run; time basis, future-skew tolerance and fault recovery stay OPEN and block actionability; no MT5/broker/network used |
 | M09-B | BLOCKED — external permission | — | read-only MT5 demo install/connection needs explicit owner approval |
 | M10 | NOT STARTED — data/evidence-gated | — | needs real permitted BID/ASK history and a forward-paper protocol |
 
