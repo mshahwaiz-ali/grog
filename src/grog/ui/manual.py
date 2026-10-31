@@ -33,6 +33,7 @@ from grog.replay.session import Playback, SignalView, Snapshot
 from grog.settings import ConfigError, parse_utc_timestamp_ms
 from grog.ui.format import DASH, UNKNOWN, hms, iso_utc, price, r_long, r_short, short_id, utc
 from grog.ui.forms import Field, JournalForm, Values
+from grog.ui.lanes import exposure
 from grog.ui.panels import JournalRow, Line, band_text, entry_labels
 
 NO_ORDER = "Local journal record only — Grog sends no order and changes no broker position."
@@ -126,7 +127,12 @@ def _preview_entry_lines(prev, side: Side, plan: PlanRef | None) -> list[Line]:
 # --------------------------------------------------------------------------- entry / skip
 
 
-def entry_form(journal: PositionJournal, snap: Snapshot, view: SignalView) -> JournalForm:
+def entry_form(
+    journal: PositionJournal,
+    snap: Snapshot,
+    view: SignalView,
+    open_positions: Sequence[ManualPosition] = (),
+) -> JournalForm:
     r = view.record
     plan = PlanRef.from_record(r)
     ready = view.status.state is SignalState.READY
@@ -151,6 +157,8 @@ def entry_form(journal: PositionJournal, snap: Snapshot, view: SignalView) -> Jo
     ]
     if blocked:
         info.append([("Signal is EXECUTION BLOCKED now: a fill is recorded OFF_PLAN.", "caution")])
+    for w in exposure(open_positions, r.side).warnings():
+        info.append([(w, "caution")])
     fields = [
         Field("price", f"Actual fill price ({ent}) *", placeholder="required, e.g. 4000.25"),
         Field("qty", "Filled quantity/lots *", placeholder="required, > 0"),

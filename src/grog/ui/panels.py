@@ -16,6 +16,7 @@ from grog.domain.enums import FeedStatus, H1Bias, Side, SignalEventKind, SignalS
 from grog.domain.models import S1Candidate, SignalEvent
 from grog.replay.session import Playback, SignalView, Snapshot
 from grog.ui.format import DASH, UNKNOWN, duration, hms, pace_label, price, short_id, utc
+from grog.ui.lanes import OperatorOverlay, exposure, signal_lane
 
 Line = list[tuple[str, str]]
 
@@ -253,7 +254,9 @@ def lanes_summary(snap: Snapshot, entered: int = 0) -> str:
     )
 
 
-def no_trade_reason(snap: Snapshot, events: Sequence[SignalEvent]) -> str:
+def no_trade_reason(
+    snap: Snapshot, events: Sequence[SignalEvent], overlay: OperatorOverlay | None = None
+) -> str:
     """Single highest-priority reason (docs/02 §10-11 precedence)."""
     h = snap.health
     if h is None or snap.quote is None:
@@ -272,6 +275,11 @@ def no_trade_reason(snap: Snapshot, events: Sequence[SignalEvent]) -> str:
     ):
         reasons = ", ".join(r.value for r in last.reason_codes[:3])
         return f"last decision {last.kind.value} ({reasons})"
+    live = [signal_lane(v, overlay) for v in snap.ready if not v.pre_roll]
+    if any(ln.blocked for ln in live):
+        return "READY signal currently EXECUTION BLOCKED (see 2 Signals)"
+    if any(ln.operator for ln in live):
+        return "open READY signal already acted on in the local journal"
     if snap.forming:
         return "WAIT FOR TRIGGER: M5 trigger not confirmed"
     return "No developing opportunities"
@@ -291,33 +299,49 @@ def state_label(v: SignalView) -> str:
     return label + (" PRE-ROLL" if v.pre_roll else "")
 
 
-def proposals_panel(snap: Snapshot, events: Sequence[SignalEvent]) -> list[Line]:
+def proposals_panel(
+    snap: Snapshot,
+    events: Sequence[SignalEvent],
+    overlay: OperatorOverlay | None = None,
+    positions: Sequence = (),
+) -> list[Line]:
+    """Actionable lane: only READY, unblocked, unused, in-window signals (docs/14 F-01).
+    Signals already ENTERED/SKIPPED in the local journal are listed as recorded, never as
+    a fresh opportunity; blocked ones say so."""
     lines: list[Line] = [[("ACTIONABLE PROPOSALS (SIMULATED)", "gold")]]
-    live = [v for v in snap.ready if not v.pre_roll]
-    if not live:
+    lanes = [(v, signal_lane(v, overlay)) for v in snap.signals if not v.pre_roll]
+    live = [(v, ln) for v, ln in lanes if not ln.terminal]
+    fresh = [(v, ln) for v, ln in live if ln.fresh_opportunity]
+    if not fresh:
         lines.append([("NO TRADE — conditions not met", "caution")])
-        lines.append([("Reason: " + no_trade_reason(snap, events), "muted")])
-        return lines
-    for v in live:
+        lines.append([("Reason: " + no_trade_reason(snap, events, overlay), "muted")])
+    for v, ln in live:
         r = v.record
         ent, ex = entry_labels(r.side)
         ttl = r.expiry_ms - (snap.virtual_time_ms or r.expiry_ms)
+        style = "ok" if ln.fresh_opportunity else "caution"
         lines.append(
             [
                 (f"{short_id(r.signal_id)} ", "primary"),
                 (r.side.value, _side_style(r.side)),
-                (f"  {state_label(v)}", "caution" if v.status.blocked else "ok"),
+                (f"  {ln.label}", style),
                 (f"  TTL {duration(ttl)}", "muted"),
             ]
         )
-        lines.append(
-            [
-                (
-                    f"  {ent} entry {price(r.e0)}  SL {ex} {price(r.sl0)}  TP2 {ex} {price(r.tp2)}",
-                    "primary",
-                )
-            ]
-        )
+        if ln.fresh_opportunity:
+            lines.append(
+                [
+                    (
+                        f"  {ent} entry {price(r.e0)}  SL {ex} {price(r.sl0)}  "
+                        f"TP2 {ex} {price(r.tp2)}",
+                        "primary",
+                    )
+                ]
+            )
+            for w in exposure(positions, r.side).warnings()[:1]:
+                lines.append([("  " + w, "caution")])
+        else:
+            lines.append([(f"  {ln.why_not_actionable}", "muted")])
     return lines
 
 
@@ -343,11 +367,10 @@ READY_COLUMNS_COMPACT = ("ID", "SIDE", "ENTRY", "SL", "TP2", "STATE")
 
 
 def ready_rows(
-    snap: Snapshot, compact: bool = False, operator: dict[str, str] | None = None
+    snap: Snapshot, compact: bool = False, overlay: OperatorOverlay | None = None
 ) -> list[tuple[str, tuple[str, ...]]]:
-    """``operator`` maps signal ID -> local journal status (USER_SKIPPED / ENTERED); it is
-    an overlay label only and never changes the signal record."""
-    operator = operator or {}
+    """``overlay`` maps signal ID -> first local journal action; it is shown *beside* the
+    engine state (e.g. ``ENTERED · EXPIRED``) and never changes the signal record."""
     rows = []
     now = snap.virtual_time_ms
     for v in reversed(snap.signals):
@@ -367,13 +390,17 @@ def ready_rows(
             f"{ex} {price(r.tp2)}",
             UNKNOWN if r.estimated_cost_model_id is None else "SEE DETAIL",
             ttl,
-            operator.get(r.signal_id, state_label(v)) + " SIMULATED",
+            lane_label(v, overlay) + " SIMULATED",
         )
         if compact:
-            label = operator.get(r.signal_id, state_label(v))
+            label = lane_label(v, overlay)
             cells = (cells[0], cells[1], cells[3], cells[5], cells[6], label)
         rows.append((r.signal_id, cells))
     return rows
+
+
+def lane_label(v: SignalView, overlay: OperatorOverlay | None = None) -> str:
+    return signal_lane(v, overlay).label + (" PRE-ROLL" if v.pre_roll else "")
 
 
 def gross_target_r(v: SignalView) -> Decimal:
@@ -383,31 +410,38 @@ def gross_target_r(v: SignalView) -> Decimal:
 
 
 def signal_detail(
-    snap: Snapshot, v: SignalView, current_ask: Decimal | None, current_bid: Decimal | None
+    snap: Snapshot,
+    v: SignalView,
+    current_ask: Decimal | None,
+    current_bid: Decimal | None,
+    overlay: OperatorOverlay | None = None,
+    positions: Sequence = (),
 ) -> list[Line]:
+    """Issued plan (immutable) and current state are separate lines, so an original READY
+    that is now EXECUTION BLOCKED or terminal is never shown as eligible (docs/14 F-08)."""
     r = v.record
+    ln = signal_lane(v, overlay)
     ev = json.loads(r.evidence_snapshot_json)
     ent, ex = entry_labels(r.side)
     cur = current_ask if r.side is Side.BUY else current_bid
     gates = ev.get("gates", [])
     unknown = [g["gate"] for g in gates if g["result"] == "UNKNOWN"]
     h1_id = (ev.get("last_confirmed") or [None])[0] or DASH
-    ready = v.status.state is SignalState.READY
-    eligibility = "PASS" if ready else v.status.state.value
+    now_style = "error" if ln.terminal else "caution" if ln.blocked else "ok"
     lines: list[Line] = [
         [
             (f"SIGNAL {r.signal_id} / ", "gold"),
             (r.side.value, _side_style(r.side)),
-            (
-                f"   {state_label(v)} (SIMULATED)   Source: {r.original_source_id} "
-                f"[{snap.source.origin}]",
-                "primary",
-            ),
+            (f"   SIMULATED   Source: {r.original_source_id} [{snap.source.origin}]", "primary"),
+        ],
+        [
+            (f"Issued: READY at {utc(r.first_ready_ms)} (immutable plan)   ", "primary"),
+            (f"Now: {ln.current}", now_style),
         ],
         [
             (
-                f"Created {utc(r.first_ready_ms)} / Expires {utc(r.expiry_ms)} / "
-                f"first-quote delay {ev.get('first_quote_delay_ms')} ms",
+                f"Expires {utc(r.expiry_ms)} / first-quote delay "
+                f"{ev.get('first_quote_delay_ms')} ms",
                 "primary",
             )
         ],
@@ -436,26 +470,37 @@ def signal_detail(
         [("Net risk/return: UNKNOWN (execution broker fees/contract not confirmed)", "caution")],
         [
             (
-                f"Eligibility: {eligibility} (simulated research rules)   "
+                "Eligibility at issuance: PASS (all blocking gates, simulated research rules)   "
                 f"UNKNOWN non-blocking: {', '.join(unknown) or 'none'}",
-                "primary",
+                "muted",
             )
         ],
     ]
-    if v.status.blocked:
+    if ln.blocked:
         lines.append(
             [
                 (
-                    "EXECUTION BLOCKED: " + ", ".join(x.value for x in v.status.blocked_reasons),
+                    "EXECUTION BLOCKED now: "
+                    + ", ".join(x.value for x in v.status.blocked_reasons)
+                    + " — a fill now is recorded OFF_PLAN",
                     "caution",
                 )
             ]
         )
     if v.status.terminal_reason is not None:
         lines.append([(f"Terminal: {v.status.terminal_reason.value} — never resurrected", "error")])
+    if ln.operator is not None:
+        where = f" ({ln.position_id})" if ln.position_id else ""
+        lines.append([(f"Local journal: {ln.operator}{where} — not a new opportunity", "caution")])
     if v.pre_roll:
         lines.append([("PRE-ROLL history signal — not a new alert", "caution")])
-    lines.append([("Action: [e] Record external manual fill   [s] Skip   [Esc] Back", "muted")])
+    if ln.can_record:
+        for w in exposure(positions, r.side).warnings():
+            lines.append([(w, "caution")])
+        fill = "[e] Record external fill (OFF_PLAN)" if ln.blocked else "[e] Record external fill"
+        lines.append([(f"Action: {fill}   [s] Skip   [Esc] Back", "muted")])
+    else:
+        lines.append([(f"No on-plan action: {ln.why_not_actionable}.   [Esc] Back", "muted")])
     lines.append([("No automatic broker order is created.", "muted")])
     return lines
 

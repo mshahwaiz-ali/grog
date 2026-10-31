@@ -181,7 +181,10 @@ class GrogApp(App[None]):
         if not snap.forming:
             lanes.insert(0, [("No developing opportunities", "muted")])
         q("#lanes", TextPanel).set_lines(lanes)
-        q("#proposals", TextPanel).set_lines(panels.proposals_panel(snap, events))
+        overlay = self._overlay()
+        q("#proposals", TextPanel).set_lines(
+            panels.proposals_panel(snap, events, overlay, self._open)
+        )
         rows = self._open
         q("#positions-mini", TextPanel).set_lines(manual.live_positions_panel(rows, snap))
         q("#feed", TextPanel).set_lines(panels.feed_lines(snap, FEED_ROWS_LIVE))
@@ -194,9 +197,7 @@ class GrogApp(App[None]):
             [[("ACTIONABLE / READY — SIMULATED (REPLAY)", "gold")]]
         )
         rcols = panels.READY_COLUMNS_COMPACT if self.compact else panels.READY_COLUMNS
-        q("#ready", StateTable).show(
-            rcols, panels.ready_rows(snap, self.compact, self._operator_status())
-        )
+        q("#ready", StateTable).show(rcols, panels.ready_rows(snap, self.compact, overlay))
         note = [
             [
                 (
@@ -211,7 +212,8 @@ class GrogApp(App[None]):
                 0,
                 [
                     (
-                        "NO TRADE — conditions not met: " + panels.no_trade_reason(snap, events),
+                        "NO TRADE — conditions not met: "
+                        + panels.no_trade_reason(snap, events, overlay),
                         "caution",
                     )
                 ],
@@ -335,15 +337,11 @@ class GrogApp(App[None]):
         self._open = self.journal.open_positions() if self.journal else []
         self.tracker.track(self._open)
 
-    def _operator_status(self) -> dict[str, str]:
+    def _overlay(self) -> dict[str, tuple[str, str | None]]:
+        """First local journal action per signal (overlay only; signals never change)."""
         if self.journal is None:
             return {}
-        out = {}
-        for v in self.snap.signals:
-            st = self.journal.signal_status(v.record.original_source_id, v.record.signal_id)
-            if st:
-                out[v.record.signal_id] = st
-        return out
+        return self.journal.signal_actions(self.session.source.source_id)
 
     def _notice(self, text: str, style: str = "caution") -> None:
         self.push_screen(
@@ -418,8 +416,12 @@ class GrogApp(App[None]):
         if status is not None:
             self._notice(f"{sel[1]} is already {status} in the local journal.")
             return
-        build = manual.entry_form if kind == "entry" else manual.skip_form
-        self.push_screen(build(self.journal, snap, view), self._after_form)
+        if kind == "entry":
+            self._reload_positions()
+            form = manual.entry_form(self.journal, snap, view, self._open)
+        else:
+            form = manual.skip_form(self.journal, snap, view)
+        self.push_screen(form, self._after_form)
 
     def _confirm_open(self, position_id: str):
         journal = self.journal
@@ -445,7 +447,14 @@ class GrogApp(App[None]):
             view = next((v for v in snap.signals if v.record.signal_id == key), None)
             if view is not None:
                 q = snap.quote
-                lines = panels.signal_detail(snap, view, q.ask if q else None, q.bid if q else None)
+                lines = panels.signal_detail(
+                    snap,
+                    view,
+                    q.ask if q else None,
+                    q.bid if q else None,
+                    self._overlay(),
+                    self._open,
+                )
         elif table.id == "positions-table" and self.journal is not None:
             pos = next((p for p in self._open if p.position_id == key), None)
             if pos is not None:
