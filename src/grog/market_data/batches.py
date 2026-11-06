@@ -19,6 +19,7 @@ from __future__ import annotations
 import gzip
 import json
 import os
+import zlib
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -90,7 +91,7 @@ def batch_relative_path(source_id: str, min_provider_ms: int, sha256: str) -> st
 def _stored_bytes_ok(path: Path, sha256: str) -> bool:
     try:
         return sha256_hex(gzip.decompress(path.read_bytes())) == sha256
-    except (OSError, EOFError, gzip.BadGzipFile):
+    except (OSError, EOFError, gzip.BadGzipFile, zlib.error):
         return False
 
 
@@ -215,7 +216,7 @@ def read_batch_quotes(
     path = state_dir / batch.path
     try:
         data = gzip.decompress(path.read_bytes())
-    except (OSError, EOFError, gzip.BadGzipFile) as exc:
+    except (OSError, EOFError, gzip.BadGzipFile, zlib.error) as exc:
         raise BatchIntegrityError(f"stored batch unreadable: {path}") from exc
     if sha256_hex(data) != batch.sha256:
         raise BatchIntegrityError(f"stored batch checksum mismatch: {path}")

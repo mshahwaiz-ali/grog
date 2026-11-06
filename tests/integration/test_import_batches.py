@@ -264,3 +264,42 @@ def test_no_temp_files_left_after_success(tmp_path: Path) -> None:
     names = [p.name for p in (state / "market").rglob("*") if p.is_file()]
     assert all(not n.startswith(".") for n in names)
     assert os.listdir(state)  # state dir created only by an explicit import
+
+
+def _deflate_corrupt(path: Path) -> None:
+    """Keep a valid gzip header but make the DEFLATE block type invalid (BTYPE=11).
+
+    gzip.decompress raises zlib.error here, not OSError/EOFError/BadGzipFile.
+    """
+    damaged = bytearray(path.read_bytes())
+    damaged[10] = 0xFF  # first DEFLATE byte after the 10-byte gzip header
+    path.write_bytes(bytes(damaged))
+
+
+def test_damaged_deflate_payload_is_an_integrity_error(tmp_path: Path) -> None:
+    import zlib
+
+    state = tmp_path / "state"
+    result = do_import(state)
+    stored = state / result.batch.path
+    _deflate_corrupt(stored)
+    with pytest.raises(zlib.error):
+        gzip.decompress(stored.read_bytes())  # the exact corruption under test
+    assert batches._stored_bytes_ok(stored, result.batch.sha256) is False
+    with open_store(state) as store, pytest.raises(BatchIntegrityError) as info:
+        read_batch_quotes(state, store.get_source("syn-1"), result.batch)
+    assert "stored batch unreadable" in str(info.value)
+    assert isinstance(info.value.__cause__, zlib.error)
+
+
+def test_reimport_of_identical_file_repairs_damaged_deflate_payload(tmp_path: Path) -> None:
+    state = tmp_path / "state"
+    first = do_import(state)
+    stored = state / first.batch.path
+    original = stored.read_bytes()
+    _deflate_corrupt(stored)
+    again = do_import(state)
+    assert again.status == "ALREADY_IMPORTED" and again.batch == first.batch
+    assert stored.read_bytes() == original
+    with open_store(state) as store:
+        assert read_batch_quotes(state, store.get_source("syn-1"), first.batch)

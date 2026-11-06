@@ -34,6 +34,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     from grog.domain.clock import SystemClock
     from grog.journal.positions import PositionJournal
     from grog.journal.store import Store
+    from grog.market_data.batches import BatchIntegrityError
     from grog.settings import STATE_DB_FILENAME, ConfigError, resolve_state_dir
 
     state_dir, _origin = resolve_state_dir(args.state_dir, os.environ)
@@ -58,6 +59,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             window = GoldWindow(session, journal)
             window.show()
             return int(application.exec())
+    except BatchIntegrityError as exc:
+        # read_batch_quotes chains the I/O or decompression error for an unreadable file
+        # and raises without a cause when readable content disagrees with the catalog.
+        if exc.__cause__ is not None:
+            problem = "is missing, unreadable or not valid compressed data"
+        else:
+            problem = "does not match its recorded checksum or row count"
+        print(
+            f"Gold desktop refused source {args.source_id!r}: {exc}. The stored quote batch "
+            f"{problem}. Nothing was changed: the journal and state were not modified. "
+            "Restore that batch file from a backup, or re-import the original CSV with "
+            "'grog import-ticks' using the same --source-id and --state-dir to repair it.",
+            file=sys.stderr,
+        )
+        return 3
     except (OSError, ValueError, sqlite3.Error, ConfigError) as exc:
         print(f"Gold desktop could not open the replay: {exc}", file=sys.stderr)
         return 3
