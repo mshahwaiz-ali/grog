@@ -190,9 +190,7 @@ class GrogApp(App[None]):
         q("#context", TextPanel).set_lines(panels.context_panel(snap))
         q("#forming-box").border_title = "OPPORTUNITIES FORMING"
         cols = panels.FORMING_COLUMNS_COMPACT if self.compact else panels.FORMING_COLUMNS
-        q("#forming", StateTable).show(
-            panels.FORMING_COLUMNS_LIVE, panels.forming_live_rows(snap)
-        )
+        q("#forming", StateTable).show(panels.FORMING_COLUMNS_LIVE, panels.forming_live_rows(snap))
         lanes = [[(panels.lanes_summary(snap, len(self._open)), "muted")]]
         if not snap.forming:
             lanes.insert(0, [("No developing opportunities", "muted")])
