@@ -32,6 +32,21 @@ The Textual TUI and existing `gold` launcher are unchanged. D00 adds tested, UI-
 price/UTC/trigger formatting and a **Qt foundation probe only**, with NO replay, signals,
 positions, journal access or broker connection.
 
+The D01 native GUI **read-only Overview preview** is available separately. Open it
+from a regular GNOME Terminal (Qt initialization may fail inside an inherited editor
+environment) with:
+
+```bash
+bash scripts/gold-desktop-preview.sh
+```
+
+The preview reads the existing synthetic `syn` source at `/tmp/grog-demo`,
+reuses the authoritative replay and signal/journal read models, and offers
+Play/Pause, one-quote Step and replay pacing controls. The other four navigation
+pages are intentionally disabled until their milestones; **no journal writing,
+position recording, MT5 or broker operations are available**. The normal
+`gold` alias still opens the TUI. `/tmp` is temporary demo storage.
+
 Qt will be installed as an *optional* `PySide6-Essentials` dependency after Ubuntu
 package resolution, smoke testing and an authentic regenerated `uv.lock`. The current
 `pyproject.toml` and lockfile remain unchanged. One-time optional smoke (requires

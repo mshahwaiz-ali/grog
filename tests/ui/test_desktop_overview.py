@@ -5,6 +5,8 @@ from __future__ import annotations
 import dataclasses
 from decimal import Decimal
 
+import pytest
+
 from grog.desktop.overview_model import from_snapshot
 from grog.domain.enums import SignalEventKind
 from ui_support import session, step_until
@@ -79,3 +81,27 @@ def test_price_scale_remains_lossless_in_quote_cards() -> None:
     model = from_snapshot(dataclasses.replace(snap, quote=quote), (), {}, open_positions=0)
     assert model.bid == "4,119.9600"
     assert model.ask == "4,120.2700"
+
+def test_qt_preview_uses_actual_snapshot_and_is_read_only(tmp_path, monkeypatch) -> None:
+    pytest.importorskip("PySide6")
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+
+    from grog.desktop.window import GoldWindow
+    from ui_support import open_journal
+
+    s = session()
+    store, journal = open_journal(tmp_path)
+    try:
+        app = QApplication.instance() or QApplication(["gold-desktop-test"])
+        window = GoldWindow(s, journal)
+        window.show()
+        app.processEvents()
+        assert "SIMULATED" in window.source.text()
+        assert window.bid.text() == format(s.snapshot().quote.bid, ",f")
+        cursor = s.cursor
+        window._step()
+        assert s.cursor == cursor + 1
+        window.close()
+    finally:
+        store.close()

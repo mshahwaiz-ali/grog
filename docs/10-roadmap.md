@@ -236,7 +236,7 @@ Independent of MT5 M09-B and research M10; no broker connectivity/automation. Co
 | Phase | Task | Acceptance gate | Status |
 | --- | --- | --- | --- |
 | D00 | Docs, pure lossless display helpers, isolated Qt probe, optional Qt lock | GUI-01..03, existing CLI/TUI unchanged, locked Qt install and Ubuntu offscreen/visible smoke | **IN PROGRESS:** pure tests pass; lock + real Qt smoke pending |
-| D01 | Replay-backed Overview and playback controls | No trade/forming/ready/blocked and quotes match engine; event order unchanged | NOT STARTED |
+| D01 | Replay-backed Overview and playback controls | No trade/forming/ready/blocked and quotes match engine; event order unchanged | **PREVIEW IMPLEMENTED / LOCAL QT INTEGRATION TEST PENDING** |
 | D02 | Signals watchlist, ready, blocked, history, full details | Original/current state, entry/SL/TP, TTL, source fidelity match R0 | NOT STARTED |
 | D03 | Positions, Journal, confirmed forms, reconciliation | GUI-06/07; idempotent, rollback-safe validated journal workflow | NOT STARTED |
 | D04 | Diagnostics, threading, error/empty states, DPI/layout QA | GUI-08/09; no dropped ticks, no stale fake live, worker-safe | NOT STARTED |
