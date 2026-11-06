@@ -323,6 +323,9 @@ def _needs(snap: Snapshot, c: S1Candidate) -> tuple[str, str]:
     return "FORMING", f"M5 close{op}{price(level)} {body}"
 
 
+# Stable pure candidate read model shared by the Textual and native frontends.
+candidate_condition = _needs
+
 FORMING_COLUMNS = ("ID", "SIDE", "STRATEGY", "STATUS", "NEEDS")
 FORMING_COLUMNS_COMPACT = ("ID", "SIDE", "STATUS", "NEEDS")
 FORMING_COLUMNS_LIVE = ("SIDE", "STATUS", "NEXT CONDITION")
