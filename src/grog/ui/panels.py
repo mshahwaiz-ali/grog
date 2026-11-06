@@ -325,6 +325,7 @@ def _needs(snap: Snapshot, c: S1Candidate) -> tuple[str, str]:
 
 FORMING_COLUMNS = ("ID", "SIDE", "STRATEGY", "STATUS", "NEEDS")
 FORMING_COLUMNS_COMPACT = ("ID", "SIDE", "STATUS", "NEEDS")
+FORMING_COLUMNS_LIVE = ("SIDE", "STATUS", "NEXT CONDITION")
 
 
 def forming_rows(snap: Snapshot, compact: bool = False) -> list[tuple[str, tuple[str, ...]]]:
@@ -336,6 +337,11 @@ def forming_rows(snap: Snapshot, compact: bool = False) -> list[tuple[str, tuple
             cells = (cells[0], cells[1], cells[3], cells[4])
         rows.append((c.candidate_id, cells))
     return rows
+
+
+def forming_live_rows(snap: Snapshot) -> list[tuple[str, tuple[str, ...]]]:
+    """Compact Live watchlist with full candidate IDs preserved in row keys/details."""
+    return [(c.candidate_id, (c.side.value, *_needs(snap, c))) for c in snap.forming]
 
 
 def lanes_summary(snap: Snapshot, entered: int = 0) -> str:
@@ -405,8 +411,15 @@ def proposals_panel(
     live = [(v, ln) for v, ln in lanes if not ln.terminal]
     fresh = [(v, ln) for v, ln in live if ln.fresh_opportunity]
     if not fresh:
+        reason = no_trade_reason(snap, events, overlay)
         lines.append([("NO TRADE — conditions not met", "caution")])
-        lines.append([("Reason: " + no_trade_reason(snap, events, overlay), "muted")])
+        if reason.startswith("WAIT FOR TRIGGER:") and snap.forming:
+            candidate = snap.forming[0]
+            status, condition = _needs(snap, candidate)
+            lines.append([(f"{candidate.side.value} setup: {status}", "caution")])
+            lines.append([("Next condition: " + condition, "primary")])
+        else:
+            lines.append([("Reason: " + reason, "muted")])
     for v, ln in live:
         r = v.record
         ent, ex = entry_labels(r.side)

@@ -48,6 +48,14 @@ Workstation keys: `1`–`5` views (Live, Signals, Positions, Journal, Diagnostic
 
 Local checks (no GitHub Actions): `uv run pytest -q`, `uv run ruff check .`, `uv run ruff format --check .`. Screenshot evidence: `uv run python scripts/r0_screenshots.py --out /path/outside/repo` (needs headless Chrome for PNG; SVG otherwise).
 
+### One-word Ubuntu/Bash shortcut
+
+After importing the offline demo source, a shell alias named `gold` can launch the exact
+`grog ui --mode replay` command above. Put the alias in `~/.bashrc` to retain it after
+closing the terminal. Reserve the installed `grog` command for other CLI operations,
+such as `grog doctor`. The sample state in `/tmp/grog-demo` is **temporary** and must
+not be treated as durable journal storage; do not silently migrate or overwrite it.
+
 ## M09-A — read-only MT5 reference feed (offline parts only)
 
 The broker-neutral adapter for a future read-only MT5 demo/reference feed exists and is tested on recorded-format **FIXTURE** files only ([docs/09 §5.1](docs/09-architecture.md)). `mql5/GrogReferenceExporter.mq5` is authored but **has never been compiled or run in MT5**. No terminal, Wine, broker account, credentials or network connection has been used.

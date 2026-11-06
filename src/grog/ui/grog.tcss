@@ -64,6 +64,24 @@ Screen.-narrow #notice, Screen.-short #notice { display: block; }
     border-title-style: bold;
     border-title-align: left;
 }
+/* Decision-first Live view. The caution border conveys no verified broker action. */
+#proposals {
+    background: $g-raised;
+    border: round $g-caution;
+    padding: 1 2;
+    min-height: 5;
+    margin: 0 0 1 0;
+}
+#live-top, #positions-mini { margin: 0 0 1 0; }
+#feed { background: #101B29; }
+#forming-box DataTable { max-height: 6; }
+Screen.-narrow #proposals, Screen.-short #proposals {
+    border: none;
+    border-top: hkey $g-caution;
+    min-height: 0;
+    padding: 0 1;
+}
+
 /* table sections: full-bleed with a titled top rule so wide tables fit 120 columns */
 .box {
     background: $g-panel;

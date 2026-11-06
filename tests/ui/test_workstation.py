@@ -188,6 +188,30 @@ def test_ui19_paused_and_ended_show_virtual_time_not_wall_clock() -> None:
 # ---------------------------------------------------------------- UI-01..05 layout/navigation
 
 
+def test_live_decision_first_with_compact_watchlist_and_full_candidate_details() -> None:
+    async def scenario() -> None:
+        s = session()
+        while not s.snapshot().forming:
+            assert s.step()
+        candidate_id = s.snapshot().forming[0].candidate_id
+        app = GrogApp(s, autoplay_timer=False)
+        async with app.run_test(size=WIDE) as pilot:
+            await pilot.pause()
+            proposal = app.query_one("#proposals")
+            context = app.query_one("#context")
+            assert proposal.region.bottom <= context.region.y
+            watchlist = app.query_one("#forming")
+            assert len(watchlist.columns) == len(panels.FORMING_COLUMNS_LIVE) == 3
+            assert len(text(app, "#feed").splitlines()) <= 5
+            watchlist.move_cursor(row=0)
+            watchlist.focus()
+            await pilot.press("enter")
+            assert isinstance(app.screen, Overlay)
+            assert candidate_id in app.screen.plain
+
+    run(scenario)
+
+
 def test_ui01_wide_screen_shows_all_lanes_and_five_views() -> None:
     async def scenario() -> None:
         s, _sid = at_first_ready()

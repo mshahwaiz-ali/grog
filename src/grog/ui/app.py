@@ -28,7 +28,7 @@ from grog.ui.widgets import StateTable, TextPanel
 REDRAW_HZ = 4  # docs/02 §2 ui.max_refresh_hz (view only; engine never waits on it)
 TICK_S = 0.05  # playback work slice; only decides how many quotes run per slice
 VIEWS = ("live", "signals", "positions", "journal", "diagnostics")
-FEED_ROWS_LIVE = 8
+FEED_ROWS_LIVE = 4
 JOURNAL_ROWS = 50  # docs/02 §11 visible buffer
 
 
@@ -92,14 +92,14 @@ class GrogApp(App[None]):
         yield TextPanel(id="notice")
         with ContentSwitcher(initial="live", id="views"):
             with VerticalScroll(id="live", classes="pane"):
+                # Put the decision above the supporting context and history.
+                yield TextPanel(id="proposals", classes="panel boxed")
                 with Horizontal(id="live-top", classes="row"):
                     yield TextPanel(id="context", classes="panel boxed")
                     with Vertical(id="forming-box", classes="panel"):
                         yield StateTable(id="forming")
                         yield TextPanel(id="lanes", classes="note")
-                with Horizontal(id="live-mid", classes="row"):
-                    yield TextPanel(id="proposals", classes="panel boxed")
-                    yield TextPanel(id="positions-mini", classes="panel boxed")
+                yield TextPanel(id="positions-mini", classes="panel boxed")
                 yield TextPanel(id="feed", classes="panel boxed")
             with VerticalScroll(id="signals", classes="pane"):
                 with Vertical(id="ready-box", classes="box"):
@@ -190,7 +190,9 @@ class GrogApp(App[None]):
         q("#context", TextPanel).set_lines(panels.context_panel(snap))
         q("#forming-box").border_title = "OPPORTUNITIES FORMING"
         cols = panels.FORMING_COLUMNS_COMPACT if self.compact else panels.FORMING_COLUMNS
-        q("#forming", StateTable).show(cols, panels.forming_rows(snap, self.compact))
+        q("#forming", StateTable).show(
+            panels.FORMING_COLUMNS_LIVE, panels.forming_live_rows(snap)
+        )
         lanes = [[(panels.lanes_summary(snap, len(self._open)), "muted")]]
         if not snap.forming:
             lanes.insert(0, [("No developing opportunities", "muted")])

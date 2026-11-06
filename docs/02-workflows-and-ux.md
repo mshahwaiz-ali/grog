@@ -43,6 +43,16 @@ The tokens above are unchanged; this section fixes how they are composed so ever
 
 Authoritative Textual API references: https://github.com/Textualize/textual/blob/main/docs/guide/app.md and https://github.com/Textualize/textual/blob/main/docs/widgets/data_table.md
 
+### 2.2 Live decision-first presentation (2026-11-06)
+
+The Live view prioritizes the **current decision** above market evidence: (1) current actionable/simulated decision, (2) H1/M15/M5 context and forming watchlist, (3) manually recorded positions, (4) a short recent-state-transition feed. Keep the full Journal, Signals, Positions and Diagnostics views.
+
+- The `NO TRADE` state remains explicit, with the next actual M5 condition displayed when the selected developing candidate is waiting for a trigger.
+- The Live watchlist shows direction, state and next condition, while preserving the full immutable candidate ID in the row key and `Enter` details.
+- Limit the Live event feed to four recent state transitions; do not discard engine or journal events.
+- Retain immutable signal issuance/current status, source fidelity, correct BID/ASK prices, manual-record-only actions, keyboard controls and responsive detail access.
+- These are presentation-only changes. No strategy rules, eligibility, prices, thresholds, P/L, executions or journal records are recalculated by the UI.
+
 ## 3. Navigation and keyboard bindings — exact MVP contract
 
 | Key | Action | Safety |
