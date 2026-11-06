@@ -1,6 +1,6 @@
 # Decisions, Approval Status and Documentation Change Control
 
-Updated 2026-10-31. **This is the authoritative record of agreed scope and unresolved decisions**, not proof of implementation or strategy profitability.
+Updated 2026-11-07. **This is the authoritative record of agreed scope and unresolved decisions**, not proof of implementation or strategy profitability.
 
 ## 1. Status vocabulary
 
@@ -28,6 +28,7 @@ Updated 2026-10-31. **This is the authoritative record of agreed scope and unres
 | D-011 | APPROVED 2026-10-31 | **Use MT5 as Grog's preferred reference-price adapter for the first implementation**, with a broker-neutral normalized BID/ASK core. An MT5 demo server can provide development quotes; no final execution broker is chosen or required for offline engine implementation. MT5 itself is NOT an independent source of universally identical Gold quotes. |
 | D-012 | APPROVED 2026-10-31 | **Do not block Grog's data, replay, MTF, indicators or offline S1 research on the user's broker choice.** Later broker selection changes executable spreads, cost, symbol specs and price-side SL/TP validation; mark reference-feed signals as indicative until validated against actual execution venue. Manual execution only; no brokerage write APIs. |
 | D-013 | APPROVED DIRECTION 2026-10-31 | **Documentation-first handoff:** when the user expressly tells Grok to start implementation, follow [AGENTS.md](../AGENTS.md) and [10 — Roadmap](10-roadmap.md) through **M00–M08**, one bounded locally tested module at a time, main branch only. No repeated questions for already-specified offline behavior; live MT5 install/demo credentials and real-money broker settings still need separate permission. No GitHub Actions. |
+| D-014 | APPROVED 2026-11-07 | Implement a **local native Qt Widgets desktop UI** to supersede the confusing terminal frontend while retaining Textual until full acceptance. No web dashboard, new trading rules, broker orders or fabricated results. Reuse causal replay and validated manual journal; preserve precise Decimal/display fidelity. `gold` cutover only after D00–D05 gates and owner approval ([02 §15](02-workflows-and-ux.md), [09 §12](09-architecture.md), [10 §11](10-roadmap.md)). |
 
 ## 3. Scope lock — what upgrades may and may not mean
 

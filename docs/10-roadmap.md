@@ -1,6 +1,6 @@
 # Grok Build Roadmap — Exact Milestones, Tests and Handoffs
 
-**Updated:** 2026-10-31  
+**Updated:** 2026-11-07  
 **Status:** R0 (M00–M08) **IMPLEMENTED and acceptance-audited** (verdict CONDITIONAL, see [14](14-r0-acceptance-audit.md) §5); M09 is BLOCKED on external permission and M10 is data/evidence-gated (plans in §9 and §10 below). **real broker connectivity, live trade-risk limits, performance thresholds and profitability cannot be finalized without actual data**. Implementation status is tracked factually in Section 8 below (implemented is not the same as validated).
 
 **One rule:** Grok is the **external implementation bot**. Grog's running software contains **NO agent/LLM/autonomous broker execution**. Use `main` only, direct Git commits, local tests, no GitHub Actions. Work solely in Grog repo and test directories; no production systems.
@@ -228,3 +228,20 @@ No evaluation result exists. **Research readiness:** the protocol structure is d
 3. **Pre-registration:** window boundaries, `ΔE`/`ΔDD` and the [08 §18.6](08-validation.md) values committed before the validation window is evaluated.
 4. **Forward paper:** M09-B authorized and running; [08 §18.7](08-validation.md) period and stop rules fixed.
 5. **Reporting rule:** SIMULATED/PAPER labels with sample sizes; no win-rate or profitability claim; missing data ⇒ **UNVALIDATED** with the missing item named. No new indicators/strategies; no fitting to synthetic data.
+
+## 11. D00–D05 — native desktop migration (approved 2026-11-07)
+
+Independent of MT5 M09-B and research M10; no broker connectivity/automation. Complete a bounded verified phase and commit before progressing.
+
+| Phase | Task | Acceptance gate | Status |
+| --- | --- | --- | --- |
+| D00 | Docs, pure lossless display helpers, isolated Qt probe, optional Qt lock | GUI-01..03, existing CLI/TUI unchanged, locked Qt install and Ubuntu offscreen/visible smoke | **IN PROGRESS:** pure tests pass; lock + real Qt smoke pending |
+| D01 | Replay-backed Overview and playback controls | No trade/forming/ready/blocked and quotes match engine; event order unchanged | NOT STARTED |
+| D02 | Signals watchlist, ready, blocked, history, full details | Original/current state, entry/SL/TP, TTL, source fidelity match R0 | NOT STARTED |
+| D03 | Positions, Journal, confirmed forms, reconciliation | GUI-06/07; idempotent, rollback-safe validated journal workflow | NOT STARTED |
+| D04 | Diagnostics, threading, error/empty states, DPI/layout QA | GUI-08/09; no dropped ticks, no stale fake live, worker-safe | NOT STARTED |
+| D05 | Switch `gold` launcher after acceptance; preserve `grog ui` | Full suite, observed GUI, durable state reviewed, owner sign-off | NOT STARTED |
+
+**D00 block:** This execution environment cannot resolve or run PySide6. Do not edit or hand-construct `uv.lock`; perform real optional dependency resolution and the Qt probe on Ubuntu before treating D00 as complete. Foundation checks are not GUI parity or profitability evidence.
+
+Canonical contracts: [02 §15](02-workflows-and-ux.md), [08 §19](08-validation.md), [09 §12](09-architecture.md), [11 D-014](11-decisions.md).

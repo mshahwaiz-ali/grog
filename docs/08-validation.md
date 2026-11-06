@@ -555,3 +555,21 @@ All criteria are fixed in this document (dated commit) before the validation win
 
 Requires M09-B (authorized reference feed). For a pre-declared period (OPEN): every READY is journaled as ENTERED (paper) or USER_SKIPPED with reason; record actual delay and the reference prices at entry/exit; weekly report comparing forward vs validation distributions (count, net R, drawdown, delay, spread). Stop rules (OPEN): drawdown breach, feed-quality failure rate, or criteria drift ⇒ pause and report. Paper results are labelled PAPER/INDICATIVE, never broker-verified or live-money results.
 
+## 19. Native desktop GUI acceptance cases (2026-11-07)
+
+Qt UI tests are separate from trading-strategy performance claims. The probe is not a functional workstation.
+
+| ID | Scenario | Required outcome |
+| --- | --- | --- |
+| GUI-01 | Qt unavailable | Existing CLI/TUI unaffected; safe error, no persisted changes |
+| GUI-02 | Qt probe | Offscreen/native widgets initialize and close without market/journal access |
+| GUI-03 | Number display | Decimal digits/trailing zeros preserved; no implicit rounding or unknown=0 |
+| GUI-04 | Overview | No trade/forming/ready/blocked match the same engine snapshot and source |
+| GUI-05 | Replay | Same ordered events, signal IDs, timestamps and prices as Textual/R0 |
+| GUI-06 | Journal | Entry/skip/partial/modify/close/unlinked and restart reconcile persist correctly |
+| GUI-07 | Stale dialog | Changed/terminal/used signal never silently records on-plan |
+| GUI-08 | Threading | Widgets only touched in GUI thread; no dropped input/event ordering |
+| GUI-09 | Usability | Resolution, DPI, keyboard, errors, empty states and precision verified visually |
+| GUI-10 | Cutover | `gold` changes only after full parity and owner approval; TUI retained |
+
+D00 can verify pure formatter tests here. GUI-02 is **PENDING** until PySide6 is installed on a compatible Ubuntu machine.

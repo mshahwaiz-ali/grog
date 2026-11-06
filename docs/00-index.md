@@ -1,6 +1,6 @@
 # Grog Documentation Index — Canonical Specifications
 
-**Updated:** 2026-10-31 · **Project stage:** offline R0 (M00–M08) implemented and acceptance-audited — verdict CONDITIONAL ([14](14-r0-acceptance-audit.md) §5); M09-A offline reference-adapter parts implemented on fixtures, M09-B (real MT5 demo) BLOCKED on external permission; M10 protocol structure defined with values OPEN; no strategy edge validated.
+**Updated:** 2026-11-07 · **Project stage:** offline R0 (M00–M08) implemented and acceptance-audited — verdict CONDITIONAL ([14](14-r0-acceptance-audit.md) §5); M09-A offline reference-adapter parts implemented on fixtures, M09-B (real MT5 demo) BLOCKED on external permission; M10 protocol structure defined with values OPEN; no strategy edge validated.
 
 ## How to read and change these documents
 
@@ -9,7 +9,7 @@
 | File | Sole topic ownership |
 | --- | --- |
 | [01 — Product Vision](01-product-vision.md) | Goals, exclusions and outcomes |
-| [02 — Terminal Workflow](02-workflows-and-ux.md) | User-facing sessions, entry confirmation and UI behavior |
+| [02 — Workstation UX](02-workflows-and-ux.md) | User-facing sessions, entry confirmation and UI behavior |
 | [03 — Market Data](03-market-data.md) | BID/ASK ticks, closed bars, data quality, time and calendars |
 | [04 — Market Analysis](04-analysis-engine.md) | MTF roles, pivot/EMA/ATR formulas, H1/M15 interpretation |
 | [05 — Trading Strategies](05-strategies.md) | S1 impulse/pullback/entry trigger and S2/S3 backlog |
@@ -51,4 +51,6 @@ When the user tells Grok to **start**, the sole external agent instructions are 
 
 **Latest research milestones:** Phase 18 refined evidence-first signal decisions in [06](06-signals-and-scoring.md) and SQ-01..SQ-18 in [08](08-validation.md). Market-data research now **selects MT5 as the preferred read-only reference adapter** while leaving real-money broker selection optional for early development, as recorded in [11](11-decisions.md). Feed integrity, demo-server requirements and offline replay are in [03](03-market-data.md), real bid/ask economics in [07](07-risk-and-monitoring.md), and MD-01..MD-22 test cases in [08](08-validation.md). Unapproved choices are logged in [11](11-decisions.md). No new active topic file was created.
 
-This is our documentation structure; implementation status is tracked factually in [10 §8](10-roadmap.md).
+**Approved GUI direction (2026-11-07):** a native Qt Widgets frontend ([11 D-014](11-decisions.md)), with UX in [02 §15](02-workflows-and-ux.md), architecture in [09 §12](09-architecture.md), and gated build steps in [10 §11](10-roadmap.md). The existing Textual R0 UI stays supported during migration.
+
+This is our documentation structure; implementation status is tracked in [10 §8](10-roadmap.md) and desktop progress in [10 §11](10-roadmap.md).

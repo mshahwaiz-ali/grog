@@ -5,7 +5,7 @@
 
 ## Mission — unchangeable without explicit user approval
 
-Build a lightweight, high-quality local Python terminal application that researches **XAUUSD Gold** and displays objective **forming** and **ready** trading opportunities and monitors only **manually recorded** positions. Improvement must mean **better and more testable Gold trade decisions**, not extra features.
+Build a lightweight, high-quality local Python workstation (existing terminal plus approved native desktop successor) that researches **XAUUSD Gold** and displays objective **forming** and **ready** trading opportunities and monitors only **manually recorded** positions. Improvement must mean **better and more testable Gold trade decisions**, not extra features.
 
 **Never implement:**
 - LLM, chatbot, autonomous reasoning/trading agent inside Grog.
@@ -13,6 +13,13 @@ Build a lightweight, high-quality local Python terminal application that researc
 - Crypto, stocks, unrelated assets, generic financial dashboards, notifications/social feeds, SaaS/cloud server, web dashboard, heavyweight charting or excessive indicators.
 - GitHub Actions workflows. The user's account has them disabled. **Local tests and direct Git commits do not require GitHub Actions**.
 - Any change to production hosts or other projects; particularly **never touch `erp.omchouse.com`**.
+
+## Native desktop modernization — approved 2026-11-07
+
+- The owner approved a **local PySide6/Qt Widgets desktop frontend**, not a web dashboard; see docs/11 D-014, docs/02 §15, docs/09 §12 and docs/10 §11.
+- Keep Textual and the current `gold` launcher until feature parity, user acceptance and full regression tests. No change to strategies, live MT5 permissions or broker execution.
+- GUI reads existing replay snapshots and validates all manual records through the existing PositionJournal. Do not duplicate domain calculations, import Qt into the engine, or cross SQLite thread ownership.
+- D00 is bounded to documentation, pure decimal-preserving display helpers and an **isolated Qt probe**. Do not claim a working trading GUI or fabricate a `uv.lock` update before package resolution.
 
 ## Before doing any work: read in this order
 

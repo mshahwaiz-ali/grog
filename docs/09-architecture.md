@@ -1,7 +1,7 @@
 # Grog Software Architecture — Canonical Implementation Contract
 
-**Updated:** 2026-10-31  
-**Status:** This is the **approved implementation architecture baseline when the user tells Grok to start**. The strategy's experimental numeric parameters and live execution assumptions retain their research/OPEN statuses in the owning documents. **R0 (M00–M08) is implemented against this contract** (as-built notes in §2.1; acceptance evidence in [14](14-r0-acceptance-audit.md)); the MT5 reference adapter is not built.
+**Updated:** 2026-11-07  
+**Status:** This is the **approved implementation architecture baseline when the user tells Grok to start**. The strategy's experimental numeric parameters and live execution assumptions retain their research/OPEN statuses in the owning documents. **R0 (M00–M08) is implemented against this contract** (as-built notes in §2.1; acceptance evidence in [14](14-r0-acceptance-audit.md)); offline M09-A/H adapter components are implemented on fixtures while M09-B remains blocked.
 
 **Goal:** local, deterministic, low-maintenance Python Gold (XAUUSD) research/terminal software. Only improve measurable manual trade selection and monitoring. No LLM/agent runtime, wallet, account dashboard, copy trading, remote SaaS, automatic broker execution, or GitHub Actions.
 
@@ -11,7 +11,7 @@ This file owns module layout, interfaces, schemas, data persistence, command sur
 
 - **Python:** target Python **3.11** for initial reproducibility on Ubuntu; verify selected libraries support it; no system-wide Python replacement.
 - **Package tool:** `uv` project + `pyproject.toml`, `uv.lock` committed. Use `uv sync --locked` after lock exists; dependency versions come from an actually resolved lockfile, not invented package pins.
-- **TUI:** `textual` (Rich renderables as supported by Textual), style in a single `.tcss`. **The analysis engine must never import Textual, Rich or TUI-specific state.**
+- **TUI:** `textual` (Rich renderables as supported by Textual), style in a single `.tcss`; retained as fallback. **The analysis engine must never import Textual, Rich or TUI-specific state.** Local Qt Widgets desktop migration approved (§12).
 - **Local operations DB:** Python `sqlite3`, migrations in versioned SQL files, WAL mode, foreign keys and proper transactions; no PostgreSQL, web server or cloud.
 - **Raw market data:** immutable, checksummed **local files** divided by source/time batch; metadata and journal in SQLite. Small synthetic fixtures in tests; do not commit large/private third-party datasets.
 - **Calculation numerics:** `decimal.Decimal` for quote/contract prices and money, UTC integer epoch milliseconds for event-time; named explicit rounding policies per broker tick size. Indicator EMA/ATR recurrence can use tested high-precision Decimal and round only at final executable prices. Avoid float-vs-decimal nondeterminism between replay runs.
@@ -359,3 +359,14 @@ Config is validated at startup with explicit field-path error, supports a versio
 Detailed acceptance case IDs: [08 — Validation](08-validation.md); milestone-specific mapping [10 — Roadmap](10-roadmap.md).
 
 **No production or other ERP project server, service or file is in scope. No automated broker trading. No code has been written merely by committing this specification.**
+
+## 12. Native desktop layer (2026-11-07)
+
+- **Separate, optional GUI:** `src/grog/desktop/` for Qt Widgets presentation; prefer `PySide6-Essentials` (QtCore/Gui/Widgets) instead of the full addons bundle. Do not add unresolvable dependencies to the main installation: `pyproject.toml` and `uv.lock` change together only after genuine `uv` resolution.
+- **Ports:** existing `ReplaySession.snapshot()`/immutable `Snapshot`, `SignalView`, `PositionJournal` and validated request types are authoritative. No Qt imports inside domain/replay/journal. GUI may only format, select and submit explicit validated commands; no copied strategy, risk or financial arithmetic.
+- **Thread ownership:** Qt widgets and models stay in the main GUI thread; future replay worker processes every input in order and forwards immutable views via queued signals. SQLite connections/writers must stay with their owner thread, never passed to GUI workers.
+- **No side effects from probe:** `python -m grog.desktop.probe` is a standalone smoke window. It does not read source files, initialize SQLite, journal, MT5 or sockets and cannot place trades. No default CLI or launcher change.
+- **Formatting:** pure `desktop/presentation.py` uses `Decimal` without rounding or float conversion, displays explicit UTC and pending trigger wording only for confirmed FORMING candidates. Source/precision metadata, signal status and trading actions are never created here.
+- **Transition:** keep current `gold` → Textual and `grog ui` until D05 acceptance. No DB migration or change to the source catalog in D00.
+
+[User-facing contract](02-workflows-and-ux.md) · [Tests](08-validation.md) · [Roadmap](10-roadmap.md).

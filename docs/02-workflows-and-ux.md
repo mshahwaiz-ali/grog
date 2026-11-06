@@ -1,9 +1,9 @@
-# Terminal Workstation — Canonical UX, Layouts and Interaction Contract
+# Workstation UX — Canonical Terminal and Desktop Contracts
 
-**Updated:** 2026-10-31  
+**Updated:** 2026-11-07  
 **Status:** Product intent APPROVED; interface specification is the **implementation baseline when Grok is asked to start**. The visual designs below are synthetic examples, not live prices, real signals or evidence of profitability.
 
-**Owner:** terminal layouts, wording, keyboard/navigation, input forms and empty/error states. Algorithm math is **not** defined here: indicators [04](04-analysis-engine.md), strategies [05](05-strategies.md), signal state/expiry [06](06-signals-and-scoring.md), actual fills/monitoring [07](07-risk-and-monitoring.md), validation [08](08-validation.md).
+**Owner:** workstation layouts, wording, keyboard/navigation, input forms and empty/error states. Existing terminal sections remain the R0 fallback; §15 is the native desktop direction. Algorithm math is **not** defined here: indicators [04](04-analysis-engine.md), strategies [05](05-strategies.md), signal state/expiry [06](06-signals-and-scoring.md), actual fills/monitoring [07](07-risk-and-monitoring.md), validation [08](08-validation.md).
 
 ## 1. Product UI principle
 
@@ -283,3 +283,20 @@ Report must never display a positive balance, live profitability or numeric conf
 ## 14. Final UI definition of done
 
 All five screens, two responsive layouts, keyboard controls including off-plan manual recording, lossless (within tested source limits) state visualization, explicit source fidelity, missing data displays and manual entry/partial/close/restart behavior must be validated against [08 — Tests](08-validation.md). Visual acceptance additionally requires: consistent 1-character separators, no overlapping borders in 80-column view, predictable focus and contrast, clipped columns whose full values are available in details, and no repeated tick-notification flood. No extra UI features may be added solely for aesthetics.
+
+## 15. Native desktop GUI design (approved 2026-11-07)
+
+**Status:** Direction approved; new GUI not implemented beyond D00 foundation. The terminal app remains fully supported. [Decisions](11-decisions.md), [Architecture §12](09-architecture.md), [Roadmap §11](10-roadmap.md).
+
+- **Form factor:** local Qt Widgets application, not web. Left navigation for Overview, Signals, Positions, Journal and Diagnostics. Clean dark surfaces, restrained gold accent, accessible typography, whitespace and mouse/keyboard controls. No charting sprawl, SaaS, wallet, broker orders or new trading features.
+- **Overview:** prominent *No trade / Developing / Simulated READY / Execution blocked* state, the grounded next condition, readable BID/ASK/spread, feed fidelity and virtual UTC. Explain H1 trend, M15 structure, M5 trigger before showing low-level event codes.
+- **Signals:** forming, ready/blocked and history are visually separate; full IDs and reason codes live in details. Preserve original vs current signal state, immutable entry/band/SL/TP1/TP2, TTL, price sides and operator action.
+- **Positions and Journal:** explicit manual-only records, mark freshness, confirmation dialogs, append-only state, source identity, fee/risk unknowns and restart reconciliation. No trade is inferred from a quoted touch.
+- **Diagnostics:** exact data age, gaps, completed bars, source hashes, pre-roll, link status and unknown inputs. Never silently relabel REPLAY as live.
+- **Numbers:** format original Decimal values with grouping; never convert to float, assume two decimals, round an executable price, assume tick size, invent precision or turn unknown into zero. Source-specific precision requires verified metadata.
+- **Actions:** dialog confirmation defaults to Cancel and revalidates state at save time. Blocked, expired or already-acted signals must not silently produce new on-plan entries. All journal writes use existing validated service methods.
+- **Time/threads:** replay event order and source timestamps stay causal; only display redraw may be throttled. Qt widgets on GUI thread; replay worker/SQLite ownership explicit. No worker modifies Qt controls.
+- **Sizes:** verify 1366×768, 1920×1080, high DPI, enlarged text, keyboard-only flow, empty/error states and readable signal details.
+- **Cutover:** `gold` continues to launch Textual until desktop feature parity, observed visual QA, full suite and owner approval; `grog ui` remains fallback.
+
+Acceptance matrix: [08 §19](08-validation.md). This specification sets no strategy or risk thresholds.

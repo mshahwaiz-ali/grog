@@ -4,7 +4,7 @@
 
 **State:** offline release **R0 (M00–M08) implemented and acceptance-audited** ([docs/14](docs/14-r0-acceptance-audit.md)): strict BID/ASK CSV import, causal bars and feed health, no-lookahead analysis, the research-only S1 v0.2 detector, SIMULATED signal eligibility, deterministic replay with evidence reports, and the Textual workstation with a local manual journal (entry, skip, partial/close, stop/target modify, unlinked external fills, restart reconciliation). Grog places **no orders**, has **no live data feed** yet (M09 MT5 reference feed is planned, not built), and **no strategy edge, live-data readiness, broker-verified fill or profitability is claimed**. OPEN thresholds (quote age, first-quote delay, spread, costs, contract) default to unset, so the default config issues no READY.  
 **Repository:** private; default branch `main`.  
-**Last update:** 2026-10-31.
+**Last update:** 2026-11-07.
 
 ## Product mission
 
@@ -24,6 +24,25 @@ Grog is **rule-based software**, not GPT/Claude/LLM, an AI agent, an auto-trader
 8. Replay realistic historical tick data and validate the smallest strategy/indicator combination that shows robust **net** performance, rather than chasing win-rate claims.
 
 Proposed strategies/indicator periods have **not** been tested; an attractive quality score is **not** a win probability. Phase 18 specifies evidence-first signals and tests. **MT5 is now the preferred reference-price adapter**, regardless of the eventual execution broker. First build broker-neutral offline BID/ASK parsing, causal MTF analysis and replay; then connect an MT5 demo data source when separately approved. The actual broker/server and live feed are not selected or installed. Numerical ranking remains experimental.
+
+## Desktop GUI — foundation in progress
+
+A **native Qt Widgets desktop frontend** is approved, but it is **not operational yet**.
+The Textual TUI and existing `gold` launcher are unchanged. D00 adds tested, UI-neutral
+price/UTC/trigger formatting and a **Qt foundation probe only**, with NO replay, signals,
+positions, journal access or broker connection.
+
+Qt will be installed as an *optional* `PySide6-Essentials` dependency after Ubuntu
+package resolution, smoke testing and an authentic regenerated `uv.lock`. The current
+`pyproject.toml` and lockfile remain unchanged. One-time optional smoke (requires
+network/package access but does not edit the project lockfile):
+
+```bash
+uv run --with pyside6-essentials==6.11.3 python -m grog.desktop.probe --smoke
+```
+
+Removing `--smoke` opens the isolated foundation window — it does not display market
+data. Migration stages/acceptance: [docs/10 §11](docs/10-roadmap.md).
 
 ## Run it locally (offline demo)
 
