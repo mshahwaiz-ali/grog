@@ -34,7 +34,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     from grog.domain.clock import SystemClock
     from grog.journal.positions import PositionJournal
     from grog.journal.store import Store
-    from grog.settings import ConfigError, STATE_DB_FILENAME, resolve_state_dir
+    from grog.settings import STATE_DB_FILENAME, ConfigError, resolve_state_dir
 
     state_dir, _origin = resolve_state_dir(args.state_dir, os.environ)
     database = state_dir / STATE_DB_FILENAME

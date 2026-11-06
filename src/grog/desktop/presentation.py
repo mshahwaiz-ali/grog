@@ -30,9 +30,7 @@ def utc_text(timestamp_ms: int | None) -> str:
     """Show source/event time as UTC, never the computer's local clock."""
     if timestamp_ms is None:
         return UNAVAILABLE
-    return datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC).strftime(
-        "%Y-%m-%d %H:%M:%S UTC"
-    )
+    return datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
 def trigger_explanation(side: str, threshold: Decimal | None) -> str:

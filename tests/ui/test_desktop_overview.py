@@ -75,12 +75,11 @@ def test_missing_data_is_not_zero_or_fresh() -> None:
 def test_price_scale_remains_lossless_in_quote_cards() -> None:
     s = session()
     snap = s.snapshot()
-    quote = dataclasses.replace(
-        snap.quote, bid=Decimal("4119.9600"), ask=Decimal("4120.2700")
-    )
+    quote = dataclasses.replace(snap.quote, bid=Decimal("4119.9600"), ask=Decimal("4120.2700"))
     model = from_snapshot(dataclasses.replace(snap, quote=quote), (), {}, open_positions=0)
     assert model.bid == "4,119.9600"
     assert model.ask == "4,120.2700"
+
 
 def test_qt_preview_uses_actual_snapshot_and_is_read_only(tmp_path, monkeypatch) -> None:
     pytest.importorskip("PySide6")

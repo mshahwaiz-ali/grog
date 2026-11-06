@@ -92,8 +92,7 @@ def from_snapshot(
         context_note = "H1/M15 evidence uses confirmed bars; an unfinished bar is not a trigger."
 
     watchlist = tuple(
-        f"{candidate.side.value}: {_human_condition(snap, candidate)}"
-        for candidate in snap.forming
+        f"{candidate.side.value}: {_human_condition(snap, candidate)}" for candidate in snap.forming
     )
     latest = tuple(
         f"{utc_text(item.time_ms)}  |  {item.state}"
@@ -178,8 +177,7 @@ def from_snapshot(
         headline = "No confirmed trade signal"
         reason = no_trade_reason(snap, events, operator_overlay)
         description = (
-            "Current research conditions do not permit a new proposal. "
-            f"Engine reason: {reason}."
+            f"Current research conditions do not permit a new proposal. Engine reason: {reason}."
         )
         tone = "neutral"
 
@@ -202,8 +200,7 @@ def from_snapshot(
         watchlist=watchlist,
         recent=latest,
         progress=(
-            f"{snap.processed:,} / {snap.total:,} quote events "
-            f"· {snap.pre_roll_quotes:,} pre-roll"
+            f"{snap.processed:,} / {snap.total:,} quote events · {snap.pre_roll_quotes:,} pre-roll"
         ),
         open_positions=(
             f"{open_positions} stored open position(s) · view-only; "
