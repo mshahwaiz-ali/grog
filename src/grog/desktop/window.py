@@ -250,11 +250,17 @@ class GoldWindow(QMainWindow):
 
     def _apply(self, s: OverviewState) -> None:
         for widget, value in (
-            (self.source, s.source), (self.time, s.virtual_utc),
-            (self.bid, s.bid), (self.ask, s.ask), (self.spread, s.spread),
-            (self.decision, s.headline), (self.decision_detail, s.description),
+            (self.source, s.source),
+            (self.time, s.virtual_utc),
+            (self.bid, s.bid),
+            (self.ask, s.ask),
+            (self.spread, s.spread),
+            (self.decision, s.headline),
+            (self.decision_detail, s.description),
             (self.health, f"SOURCE {s.source_health} · {s.source_health_detail}"),
-            (self.h1, s.h1), (self.m15, s.m15), (self.m5, s.m5),
+            (self.h1, s.h1),
+            (self.m15, s.m15),
+            (self.m5, s.m5),
             (self.context_note, s.context_note),
             (self.watchlist, "\n\n".join(s.watchlist) if s.watchlist else "No developing setups."),
             (self.positions, s.open_positions),
