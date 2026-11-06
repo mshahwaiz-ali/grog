@@ -572,4 +572,94 @@ Qt UI tests are separate from trading-strategy performance claims. The probe is 
 | GUI-09 | Usability | Resolution, DPI, keyboard, errors, empty states and precision verified visually |
 | GUI-10 | Cutover | `gold` changes only after full parity and owner approval; TUI retained |
 
-D00 can verify pure formatter tests here. GUI-02 is **PENDING** until PySide6 is installed on a compatible Ubuntu machine.
+D00 can verify pure formatter tests here. GUI-02 remains **PENDING formal acceptance**: the owner reports an ephemeral PySide6-Essentials 6.11.3 launch on Ubuntu, but Qt in a regenerated project lock, reproducible offscreen smoke and the current GUI regression suite remain unverified.
+
+## 20. Complete native desktop acceptance matrix and verification protocol (2026-11-07)
+
+**Status:** Implementation-ready **test plan awaiting explicit owner implementation approval**, not evidence that a GUI has passed. See [02 §16](02-workflows-and-ux.md) for UI behavior, [09 §13](09-architecture.md) for data ownership, [10 §12](10-roadmap.md) for phase gates. Existing GUI-01..10 (§19), R0 UI-01..22, ST-01..15, M09 REF acceptance cases and R0-ACC operator journey remain mandatory; do not rename or weaken them. The existing `tests/ui/test_desktop_overview.py` has **seven declared D01 test functions** (the Qt-dependent one skips when PySide6 is unavailable); their prior pass status is owner-reported, **not verified by this docs-only audit**.
+
+### 20.1 Deterministic test harness rules
+
+- Use the existing synthetic replay fixtures and `tests/ui_support.py`; compare **same source ID, same policy/config hash, same pre-roll window and same ordered normalized quotes** through desktop and Textual read models. Assert raw Decimal equality and integer UTC-millisecond equality before formatted text equality. Use both BUY and SELL, high-precision and trailing-zero examples, at least two independent source IDs and one same-provider-millisecond multi-quote input.
+- For GUI tests, set `QT_QPA_PLATFORM=offscreen` before creating `QApplication`; `QApplication` must be created exactly once per process and disposed cleanly. Offscreen tests do **not** replace the required **visible native Ubuntu GNOME** launch. Test QThread signal delivery with `QSignalSpy`/event loop waits or equivalent bounded deterministic synchronization, **not** sleeps with arbitrary timing assumptions.
+- Use disposable temporary state dirs and one authorized test journal per fixture; no real broker, MT5/Wine terminal, network feed, credentials or production server. Never use `/tmp/grog-demo` as a test that can modify the user's own demo state unless the test creates/owns it. Inject test clock and temporary SQLite connections; close each worker/thread.
+- Under faults, verify **no inserted/changed row**, correctly preserved action_id on retry, exact error notice, and equivalent state after restart. Inspect DB outputs via existing service/test helpers, not GUI SQL. Assert **no Qt import or broker execution API** on core CLI/TUI path.
+- Full suite for each implementation phase: targeted pytest cases, all relevant R0 regression cases, `uv run ruff check .`, `uv run ruff format --check .`, and report exact commands/pass/fail/skip count. Before D05: `uv run pytest -q` full project, including optional Qt-enabled tests under resolved desktop extra. Qt tests skipped due to missing optional dependency **do not** count as a desktop acceptance pass.
+
+### 20.2 Foundation, numeric fidelity and replay (D00–D01)
+
+| ID | Fixture/action | Pass criterion |
+| --- | --- | --- |
+| GUI-11 | Import package with no Qt extra; run `grog --help`, `grog doctor`, `grog ui` test harness | No Qt import or missing-module crash on existing CLI/TUI paths; default installation stays Textual |
+| GUI-12 | Actually resolve optional Essentials extra then `uv sync --locked --extra desktop`; probe offscreen and normal GNOME | `pyproject.toml` and genuinely generated `uv.lock` consistent; Qt version logged; no system GNOME edits |
+| GUI-13 | GNOME terminal succeeds, editor inherited environment fails as reported | Capture precise environment difference and root cause before app-scoped remedy; both terminals either work or editor limitation documented without damaging the system |
+| GUI-14 | Source absent, empty, corrupt/import-incompatible, permission denied or changing beneath load | Explicit nonfabricated error or chooser; no created source, no data corruption, no unhandled exception |
+| GUI-15 | Startup pre-roll insufficient, exactly at threshold, and supplied `--from` | Confirmed H1/M15/M5/ATR sufficiency and pre-roll count exactly match R0; no future bar or fabricated EMA; starts paused at correct cursor |
+| GUI-16 | 50/500/FAST replay, toggle Pause, paused Step, replay End, restart | One Step processes **one** normalized quote; no events skipped at FAST; ended never resumes; sources/cursors match corresponding R0 outcomes |
+| GUI-17 | Replay same recorded tick stream with different Qt redraw frequency, long render, frozen GUI | Identical source order, S1 candidate IDs, READY/blocked/expiry, event timestamps and research outputs; only paint count differs |
+| GUI-18 | Two distinct quotes with same provider UTC millisecond | Both quotes processed in stable source order with independent side values; no timestamp-key dedup in GUI |
+| GUI-19 | Quote/SL/TP/R/fees Decimal scalars including 4119.9600, 0.00001, -0.00, long fractional scale, NaN/Infinity and None | All finite source digits and sign preserved as appropriate; invalid/absent values UNKNOWN/—; no implicit 2-digit rounding, float conversion, guessed tick |
+| GUI-20 | GUI signal/candidate detail at H1/M15/M5 boundary, provisional bar available | Confirmed-vs-provisional tags and exact bar available_at times; no provisional-trigger READY or lookahead |
+| GUI-21 | Multiple READYs, blocked READY, entered/skipped overlay and replay-ended last quote | Decision lane truthfully shows counts/blocked/current state; no extra signal, no automatic ranking, no fake live source |
+| GUI-22 | Open dialog during PLAYING and click Step/Space or source switch | Worker acknowledges pause/cursor first; no replay advance or source switch behind modal; stays paused on closing, no hidden duplicate journal action |
+
+### 20.3 Signals and information architecture (D02)
+
+| ID | Fixture/action | Pass criterion |
+| --- | --- | --- |
+| GUI-23 | FORMING candidate with numeric trigger and with UNKNOWN threshold | Non-actionable watchlist explains next completed BID M5 close exactly; missing level is unavailable not 0 |
+| GUI-24 | READY BUY and READY SELL | Correct ask/bid entry, corresponding closeable SL/TP side, immutable E0/SL/TP1/TP2/band/ATR/TTL/strategy/reason codes from engine |
+| GUI-25 | READY issued, then execution-blocked, unblocked, invalidated or expired | Issued-at READY/history immutable; current status changes separately; no terminal resurrection or wrong action enable |
+| GUI-26 | PRE-ROLL issued, duplicate structural pair, both same-side/opposite manual exposure | History explicitly PRE-ROLL, no fresh alert; duplicates suppressed by engine; exposure factual warning only, no invented limit |
+| GUI-27 | Signal claimed ENTERED or USER_SKIPPED in second DB connection, then GUI refreshed | No duplicate fresh opportunity, on-plan action disabled, overlay and full source ID preserved |
+| GUI-28 | Sort/filter/move row READY→History while detail is open | Stable full row ID/selection, moved-state message, no discarded details or silent replacement with different signal |
+| GUI-29 | No current signal but historical MISSED/NOT_ISSUED/EXPIRED events | Histories correctly label actual event kind; no fabricated SignalRecord or retroactive READY |
+
+### 20.4 Positions, manual journal and transaction races (D03)
+
+| ID | Fixture/action | Pass criterion |
+| --- | --- | --- |
+| GUI-30 | REPLAY READY record entry at valid ASK/BID band/time; confirm and cancel alternatives | Exact mandatory input, source/fidelity and immutable PlanRef; preview matches domain EntryPreview; Cancel makes zero writes; Confirm makes one local event only |
+| GUI-31 | Blank required price/qty/time; negative/zero/NaN/Infinity, malformed UTC, fees blank versus fees=0 | Per-field errors, exact Decimal parsing; UNKNOWN fee not coerced to zero; invalid input unchanged DB |
+| GUI-32 | Late fill, outside band, wrong side/stop/target, before issuance/after expiry | Correct OFF_PLAN reasons, actual gross risk/reward comparison, no on-plan mislabeling and no plan mutation |
+| GUI-33 | Inactive or blocked READY becomes terminal/claimed while dialog open | Pre-commit revalidation prevents on-plan entry/skip; explicit newly acknowledged OFF_PLAN path only, never automatic conversion |
+| GUI-34 | Skip unused READY, repeat skip, skip racing entry on second connection | One USER_SKIPPED overlay, stable action id, no entry after skip; original signal remains untouched |
+| GUI-35 | Unlinked/off-plan BUY or SELL with optional informational historical signal | Saves local OFF_PLAN entry, no signal resurrection/claim, with source and execution-fidelity caveat |
+| GUI-36 | Record partial <remaining, =remaining, >remaining, with exit before entry, after earlier partial | Correct changed gross realized/remaining, reject full-as-partial, oversize/time invalid and stale quantity transactionally |
+| GUI-37 | Record full close of remaining; another process partially closes before submit | Close only full currently remaining, no double close/negative quantity, no broker write |
+| GUI-38 | Modify SL, target, no values, stop moved farther away, invalid target/time | Domain `current_risk` and farther-away warning correct, unchanged frozen initial denominator, only one MODIFY event on success |
+| GUI-39 | Genuine quote touches STOP/TP1/TP2; no operator fill | Touch advisory only; remaining/position event list unchanged; no automatic partial/close |
+| GUI-40 | Mark BUY at BID and SELL at ASK with same/other source, quote before actual fill, stale/replay ended | Exact closeable side and freshness labels, unavailable for wrong source/pre-fill, no false real-money P&L |
+| GUI-41 | Gross move R vs realized+remaining R after partial | Same original full-position risk denominator across states; net R and money UNKNOWN when contract/fees absent |
+| GUI-42 | Restart writable desktop with MONITORING and already RECONCILIATION_REQUIRED | First becomes RECONCILIATION_REQUIRED exactly once, second unchanged; no confirmed held-status claim; full worklist rendered |
+| GUI-43 | Reconciliation required and operator confirms actual broker open; concurrent duplicate confirm | One CONFIRMED_OPEN action, MONITORING projection only after explicit consent; still no broker sync |
+| GUI-44 | Start desktop with DB read-only, migration needed, locked DB or disk fault | No false empty overlay, no invented reconciliation, honest UNVERIFIED/read-only mode, no partial destructive migration; error actionable |
+| GUI-45 | Double-click Confirm, transient DB error after event insert, retry same payload/action_id; retry changed payload | Exactly one durable event on same payload retry, rollback on failure, reject reused ID/different data, no premature success |
+| GUI-46 | External second local instance races entry/skip, partial/close, restore and record modify | Existing `BEGIN IMMEDIATE` service serializes; no lost updates/first-action conflicts, journal survives restart |
+| GUI-47 | Dirty form Esc/Cancel; typing `e s q p m x n space 1 2 3` into fields; keyboard-only | Dirty Esc explicitly confirms discard; no global actions through inputs, no accidental save; Cancel initially focused |
+| GUI-48 | Long mixed journal history, operator events + session SIM ENGINE and pre-roll, filter by ID/date/source/type | Correct provenance; operator rows persist, replay-derived events explicitly reconstructible but not asserted persisted; sorting stable, full detail accessible; all events still stored/available regardless of visible page limit |
+| GUI-49 | Operator event has same millisecond as separate event; filters and row refresh | Stable unique event IDs/tie order, no duplicate/drop, exact event UTC separate from recorded UTC |
+| GUI-50 | Attempt to correct historical event or delete via GUI | No unsupported editor/delete/correction UI or direct SQL mutation; gap presented as future approval-gated enhancement |
+
+### 20.5 Diagnostics, resilience, performance and visual parity (D04–D05)
+
+| ID | Fixture/action | Pass criterion |
+| --- | --- | --- |
+| GUI-51 | Source health UNKNOWN with unset freshness threshold, degraded, stale, market closed; separate replay PAUSED/ENDED | Accurate status/reason, never claim FRESH from playback, no fake LIVE or executable signal |
+| GUI-52 | Full Diagnostics for valid and missing data | Raw/canonical symbol, source/origin, provider/receive UTC, gaps/bars/warm-up, hashes/config/schema, clock/quote age all equal authoritative snapshot; missing is UNKNOWN |
+| GUI-53 | M09 reference-status NOT_CONFIGURED, FIXTURE, INTEGRITY_FAULT, disconnected and reconstructed | Only read-only status labels/counters/blockers; fixture SIMULATED; no live data connection, automated recovery or new broker privileges |
+| GUI-54 | Worker emits many quotes rapidly, UI intentionally stalls, source switches mid-load | Full engine event count/sequence and touch observations preserved, only paint frames coalesced; no cross-source stale quote or SQLite thread misuse |
+| GUI-55 | Worker/process failure while loading, after snapshot, before/during DB commit, on quit | Last reliable snapshot labeled stale/unavailable; inputs guarded, pending journal result committed/failed truthfully, close SQLite in owner thread, threads exit cleanly |
+| GUI-56 | Open every view at 1366×768, 1920×1080 and 820×620 logical px | Safety banner/source/fidelity/decision/actions never clipped; all other content accessible by scroll/drawer, no layout collision |
+| GUI-57 | Native 100/125/150/200% DPI and enlarged system font, no font installed | True Qt logical scaling; prices/badges/buttons readable, keyboard focus visible, no fixed text cutoffs |
+| GUI-58 | Keyboard-only all five screens, mixed dialog/filter focus, high-contrast color-blind audit | All actions reachable, full IDs and precision in details, semantic text labels not color alone, no input-triggered hotkeys |
+| GUI-59 | Visual QA against §16 design after each page milestone | Coherent dark theme, clear decision-first hierarchy, readable bid/ask/spread, narrow sidebar, restrained gold, no information overload/terminal-looking UI; screenshots reviewed by owner |
+| GUI-60 | Run full engine/CLI/TUI/SQLite/M09 tests with Qt installed, then without optional Qt | All preexisting tests still pass on their relevant platforms; no new broker calls/strategy changes; exact pass/skip counts recorded |
+| GUI-61 | Existing `gold` alias before cutover; Desktop wrapper after owner approval; explicit `grog ui` fallback | Before sign-off alias unchanged; after sign-off one-word desktop launch from durable selected source and installed extra; fallback remains operational and source-safe |
+| GUI-62 | Compare complete replay outcomes, signal IDs and the full operator journey in Textual vs Qt | Same ordered quote/S1/signal events, exact plans/Decimals/UTC and local journal projection/event bytes apart from expected action IDs/record time; no behavior loss |
+
+### 20.6 Evidence and sign-off protocol
+
+For each D0x phase, Grok's report must include: baseline and new Git commit SHA, changed files (limited to phase), explicit source/strategy non-change statement or rationale for **any** changed line outside desktop/tests/docs, commands and exact outcomes (pass/fail/skip), failing fixture reproduction before fix when practical, number of event records before/after, startup/migration observations, Qt/offscreen and **visible** screenshots for newly delivered screens, known gaps, and next gate. If a Qt test skips because the extra isn't installed, report it **PENDING**, never PASS.
+
+**D05 hard gate:** GUI-01..62 relevant cases (plus all TUI/R0 acceptance/integration suites) PASS with no unapproved source-fidelity, trading formula, journal-data or broker-side behavior changes; all five screens usable in a normal Ubuntu terminal, startup-state selection tested without ephemeral demo dependence; restart reconciliation and data-loss fault tests PASS; no unsupported broker permissions; owner explicitly signs off before altering the `gold` command. A test suite alone does not validate strategy profitability or a live executable recommendation.

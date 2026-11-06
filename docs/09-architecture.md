@@ -370,3 +370,101 @@ Detailed acceptance case IDs: [08 — Validation](08-validation.md); milestone-s
 - **Transition:** keep current `gold` → Textual and `grog ui` until D05 acceptance. No DB migration or change to the source catalog in D00.
 
 [User-facing contract](02-workflows-and-ux.md) · [Tests](08-validation.md) · [Roadmap](10-roadmap.md).
+
+## 13. Desktop implementation ports, concurrency and state ownership — D00–D05 handoff (2026-11-07)
+
+**Status: specification proposal pending owner's explicit implementation approval.** Approved intent D-014 remains fixed. [02 §16](02-workflows-and-ux.md) owns exact layouts and actions; [08 §20](08-validation.md) owns test cases; [10 §12](10-roadmap.md) owns phased gates; [11 §16](11-decisions.md) records decisions/open gaps. The code observations below are from GitHub main at `ead4f8991e327a8ecf263d59530173a391ad9e2e`, not proof that this Qt release has been run or accepted.
+
+### 13.1 As-built map and why D01 is not yet an application
+
+| Existing element | Actual responsibility | Desktop contract |
+| --- | --- | --- |
+| `src/grog/desktop/main.py`, `window.py` | D01 stand-alone Qt read-only Overview; a 50ms QTimer currently calls `ReplaySession.advance` *on the GUI thread*; other four pages disabled | Reuse shell, refactor runtime ownership before connecting long replays, keep existing preview working until replacement reaches parity |
+| `desktop/overview_model.py`, `presentation.py` | Pure rendering via `from_snapshot`, `price_text`, `utc_text`, `trigger_explanation`; reuse pure `ui.lanes`/`ui.panels` helpers | Expand immutable presentation models; never duplicate policy, arithmetic, timestamps or statuses |
+| `cli.build_ui_session` | Opens imported source read-only, loads all normalized quotes and constructs causally pre-rolled `ReplaySession` | Run potentially expensive startup work away from Qt GUI thread; preserve all source checks and pre-roll |
+| `replay.session.ReplaySession` | Owns S1 pipeline, state transitions, `quote_observers`, `snapshot()`, `step()`, `toggle_play()`, `faster/slower`, `advance()`; pace 50/500/FAST, FAST slice 5000 | Exactly one ordered market-event consumer; no engine tick skipped, reordered or re-timestamped; expose versions for UI coalescing |
+| `replay.session.Snapshot` / `SignalView` | Frozen outer dataclasses, but snapshot contains mutable mappings and references to engine read state | Build detached, immutable UI transfer frame before crossing threads; never pass a live mutable dictionary/list as "immutable" |
+| `ui.lanes.signal_lane`, `ui.panels` | Engine-state + first operator action overlay, source-safe explanations, context, diagnostics, full detail | Reuse/refactor *pure* presentation logic into Qt-neutral helpers only when tested; do not import Textual widgets into domain |
+| `journal.store.Store` | SQLite WAL, FK, migrations/backup for writable DB, `open_read_only`, `BEGIN IMMEDIATE` | Every connection created, read, written and closed on its owning thread; GUI never operates SQLite cursor or executes SQL |
+| `journal.positions.PositionJournal` | `signal_actions`, `positions`, `events`, `decisions`; `record_entry`, `record_skip`, `record_partial`, `record_modify`, `record_close`, `confirm_open`, `restore_on_startup` | Sole validated service for operator mutations; no new direct SQL in Qt or copied validation formulas |
+| `journal.positions.TouchTracker`, `mark_position`, `r_breakdown`, `observations` | Every-quote factual touched-level tracking, closeable side marks, freshness and frozen-denominator gross R | Run tracking on *every* replay quote with source-matched active-position snapshot; no automatic trade close or TP1 partial |
+| `live.session.ReferenceStatus` and `grog reference-status` | Offline M09-A/H read-only diagnostics; M09-B live demo feed not authorized | Render read-only source status, never instantiate an enabled real live feed or start MT5 merely by opening GUI |
+
+**Current as-built gaps to solve in named phases (not silent acceptance):** (1) D01 processes replay and renders on GUI thread, including a potentially long pre-roll before the first window; (2) its `main.py` opens journal read-only and intentionally skips restart reconciliation; (3) `record_entry` accepts a caller-provided `signal_ready`/`signal_blocked` flag, so desktop must check the *current* engine signal and journal claim before constructing an on-plan request; (4) replay signal/S1 events are session-derived rather than durable operator journal rows; (5) no approved append-only correction command exists; (6) a QShortcut currently has only four replay keys and needs safe page/action shortcut scoping; (7) no Qt dependency in project metadata/lock, and the shell `gold` alias points to Textual. These are **engineering/documentation findings**, not claims that tests currently fail.
+
+### 13.2 Runtime data-flow diagram (one-way, local-only)
+
+```text
+EXISTING IMPORTED SOURCE / CHECKSUMS / CONFIG
+        |
+        v
+Store.open_read_only -> load_source_quotes -> ReplaySession
+                       (replay-owned thread: causal pre-roll + ordered quote events)
+        |                  |                      |
+        |                  +-> every quote -> TouchTracker <- immutable current positions
+        |                  +-> S1ResearchPipeline -> signals/events/health/bars
+        |                                            |
+        +-----------------> detached UiFrame <-------+
+                          (generation, sequence, UTC, source, exact Decimals,
+                           immutable context/statuses/events, no SQLite objects)
+                                       |
+                            queued Qt signal, <=4 UI redraws/s
+                                       v
+                          GUI THREAD / Qt widgets
+             Overview | Signals | Positions | Journal | Diagnostics
+                                       ^
+                     immutable position/journal/overlay replies
+                                       |
+                         JOURNAL OWNER WORKER
+           Store.open -> PositionJournal.restore_on_startup
+           signal_actions / positions / decisions / events
+                                       ^
+                   explicit validated and confirmed local commands
+                                       |
+                         GUI action controller
+     pause-acknowledge replay -> re-read current signal/source and claim
+     -> preview -> confirm -> revalidate -> submit stable action_id
+     -> BEGIN IMMEDIATE/validated PositionJournal transaction -> result
+```
+
+A frame must carry `source_id`, `source_origin`, `fidelity`, config/strategy identifiers (as available), **monotonically increasing market sequence** and **source generation**. UI caches may replace a *display frame* from the same generation when redrawing; they must never drop, coalesce or merge engine inputs, journal writes, touch observations, eligibility changes, or signal/journal event records. The UI's "Latest snapshot" is **not** a historical event log. On every changed frame, key rows by full immutable IDs, preserve selection/scroll position and show a changed/expired detail state rather than resurrecting rows. Source switching increments generation, drains/invalidates queued old frames, leaves in-flight confirmed journal writes committed and visible only in their correct source context, and requires explicit source acknowledgment.
+
+**Thread topology:** Qt GUI/main thread exclusively owns QWidgets, QAbstractItemModel objects and dialog lifecycle. One dedicated replay QThread owns the `ReplaySession` and its `TouchTracker`, processing a bounded work slice then servicing control requests; it alone appends `quote_observers` and orders ticks. One serialized journal QThread **creates its own** writable `Store` and `PositionJournal` (never inherit a sqlite connection from another thread), owns migration/restore/commands/read operations and closes its connection before thread exit. Use Qt queued signals/slots and a small read-model/command coordinator; don't introduce multiprocessing, network RPC, shared mutable Qt state or generic event-bus framework.
+
+**Bounded work and delivery:** At 50/500 events per second use existing `advance(elapsed_s)`; FAST remains the existing 5000-events-per-call budget, yielding to the worker event loop between calls. UI render cadence <=4 FPS and bounded **view-frame** queue: latest frame may replace earlier *presentation* frame only after all event consequences have been applied by engine and tracked. Critical state transitions/history are read by stable cursor/sequence from owner, not inferred from just the most recent screenshot. Make snapshot copies on replay owner thread; `dataclasses(frozen=True)` alone does not freeze embedded `dict` or nested mutable objects. Never use `Qt.DirectConnection` to call a QWidget from a worker.
+
+**Pause handshake and forms:** On opening a REPLAY edit form, send "pause" command and **wait for replay-worker acknowledgement with cursor/generation and source ID** via a nonblocking Qt flow before enabling edit/submit. Now the replay snapshot is stable; no spontaneous expiry/clock drift while modal is open. Any queued stale frame is ignored by generation+sequence. Keep replay paused when form closes. Before save, request a new current engine/overlay read, ensure the exact target ID still exists and is unclaimed, and construct `EntryRequest` with **fresh** `signal_ready`, `signal_blocked`, source, `known_clock_ms` and matched original `PlanRef`; never accept a raw flag copied from a dialog opened earlier. A terminal/blocked signal cannot be an on-plan entry; if a legitimate external fill is reported, open a *new* OFF_PLAN flow with explicit acknowledgement and a new action ID. The journal's own transactional claim/idempotency still guards concurrent external processes. Confirm and skipped decisions follow the same freshness and claim policy. Manual partial/modify/close/reconcile each reload the current position before preview **and** rely on journal transaction to reject races; never "fix" a race by rewriting the position projection directly.
+
+**Recovery/initialization:** Read-only inspection can open `Store.open_read_only` without mutation, but the **accepted writable workstation** must open `Store.open` on its journal thread and perform the same `restore_on_startup()` as the Textual launcher, with the existing migrations/backup behavior. Finish reconciliation before displaying an open record as broker-confirmed. If migration/write open fails, show a **read-only / UNVERIFIED** journal state with an explicit reason; do not silently pass an empty overlay when claims are unreadable. During startup, a source/batch load may fail but must not corrupt or migrate stored operator events; cancel/abort gracefully. On shutdown, stop accepting new dialogs, serialize/finish any already-confirmed journal command, persist its committed/failed outcome, close the Store in worker thread, stop replay worker and join threads cleanly. Report a non-success exit if consistency cannot be established; never assume a broker trade closed.
+
+### 13.3 Journal and signal correctness boundary
+
+`PositionJournal.record_entry(req)` and `record_skip` make their SQLite writes atomic and enforce the **first operator claim per signal** and duplicate-action-ID semantics. They do **not** query the replay engine to prove `signal_ready`; that is the caller's duty. The desktop coordinator must therefore prevent forged/currently stale ON_PLAN state and preserve `PlanRef.from_record` immutable values. Position fills, timestamps, fee/contract unknowns, gross R and mark freshness come from existing journal/domain functions, not Qt arithmetic. Journal handlers convert `JournalError` into **NOT SAVED** + code + possible recovery; a retry of an uncertain commit uses the *same* action ID and exact payload, allowing the domain's idempotency check to say `created=False` without a second event. A changed payload needs an intentionally new action ID after new preview and confirmation. Keep the action ID private to the form/request; never treat window redraw as a new operator action.
+
+Run a `TouchTracker` on each relevant quote for currently monitored locally recorded positions only, matching `source_id` and quote time; any `STOP`, `TP1`, `TARGET` hit is **TOUCHED — execution unconfirmed**. An in-memory touch from the current session is *not* a durable broker fill or a historical observation after restart unless backed by an existing durable event. Avoid inventing a "TP1 approaching" distance while its threshold remains OPEN. If a Journal command changes remaining quantity or stop/target, update the replay worker's tracked immutable position list before resuming replay. Risk, R, fee and price-side math remain in [07](07-risk-and-monitoring.md), implemented by existing domain code.
+
+The **Journal screen is a provenance-aware union, not a new database table**: (a) SQLite `position_events` and `signal_decisions` via `PositionJournal`, and (b) in-memory `pipeline.signals.events` and S1 events from replay, with source/mode/strategy ID. Durable research runs/results are separately stored by `ResearchStore`; do not automatically insert all UI replay events into operator journal or imply that session history survives restart without a deterministic replay/reconstruction. Historical pre-roll events remain historical. Query/display may page/virtualize without changing ordering, event retention or idempotency; if existing read methods materialize too much, add a separately tested *read-only* service-level pagination/query method rather than SQL in Qt. No delete/edit/correction migration is authorized by desktop design.
+
+**Permissions:** single local operator only; no login roles, broker credentials, cloud identity or external account linking. In REPLAY with writable local state, offer explicit operator-confirmed journal commands. In read-only/no-source/error state, expose only source-safe read functionality and disabled local writes with reasons. `REFERENCE_LIVE` active trading UI remains M09-B gated even if its **diagnostics read model** exists. No call graph from desktop to broker order placement or file exporter start.
+
+### 13.4 Desktop dependency and launcher packaging
+
+The owner has **reported** that `uv run --with pyside6-essentials==6.11.3 ...` succeeds in a regular Ubuntu 26 terminal but that a VS Code-inherited environment crashes GNOME's `org.gnome.settings-daemon.plugins.xsettings`/antialiasing schema. This is useful evidence for an *optional* Qt package choice, **not** a successful locked build or a proof of compatibility for every GUI path.
+
+In D00, resolve an **optional** extra through `uv` on Ubuntu/Python 3.11, not by hand-editing the lockfile. Recommended minimal metadata: `[project.optional-dependencies]` with `desktop = ["pyside6-essentials==6.11.3"]` **only if that exact version is genuinely resolved for supported Python/Qt platforms**. The resolver's resulting `pyproject.toml` and `uv.lock` must be committed together. `uv sync --locked` remains the TUI/default installation; `uv sync --locked --extra desktop` and `uv run --extra desktop python -m grog.desktop.probe --smoke` validate the optional GUI installation, plus a visible probe/Overview in a **regular GNOME terminal**. The version is owner-tested from an ephemeral `--with` path; if resolution contradicts that evidence, stop and report exact dependency error rather than inventing a lock.
+
+Capture `QT_QPA_PLATFORM`, `XDG_* `, `GTK_*`, Qt and GNOME runtime/package provenance during the **VS Code terminal crash diagnosis** using non-destructive inspection. Prefer an app-scoped, documented environment-wrapper remedy only after reproducing the cause. Do **not** modify GNOME schemas/system packages, uninstall desktop components, disable system safety settings or silently force `QT_QPA_PLATFORM=offscreen` for normal interactive use. Offscreen is strictly a smoke-test mode. No GUI dependency import at top level of CLI/TUI commands, so missing Qt cannot break `grog`, `grog ui` or existing `gold` TUI alias.
+
+D05 must define a one-word `gold` entrypoint without hard-coded `/tmp/grog-demo`. Use a documented shell wrapper/alias (or installed desktop console script only after acceptance) that resolves the user's intentionally selected local config/state/source; when none exists, show a non-destructive local source chooser or clear import guidance, **not** synthetic prices represented as current. Preserve `grog ui --mode replay ...` as the stable explicit Textual fallback and a `gold-tui` convenience if the owner wants it; do not replace the existing `grog` CLI command. The GUI and TUI must be able to read the same durable journal without schema divergence, and must never auto-copy a temporary `/tmp` database into the permanent store.
+
+### 13.5 Explicit implementation acceptance boundaries
+
+This is a **desktop consumer** of existing domain ports. Do not:
+- re-implement strategy/indicator signals or add new indicators/risk thresholds/quality scores/auto-exits for attractive UI;
+- import Qt, Textual or Rich into `domain/`, `analysis/`, `strategies/`, `signals/`, `risk/` or `journal/`;
+- convert Decimal to `float` during formatting, SQLite record conversion, event delivery or sorting (timestamp integer is preserved);
+- change `grog replay` run identity, research SQLite schema or reference-adapter cursor/transport without separately tested authorization;
+- call an MT5 terminal, Wine, trading API, broker account or real data source as part of GUI startup;
+- assume on-disk files or DB are always writable, or change `gold` before D05 full QA and the owner's explicit signoff.
+
+Visual correctness is a required acceptance gate **in addition to**, not instead of, domain/replay parity, no-lookahead evidence, journal concurrency tests, source-fidelity display, restart recovery and dependency smoke tests. Test IDs: [08 §20](08-validation.md). Phase/commit definitions: [10 §12](10-roadmap.md).

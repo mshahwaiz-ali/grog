@@ -27,7 +27,7 @@ Proposed strategies/indicator periods have **not** been tested; an attractive qu
 
 ## Desktop GUI — foundation in progress
 
-A **native Qt Widgets desktop frontend** is approved, but it is **not operational yet**.
+A **native Qt Widgets desktop frontend** is approved but **not feature-complete or accepted**; only the read-only D01 Overview preview is implemented.
 The Textual TUI and existing `gold` launcher are unchanged. D00 adds tested, UI-neutral
 price/UTC/trigger formatting and a **Qt foundation probe only**, with NO replay, signals,
 positions, journal access or broker connection.
@@ -133,3 +133,9 @@ Start with [docs/00-index.md](docs/00-index.md) for the full canonical topic map
 - Test realistic bid/ask spreads, latency and out-of-sample/forward outcomes before promoting a strategy.
 - Never commit broker secrets or private customer/account data. This is not financial advice and there are no guaranteed trading results.
 
+
+### Complete desktop documentation handoff (2026-11-07)
+
+The implementation specification for **all five future native desktop screens** has been consolidated into the existing canonical documents, without building or enabling the remaining four screens: [full UX/actions](docs/02-workflows-and-ux.md#16-complete-native-workstation-interaction-specification--d00d05-handoff-2026-11-07), [data flow and thread ownership](docs/09-architecture.md#13-desktop-implementation-ports-concurrency-and-state-ownership--d00d05-handoff-2026-11-07), [functional and visual verification](docs/08-validation.md#20-complete-native-desktop-acceptance-matrix-and-verification-protocol-2026-11-07), [D00–D05 staged implementation](docs/10-roadmap.md#12-desktop-implementation-order-verification-gates-and-grok-handoff--2026-11-07) and [scope/approvals](docs/11-decisions.md#16-desktop-workstation-handoff-scope-and-unresolved-gaps--2026-11-07). Follow [AGENTS.md](AGENTS.md) after **explicit owner permission to start**. There is no newly verified test run or live trading capability from a documentation commit.
+
+**Actual current state:** D01 read-only Overview preview exists and the other four desktop pages remain disabled; the standard `gold` Bash alias and `grog ui` still launch the Textual interface. The owner reported a successful optional PySide6-Essentials 6.11.3 launch in a regular Ubuntu terminal; Qt is **not** integrated into project `pyproject.toml`/`uv.lock`, and an editor-inherited GNOME settings-schema error needs diagnosis. The application must not change `gold` or enable MT5 without separately passing the documented gates and the owner's approval.

@@ -96,3 +96,17 @@ Do not invent a quality-score formula or trade win probability from the provisio
 > **Start Grog implementation from the existing GitHub main repository. Follow AGENTS.md and all canonical docs, especially docs/10-roadmap.md. Implement M00–M08 sequentially with local tests and one clear commit/report per milestone. Work offline without waiting for a broker, do not use GitHub Actions, do not add trading automation or unrelated features, and stop only for actual outside permissions or contradictions.**
 
 The instruction is **not** consent to connect external broker/demo accounts, install Wine/MT5, access personal funds or run anything on production infrastructure.
+
+## Complete native desktop handoff — start only after new explicit owner instruction (2026-11-07)
+
+The owner requested a **documentation-only** complete Qt workstation handoff. D00 foundation and D01 read-only Overview preview are on main; no desktop implementation is authorized by this documentation work. Superseding the older D00-only description above **for future desktop work only**, use this exact canonical reading order once the owner asks you to begin native GUI implementation:
+
+1. [docs/11 §16](docs/11-decisions.md) — authorization limits/open decisions.
+2. [docs/02 §16](docs/02-workflows-and-ux.md) — all five screens, every action/dialog, human wording, keyboard and responsive design.
+3. [docs/09 §13](docs/09-architecture.md) — actual existing ports, detached frames, thread/SQLite ownership, pause handshake, optional Qt and launcher.
+4. [docs/08 §20](docs/08-validation.md) — exact GUI-11..62 tests, alongside existing GUI-01..10 and all R0 tests.
+5. [docs/10 §12](docs/10-roadmap.md) — **D00 verification first**, then D01–D05 in strict verified phases, one commit/report per gate.
+
+Inspect the actual current branch, working tree and APIs before any implementation; do not assume the documented initial SHA remains current. Preserve existing validated trading formulas, causality, precision, source fidelity, first-operator-claim idempotency, restart reconciliation and durable journal data. Never call the broker or implement auto-trading. Qt may format and invoke existing domain service methods, but must not reimplement them or access SQLite from the GUI thread. The current `gold` alias remains Textual until D05 regression/visual acceptance and the owner's **separate explicit cutover authorization**; `grog ui` stays available as fallback. No real MT5/demo activation or change to M09-B access rights.
+
+**After owner authorization, the starting instruction is:** “Grok, implement the native Grog desktop per AGENTS.md and canonical docs/11 §16, docs/02 §16, docs/09 §13, docs/08 §20 and docs/10 §12. Start with D00 verification; finish D00–D05 one tested commit/report at a time, preserve all R0 behavior and manual-only safety, and do not switch gold before my D05 approval.”

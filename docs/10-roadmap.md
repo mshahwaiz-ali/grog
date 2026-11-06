@@ -235,13 +235,53 @@ Independent of MT5 M09-B and research M10; no broker connectivity/automation. Co
 
 | Phase | Task | Acceptance gate | Status |
 | --- | --- | --- | --- |
-| D00 | Docs, pure lossless display helpers, isolated Qt probe, optional Qt lock | GUI-01..03, existing CLI/TUI unchanged, locked Qt install and Ubuntu offscreen/visible smoke | **IN PROGRESS:** pure tests pass; lock + real Qt smoke pending |
-| D01 | Replay-backed Overview and playback controls | No trade/forming/ready/blocked and quotes match engine; event order unchanged | **PREVIEW IMPLEMENTED / LOCAL QT INTEGRATION TEST PENDING** |
-| D02 | Signals watchlist, ready, blocked, history, full details | Original/current state, entry/SL/TP, TTL, source fidelity match R0 | NOT STARTED |
-| D03 | Positions, Journal, confirmed forms, reconciliation | GUI-06/07; idempotent, rollback-safe validated journal workflow | NOT STARTED |
-| D04 | Diagnostics, threading, error/empty states, DPI/layout QA | GUI-08/09; no dropped ticks, no stale fake live, worker-safe | NOT STARTED |
-| D05 | Switch `gold` launcher after acceptance; preserve `grog ui` | Full suite, observed GUI, durable state reviewed, owner sign-off | NOT STARTED |
+| D00 | Optional Qt packaging, current code and probe verification | GUI-01..03, GUI-11..14; authentic lock and visible/offscreen Qt | FOUNDATION EXISTS; LOCK/ACCEPTANCE PENDING |
+| D01 | Harden replay-backed Overview with worker ownership | GUI-04/05, GUI-15..22; event and precision parity | PREVIEW EXISTS; NOT ACCEPTED |
+| D02 | Signals forming/READY/blocked/history, full details | GUI-23..29; immutable issuance and status parity | NOT STARTED |
+| D03 | Positions, Journal, all confirmed manual forms/reconciliation | GUI-06/07, GUI-30..50; transactional recovery | NOT STARTED |
+| D04 | Diagnostics, fault handling, responsive/high-DPI QA | GUI-08/09, GUI-51..59; five-screen visual acceptance | NOT STARTED |
+| D05 | Full parity, owner acceptance, then one-word launcher cutover | GUI-10, GUI-60..62; TUI fallback kept | NOT STARTED |
 
-**D00 block:** This execution environment cannot resolve or run PySide6. Do not edit or hand-construct `uv.lock`; perform real optional dependency resolution and the Qt probe on Ubuntu before treating D00 as complete. Foundation checks are not GUI parity or profitability evidence.
+**D00 evidence correction:** Owner reports PySide6-Essentials 6.11.3 launched successfully from a regular Ubuntu 26 GNOME terminal using ephemeral `uv run --with`; VS Code terminal hits GNOME settings-schema failure. This has not yet been reproduced in a new locked project environment. Resolve optional Qt dependencies and regenerate `uv.lock` using real uv only after verifying compatibility; diagnose inherited environment without system GNOME/schema mutations. A preview opening does not demonstrate full GUI parity.
 
 Canonical contracts: [02 §15](02-workflows-and-ux.md), [08 §19](08-validation.md), [09 §12](09-architecture.md), [11 D-014](11-decisions.md).
+
+## 12. Desktop implementation order, verification gates and Grok handoff — 2026-11-07
+
+**Status: specification/handoff ready for owner review. No desktop implementation authorized by this documentation update.** Follow [02 §16](02-workflows-and-ux.md) for exact screens/forms, [09 §13](09-architecture.md) for runtime data flow and concurrency, [08 §20](08-validation.md) for GUI-11..62 plus existing GUI-01..10 cases, and [11 §16](11-decisions.md) for approvals and unresolved risks. D00–D05 are independent of M09-B/MT5 real demo integration and M10 market validation. **One small verified commit/report per phase**, on main, no GitHub Actions.
+
+### 12.1 Universal preflight and stop rules
+
+Before each implementation phase, inspect repository HEAD, branch, working-tree changes and the up-to-date canonical docs, implementation, tests and current behavior. Report the baseline exact SHA. Respect local uncommitted work. Run targeted pytest, Ruff check and Ruff format check on current code and record the real results (never inherit a previous "pass" claim). Confirm no changes to trading calculations, signal ID/state, exact Decimal, timestamp ordering, source hashes, journal schema, permissions or live MT5 gates except a separately approved, independently tested necessity. Develop/test in disposable state directories, not the user's live journal. Production erp.omchouse.com and other repos are out of scope; never run destructive commands. Actual Qt screenshots must be evaluated on Ubuntu: headless Qt tests alone are insufficient.
+
+If any acceptance gate fails, stop further phases, isolate the smallest root cause and report it before changes. Do not hide skipped Qt tests, invent resolved lock hashes, add broker access or claim strategy success/profitability. All current S1 calculations and uncertainty defaults remain unchanged.
+
+### 12.2 D00 — finish runtime/packaging foundation
+
+**Precondition:** already-committed D00 helper and probe, D01 preview; no rewriting baseline merely because an alternative UI is planned. **Tasks:** (1) verify seven D01 test functions and existing pure formatter/probe tests from source, run them with accurate skip counts; (2) reproduce Qt probe and D01 in a regular Ubuntu terminal; inspect VS Code-inherited environment GNOME settings-schema failure, use only a proven app-scoped reversible solution; (3) add an *optional* desktop extra for PySide6-Essentials 6.11.3 if authentically resolvable, generate uv.lock with uv, verify default TUI installation and extra installation separately; (4) keep current gold alias and grog CLI unchanged. **Gate:** GUI-01..03 and GUI-11..14, test suite/Ruff, real offscreen + visible Ubuntu smoke and lock integrity. **Commit:** D00 dependency/compatibility corrections only; report SHA, exact package versions, passes/skips, environmental limitations.
+
+### 12.3 D01 — finish Overview and responsive replay owner
+
+**Tasks:** retain and surgically improve existing D01 Overview rather than replacing architecture; move source load/pre-roll and ordered replay work from GUI thread into a replay-owned worker; produce fully detached immutable frames tagged with source/generation/sequence; run existing every-quote TouchTracker and signal pipeline without skipped events; coalesce only paint updates at <=4 fps. Implement worker pause acknowledgement, startup/loading/unknown/replay-ended presentation, bid/ask/virtual UTC/simulation fidelity and H1/M15/M5 cause. Preserve 50/500/FAST event pacing and single-quote Step. Replay does not write to journal, and any position counts from read-only preview remain clearly unreconciled. **Gate:** GUI-04/05 and GUI-15..22 plus R0 replay/indicator/signal tests, source parity for exact Decimal and UTC, no UI freeze during FAST/pre-roll, observed 1366x768 screenshot. **Commit:** one bounded D01 commit and report.
+
+### 12.4 D02 — complete Signals without journal writes
+
+**Tasks:** add keyed model-backed forming/READY-blocked/history sections, search/filter, complete candidate/signal detail with immutable plan, expiry, current eligibility/status, operator overlay and exact reasons. Inherit engine source fidelity; show multiple READY without fake ranking, pre-roll only as historical; preserve selection and show terminal/moved state. Action controls remain read-only/disabled explanations until D03. **Gate:** GUI-23..29, prior S1 and signal regression, desktop source/price-side parity and observed wide/narrow details. **Commit:** one bounded D02 commit and report.
+
+### 12.5 D03 — Positions, Journal, every manual record
+
+**Tasks:** create journal worker with its own SQLite connection, opening writable Store and applying existing migrations/backups/restore_on_startup only on that thread; surface read-only UNVERIFIED if unavailable. Build position/mark/touch read models and full manual action workflows: READY entry, skip, explicit OFF_PLAN fill, partial, full close, stop/target modify, restart verify-open reconciliation. Use existing PositionJournal methods and parse_amount, EntryPreview, exit_preview, r_breakdown, mark_position, observations. Pause replay with acknowledged cursor before edit. Re-read engine signal/current claim before save; preserve original PlanRef and per-dialog stable action ID; error/retry must be transaction safe. Journal clearly separates durable operator records from replay-derived events, filters and stable detail access; do not introduce direct Qt SQL or unsupported correction/delete. **Gate:** GUI-06/07, GUI-30..50, R0 manual/positions/journal concurrency/fault/restart tests and visual dialogs with Cancel default. **Commit:** one bounded D03 commit and report.
+
+### 12.6 D04 — Diagnostics, fault resilience, full GUI quality
+
+**Tasks:** complete source/feed/warmup/confirmed bar/indicators/replay/config/integrity/journal diagnostics using existing read models; show read-only M09-A/H ReferenceStatus but never instantiate live MT5 or start exporter. Verify no source mismatch or stale-frame leak, graceful worker shutdown, no lost pending journal commit, missing source/no history/migration/locked DB errors, full keyboard/mouse access, consistent typography, high-DPI/820x620/1366x768/1920x1080 layouts and exact value details. Review screenshots for **each of all five screens and all action dialogs**, checking that they are not terminal-looking. **Gate:** GUI-08/09, GUI-51..59, scenario/visual approval, stable long FAST replay. **Commit:** one bounded D04 commit and report.
+
+### 12.7 D05 — parity, owner-controlled gold cutover
+
+**Tasks:** run complete offline pytest (including Qt-enabled tests), Ruff, all R0 operator journeys and concurrency/replay checks, compare complete signal IDs/events, journal projections, time/Decimal precision, disabled broker pathways and source-fidelity labels. Inspect user's actual shell alias and durable data configuration; provide a simple one-word `gold` launch into desktop with a truthful local source chooser/import guidance, **not** hard-coded `/tmp/grog-demo`. Keep explicit `grog ui --mode replay ...` Textual fallback; optional `gold-tui` convenience can be documented but is not required. Do not change the user's alias or global shell until observed desktop acceptance and **explicit owner signoff**. **Gate:** GUI-10, GUI-60..62 plus all earlier GUI and R0 tests, visible Ubuntu acceptance, verified TUI fallback and source-safe launcher. **Commit:** final D05 change after approval and report; without approval, leave gold pointing to TUI.
+
+### 12.8 Required Grok report after each phase
+
+Report **baseline SHA → phase commit SHA**, changed files and purpose, test commands with exact counts (pass/fail/skip), screenshot evidence and display environment, architecture/data-safety checks, any discrepancy or failed criterion, residual risks and next gate. Verify a clean final working tree and committed branch; no PR/CI workflow or unrelated refactor. A GUI screenshot does not verify journal writes; a test pass does not validate profitability or live source readiness.
+
+**One-sentence starting instruction, only after owner approval:** Follow AGENTS.md and docs/11 §16, docs/02 §16, docs/09 §13, docs/08 §20 and docs/10 §12. Start at D00 verification and proceed sequentially with tested commits/reports, never modify trading logic or switch gold before D05 owner acceptance.
