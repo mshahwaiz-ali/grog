@@ -248,7 +248,7 @@ Canonical contracts: [02 §15](02-workflows-and-ux.md), [08 §19](08-validation.
 
 ## 12. Desktop implementation order, verification gates and Grok handoff — 2026-11-07
 
-**Status: specification/handoff ready for owner review. No desktop implementation authorized by this documentation update.** Follow [02 §16](02-workflows-and-ux.md) for exact screens/forms, [09 §13](09-architecture.md) for runtime data flow and concurrency, [08 §20](08-validation.md) for GUI-11..62 plus existing GUI-01..10 cases, and [11 §16](11-decisions.md) for approvals and unresolved risks. D00–D05 are independent of M09-B/MT5 real demo integration and M10 market validation. **One small verified commit/report per phase**, on main, no GitHub Actions.
+**Historical D00–D05 acceptance plan:** These build phases were completed on main by `c0ef834` (see §11). The owner-approved **post-build V2 visual redesign** is a separate U0–U5 sequence in §13; do not repeat D00–D05 merely to change styling. Follow [02 §16](02-workflows-and-ux.md) for exact screens/forms, [09 §13](09-architecture.md) for runtime data flow and concurrency, [08 §20](08-validation.md) for GUI-11..62 plus existing GUI-01..10 cases, and [11 §16](11-decisions.md) for approvals and unresolved risks. D00–D05 are independent of M09-B/MT5 real demo integration and M10 market validation. **One small verified commit/report per phase**, on main, no GitHub Actions.
 
 ### 12.1 Universal preflight and stop rules
 
@@ -285,3 +285,18 @@ If any acceptance gate fails, stop further phases, isolate the smallest root cau
 Report **baseline SHA → phase commit SHA**, changed files and purpose, test commands with exact counts (pass/fail/skip), screenshot evidence and display environment, architecture/data-safety checks, any discrepancy or failed criterion, residual risks and next gate. Verify a clean final working tree and committed branch; no PR/CI workflow or unrelated refactor. A GUI screenshot does not verify journal writes; a test pass does not validate profitability or live source readiness.
 
 **One-sentence starting instruction, only after owner approval:** Follow AGENTS.md and docs/11 §16, docs/02 §16, docs/09 §13, docs/08 §20 and docs/10 §12. Start at D00 verification and proceed sequentially with tested commits/reports, never modify trading logic or switch gold before D05 owner acceptance.
+
+## 13. U0–U5 — complete desktop visual/interaction redesign V2 (approved 2026-11-07)
+
+**Scope and source:** owner-approved [desktop-visual-redesign.md](desktop-visual-redesign.md) is the consolidated design companion, not a source of trading rules; [11 D-015](11-decisions.md) records approval. D00–D05 are **already implemented**; retain all GUI-01..62 and R0 contracts. This phase redesigns all five screens, Settings, dialogs, chooser, help, human-readable UTC/PKT presentation and Dark/Light/System; it is **not** a renderer/engine/journal rewrite.
+
+| Phase | Bounded deliverable | Exit gate |
+| --- | --- | --- |
+| **U0** | Inspect remote/local main, uncommitted work and all Qt screens/dialogs/test consumers. Record baseline at actual HEAD; map UI-only touchpoints and capture before screenshots | Reviewable change map; existing targeted Qt/R0/Ruff results with real pass/fail/skip; no edits to trading code |
+| **U1** | Central semantic themes and Dark/Light/System + PKT/UTC view preference; pure human readable time/status/secondary metrics formatters; exact audit and numeric details retained | UXV2-01..08 + existing desktop formatter and relevant Qt tests; theme persistence/OS change/fallback, exact Decimal and no unrelated global side effects |
+| **U2** | App shell, Overview, Signals and Settings navigation; real model-backed human explanations and details; responsive tables, no false READY or source claim | UXV2-09..11 + GUI-01..29/R0 affected tests; both themes and widths/screenshots; true source/replay and stable selection |
+| **U3** | Positions, Journal, local-record chronology and all manual forms; trustworthy saving, validation and reconciliation hierarchy | UXV2-12..14 + GUI-06/07, GUI-30..50, restart/idempotency and local transaction tests; no journal schema or service math changes |
+| **U4** | Diagnostics, chooser, keyboard help, full fault and high-DPI/compact behavior | UXV2-15..17 + GUI-51..59; real Ubuntu visible QA in Dark/Light/System at 820×620, 1366×768, 1920×1080 and 100/125/150/200% scaling |
+| **U5** | Full parity, final screenshots, source/Decimal/UTC and journal invariants, owner review package | UXV2-18 + all Qt-enabled GUI-01..62, R0 acceptance/integration, Ruff check/format, exact pass/fail/skip and clean tree report. No gold alias cutover. |
+
+**Reporting:** One narrowly scoped tested commit/report per phase on the existing `main`, only after checking uncommitted local edits. Include baseline and result SHAs, changed paths, reproduced issues and tests, real GNOME screenshots, precise outcomes/skips, unchanged risk/journal/source/trading invariants, known gaps and next gate. Stop when any phase gate fails. Do not run GitHub Actions, install MT5/Wine, connect brokers or change the `gold` alias. Errors the owner supplies later require separate reproduction and authorization; do not guess them during U1.

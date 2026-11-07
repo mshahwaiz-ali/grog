@@ -1,5 +1,5 @@
 # GROG — Desktop Visual & Interaction Redesign V2
-**Status:** PROPOSED — owner approval of the visual direction required before implementation  
+**Status:** OWNER-APPROVED 2026-11-07 — charcoal Dark, warm-white Light and System appearance; ready for Grok's U0–U5 handoff (documentation only in this commit)  
 **Scope:** Native PySide6 / Qt Widgets presentation, navigation, settings, information architecture, dialogs, source chooser, keyboard help, fault UX and readability.  
 **Repository:** mshahwaiz-ali/grog, branch main  
 **Remote baseline inspected:** c0ef834a58399fa112419142009d8253e7e0b491 (2026-11-07)  
@@ -22,7 +22,7 @@ If presentation guidance appears to conflict with an approved functional contrac
 
 The two Overview visual concepts shared with the owner in the accompanying ChatGPT conversation are **illustrative mockups, not actual Qt screenshots or actual feed data**. They establish layout, density and color direction, NOT an invented BUY signal, filled position, broker quote, confirmation checklist or hardcoded market status. Bind every real UI state to existing source facts.
 
-**No implementation is authorized merely by committing this spec.** Obtain owner approval of the dark/light Overview direction first. Then Grok can execute U0–U5 using the single prompt at the end. Error reports the owner supplies later are a separate evidence-driven bug backlog, not permission for speculative changes.
+**Owner approval received 2026-11-07:** both Overview visual directions are accepted, and the owner directed this documentation to be finalized for **Grok** to implement the complete desktop redesign. This document update itself performs no runtime or UI code changes. Grok's work begins from the implementation handoff prompt in §13, starting at U0 and preserving every existing safety gate. Error reports the owner supplies later are a separate evidence-driven bug backlog, not permission for speculative changes.
 
 Absolutely out of scope: strategy/threshold/eligibility changes; market-event ordering; SL/TP or position math; loss of exact Decimal/source timestamps; schema/transaction/idempotency changes for styling; live MT5, Wine or broker connection; auto trading; new markets, generic charting, dashboards, notification feeds, data imports, source synthesis, new journal correction/delete features; changes to the existing gold alias; production and unrelated repos.
 
@@ -108,7 +108,7 @@ Create a component only when actually shared; do not invent a framework, QML mig
 
 Provide **Settings** via an unnumbered bottom-sidebar item (or accessible overflow menu in compact mode). Preserve **1–5** mappings for Overview, Signals, Positions, Journal and Diagnostics, including their existing focus and selection behavior.
 
-**Appearance:** segmented or radio option **Dark / Light / System**; default **Dark** for new installations unless an existing explicit preference is found. System should follow the detected Qt/OS palette when supported; if OS change notifications are unreliable, apply a documented, safe fallback and re-evaluate at next launch. Instant theme switch updates navigation, tables, drawers, banners, modals, scrollbars, popups, empty states and focus rings.
+**Appearance (approved and mandatory):** segmented/radio selector with exactly **Dark / Light / System**; default **Dark** on fresh installations, respecting an existing explicit preference. **Dark** and **Light** are persistent *manual overrides* unaffected by OS changes. **System** reads the current Ubuntu/Qt appearance at launch, reacts to OS appearance changes without restarting when the platform exposes them, and returns to automatic following when the user switches back from a manual override. Use Qt 6's `QGuiApplication.styleHints()` / `QStyleHints.colorScheme` / `colorSchemeChanged` or the verified equivalent for the pinned PySide6 runtime; account for palette-change ordering and ensure custom QSS is fully reapplied. See [Qt QStyleHints](https://doc.qt.io/qt-6/qstylehints.html). A platform may report `Unknown` or fail to deliver a change signal: **fail visibly to effective Dark**, still show the saved preference as **System** with a small explanatory “System appearance unavailable — using Dark” note, and re-detect at next launch. Never guess Light based on arbitrary gray pixels. A theme switch must repaint the **entire** existing UI (nav, tables, drawers, context menu, tooltips, dialogs including already-open dialogs, chooser, banners, scrollbars, popups, empty states and focus rings). **Theme preference is only a presentation setting**; it cannot change replay, source, trade state, journal or execution permissions.
 
 **Time display:** **PKT (Asia/Karachi) / UTC**, default PKT for a fresh preference while retaining current exact UTC audit/detail exports. Every date/time in human-facing summaries has an explicit timezone indicator. Even if the UI is showing PKT, full exact source, provider, received, available-at, event and recorded UTC remain accessible.
 
@@ -156,6 +156,38 @@ A **pure Python, Qt-neutral adapter** should support the view layer. Start by ex
 Map **known technical reason codes** to concise human explanations at the view boundary. Preserve every raw code in a disclosure/Details panel and accessible Copy details; unknown codes display intact with a neutral “Technical reason” fallback. Do not infer health, eligibility, source origin or severity from text string heuristics when typed facts exist.
 
 ## 6. Global shell — interaction and visual anatomy
+
+### 6.0 Owner-approved Overview composition reference
+
+The **approved paired dark/light visual concepts** from the owner review define the *visual target*. They are design illustrations, not proof of a BUY/SELL signal or of a live data connection. Grok must reproduce their calm density, comfortable typography, aligned hierarchy and neutral palette, while correcting any illustrative words/values to match the real engine's states. The following schematic is the implementation-neutral composition and is usable even when separate image attachments are unavailable to Grok:
+
+```text
+┌───────────────┬──────────────────────────────────────────────────────────────────┐
+│ GROG          │ XAUUSD · REPLAY / SIMULATED · SOURCE · HEALTH · TIME (PKT/UTC) │
+│               ├──────────────────────────────────────────────────────────────────┤
+│ Overview      │ [MATERIAL SAFETY WARNING / RECONCILIATION, only when true]      │
+│ Signals       │                                                                  │
+│ Positions     │ CURRENT DECISION              NEXT ENGINE-VERIFIED CONDITION     │
+│ Journal       │ NO TRADE / DEVELOPING / READY / EXECUTION BLOCKED / UNKNOWN      │
+│ Diagnostics   │ Human explanation; full reason evidence in Details              │
+│               ├────────────────────┬────────────────────┬────────────────────────┤
+│               │ BID (exact)        │ ASK (exact)        │ SPREAD (exact)         │
+│               ├────────────────────┴────────────────────┴────────────────────────┤
+│               │ H1 confirmed       M15 confirmed          M5 confirmed / pending│
+│               ├──────────────────────────────────────────────────────────────────┤
+│               │ DEVELOPING / READY (never automatically ranked)                 │
+│               │ Short meaningful rows; stable selection; open exact details      │
+│               ├──────────────────────────────────────────────────────────────────┤
+│               │ LOCAL POSITIONS / RECONCILIATION  │ RECENT MEANINGFUL CHANGES   │
+│               │ (NOT BROKER-SYNCED)               │ (never every tick)         │
+│ Settings      ├──────────────────────────────────────────────────────────────────┤
+│               │ REPLAY ONLY: Play/Pause · Step · Pace · Progress · Safety         │
+└───────────────┴──────────────────────────────────────────────────────────────────┘
+```
+
+Dark and Light share **identical geometry, labels, information priority and interactions**; only semantic colors/shadows/borders adapt. Do not reproduce invented data, fake checkmarks, fake open positions, or a tradable BUY from an illustrative mockup. At 820×620, collapse sidebar and stack content while keeping safety, mode/fidelity, decision, details and replay controls accessible. At large sizes keep line lengths moderate, not stretched across the entire window.
+
+### Sidebar
 
 ### Sidebar
 - Brand: GROG / Gold, one subdued mark, five known views with readable active selection and small **meaningful** counts only.
@@ -310,8 +342,8 @@ If a phase fails a gate, stop at that phase, isolate the cause, repair only that
 - The owner will supply additional **error reports later**. Capture the reproduction, stack trace, affected version, environment and minimal failing test; fix those as separately scoped bugs. Do not guess their causes or quietly mix them into U1.
 - Do not use GitHub Actions (disabled for this repository). Follow the existing direct-main small-tested-commit workflow after verifying a clean/understood local tree.
 
-## 13. Single Grok implementation prompt — copy after visual approval
+## 13. Single Grok implementation prompt — owner-approved handoff
 
-> Grok, implement the owner-approved GROG **complete desktop UI/UX V2** using **docs/desktop-visual-redesign.md** as the single visual/presentation checklist. First inspect current main, local git changes and **AGENTS.md**, then the canonical docs/11 §16, docs/02 §16, docs/09 §13, docs/08 §20 and docs/10 §12. Compare the actual existing five Qt pages, dialogs, source chooser, help and tests against the spec; do not assume baseline c0ef834 is still current. Execute **U0, U1, U2, U3, U4, U5 sequentially**, each as the smallest verified phase with one coherent commit and a test/screenshot/change report. Dark default must be graphite/charcoal, not navy; Light and System must also work through Settings, with PKT/UTC as display preferences. Completely improve hierarchy, readability, human time/reasons, responsive tables, modals and fault states across **every** screen, while keeping exact Decimal/UTC audit values and every existing trading, replay, journal, source and keyboard contract. Do not change strategy, signal eligibility, SL/TP, event ordering, schema, idempotency, broker/live permissions, gold alias or unrelated code. No MT5 install, broker access, live feed, automatic trading, production changes or GitHub Actions. Run real Qt-enabled and R0 tests and visible GNOME QA; **never claim skipped tests passed**. If a phase fails, stop and repair that phase rather than continuing. Await separately supplied error reports before fixing unrelated faults. Report baseline SHA, phase SHA, files, exact test counts, visual evidence, residual risks and next gate after each phase.
+> Grok, implement the owner-approved GROG **complete desktop UI/UX V2** using **docs/desktop-visual-redesign.md** as the single visual/presentation checklist. First inspect current main, local git changes and **AGENTS.md**, then the canonical docs/11 §16, docs/02 §16, docs/09 §13, docs/08 §20 and docs/10 §12. Compare the actual existing five Qt pages, dialogs, source chooser, help and tests against the spec; do not assume baseline c0ef834 is still current. Execute **U0, U1, U2, U3, U4, U5 sequentially**, each as the smallest verified phase with one coherent commit and a test/screenshot/change report. Dark default must be graphite/charcoal, not navy; Light is equal quality; **System must follow the OS at startup and on supported appearance changes**, with a truthful Unknown/fallback indication; PKT/UTC is a display-only preference. Completely improve hierarchy, readability, human time/reasons, responsive tables, modals and fault states across **every** screen, while keeping exact Decimal/UTC audit values and every existing trading, replay, journal, source and keyboard contract. Do not change strategy, signal eligibility, SL/TP, event ordering, schema, idempotency, broker/live permissions, gold alias or unrelated code. No MT5 install, broker access, live feed, automatic trading, production changes or GitHub Actions. Run real Qt-enabled and R0 tests and visible GNOME QA; **never claim skipped tests passed**. If a phase fails, stop and repair that phase rather than continuing. Await separately supplied error reports before fixing unrelated faults. Report baseline SHA, phase SHA, files, exact test counts, visual evidence, residual risks and next gate after each phase.
 
-**Design decision currently pending:** owner acceptance of the dark/light Overview visuals. **Not** an instruction to launch or execute U1 yet.
+**Design decision APPROVED (2026-11-07):** owner accepted both charcoal Dark and warm-white Light; **System theme following OS appearance is mandatory**. Grok is the designated implementation owner once given the §13 handoff. No UI code, broker connection, gold alias or production state changed by these documentation updates.

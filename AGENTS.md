@@ -99,7 +99,7 @@ The instruction is **not** consent to connect external broker/demo accounts, ins
 
 ## Complete native desktop handoff — start only after new explicit owner instruction (2026-11-07)
 
-The owner requested a **documentation-only** complete Qt workstation handoff. Current state: D00–D04 are committed on main (D04 at `3dd0299`) under the owner's phased authorization and D05 is a candidate (docs/10 §11); the `gold` alias cutover still needs the owner's separate explicit authorization. Superseding the older D00-only description above **for future desktop work only**, use this exact canonical reading order once the owner asks you to begin native GUI implementation:
+The owner requested a **documentation-only** complete Qt workstation handoff. Current state: D00–D04 are committed on main (D04 at `3dd0299`) under the owner's phased authorization and D05 is implemented (docs/10 §11, baseline `c0ef834`); the `gold` alias cutover still needs the owner's separate explicit authorization. Superseding the older D00-only description above **for future desktop work only**, use this exact canonical reading order once the owner asks you to begin native GUI implementation:
 
 1. [docs/11 §16](docs/11-decisions.md) — authorization limits/open decisions.
 2. [docs/02 §16](docs/02-workflows-and-ux.md) — all five screens, every action/dialog, human wording, keyboard and responsive design.
@@ -109,4 +109,12 @@ The owner requested a **documentation-only** complete Qt workstation handoff. Cu
 
 Inspect the actual current branch, working tree and APIs before any implementation; do not assume the documented initial SHA remains current. Preserve existing validated trading formulas, causality, precision, source fidelity, first-operator-claim idempotency, restart reconciliation and durable journal data. Never call the broker or implement auto-trading. Qt may format and invoke existing domain service methods, but must not reimplement them or access SQLite from the GUI thread. The current `gold` alias remains Textual until D05 regression/visual acceptance and the owner's **separate explicit cutover authorization**; `grog ui` stays available as fallback. No real MT5/demo activation or change to M09-B access rights.
 
-**After owner authorization, the starting instruction is:** “Grok, implement the native Grog desktop per AGENTS.md and canonical docs/11 §16, docs/02 §16, docs/09 §13, docs/08 §20 and docs/10 §12. Start with D00 verification; finish D00–D05 one tested commit/report at a time, preserve all R0 behavior and manual-only safety, and do not switch gold before my D05 approval.”
+**Historical D00–D05 starting instruction (already fulfilled by `c0ef834`):** do not repeat the original D00–D05 build; the current authorized project is the **V2 presentation redesign** below.
+
+## Current owner-approved work — full desktop UI/UX V2 (2026-11-07)
+
+**D-015 approval:** owner accepted both charcoal Dark and warm-white Light Overview visual directions and explicitly requires **Dark / Light / System** under Settings, with System following the OS when available. This is a **complete five-page/dialog/source chooser/help UX redesign**, not a new engine, web app or trading strategy. Owner requested **Grok** to implement once handed the single launch prompt; no UI code changes are part of the documentation update.
+
+**Primary design document:** [docs/desktop-visual-redesign.md](docs/desktop-visual-redesign.md), especially its owner-approved §§3–10 and single Grok prompt in §13. Functional behavior remains canonical in [docs/02 §16](docs/02-workflows-and-ux.md), architecture in [docs/09 §13](docs/09-architecture.md), acceptance in [docs/08 §§20–21](docs/08-validation.md), phase ordering in [docs/10 §13](docs/10-roadmap.md), authorization boundaries in [docs/11 D-015](docs/11-decisions.md).
+
+**Implementation order:** U0 (baseline read-only audit) → U1 (themes/presentation/settings) → U2 (shell/Overview/Signals) → U3 (Positions/Journal/forms) → U4 (Diagnostics/chooser/help/responsiveness) → U5 (full Qt/R0/visual/keyboard/fault acceptance), with a narrow tested commit/report per phase. Confirm local HEAD and dirty files before touching anything. **Do not rewrite D00–D05, alter the `gold` alias, install MT5, connect a broker, add trading automation, change SQLite journal schemas, precision or strategy**, or fix unrelated errors before the owner supplies them. No GitHub Actions.

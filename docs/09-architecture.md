@@ -373,7 +373,7 @@ Detailed acceptance case IDs: [08 — Validation](08-validation.md); milestone-s
 
 ## 13. Desktop implementation ports, concurrency and state ownership — D00–D05 handoff (2026-11-07)
 
-**Status: specification proposal pending owner's explicit implementation approval.** Approved intent D-014 remains fixed. [02 §16](02-workflows-and-ux.md) owns exact layouts and actions; [08 §20](08-validation.md) owns test cases; [10 §12](10-roadmap.md) owns phased gates; [11 §16](11-decisions.md) records decisions/open gaps. The code observations below are from GitHub main at `ead4f8991e327a8ecf263d59530173a391ad9e2e`, not proof that this Qt release has been run or accepted.
+**Status: historical D00–D05 architecture handoff, now implemented on main by `c0ef834` (2026-11-07). The owner-approved V2 UI redesign follows [desktop-visual-redesign.md](desktop-visual-redesign.md), preserving this already-running architecture.** Approved D-014 scope remains fixed. [02 §16](02-workflows-and-ux.md) owns exact layouts and actions; [08 §20](08-validation.md) owns test cases; [10 §12](10-roadmap.md) owns phased gates; [11 §16](11-decisions.md) records decisions/open gaps. The code observations below are from GitHub main at `ead4f8991e327a8ecf263d59530173a391ad9e2e`, not proof that this Qt release has been run or accepted.
 
 ### 13.1 As-built map and why D01 is not yet an application
 

@@ -27,6 +27,8 @@ Proposed strategies/indicator periods have **not** been tested; an attractive qu
 
 ## Desktop GUI — D00–D05 implemented
 
+**Current approved next work (2026-11-07):** [Complete Desktop UI/UX V2](docs/desktop-visual-redesign.md) — owner approved matched charcoal **Dark**, warm-white **Light**, OS-following **System** Settings plus PKT/UTC display-only preferences. Grok owns the U0–U5 implementation handoff in [docs/10 §13](docs/10-roadmap.md). This approval does not change engine, journal, MT5 access or the `gold` alias. Design docs are committed; GUI V2 is **not** implemented yet.
+
 A **native Qt Widgets desktop frontend** is approved; D01–D04 (Overview, Signals, Positions/Journal with local manual records, Diagnostics) are implemented and natively QA'd, D05 (one-command launcher, source chooser, Textual parity) passed native QA on 2026-11-07 (full Tab cycle automated only); the `gold` alias cutover is **not** done or authorized.
 The Textual TUI (`grog ui`) is unchanged and stays the fallback. This repository does not modify the
 `gold` alias (what it maps to on a given machine is not inspected or asserted here). No MT5 or broker
@@ -121,7 +123,8 @@ Agent/developer entrypoint: [AGENTS.md](AGENTS.md), then [docs/00-index.md](docs
 Start with [docs/00-index.md](docs/00-index.md) for the full canonical topic map.
 
 - [Product goals](docs/01-product-vision.md)
-- [Terminal workflow](docs/02-workflows-and-ux.md)
+- [Terminal and native desktop functional UX](docs/02-workflows-and-ux.md)
+- [Owner-approved Desktop UI/UX V2 visual system and Grok handoff](docs/desktop-visual-redesign.md)
 - [Market data and closed-bar contract](docs/03-market-data.md)
 - [Indicators, MTF analysis and market structure](docs/04-analysis-engine.md)
 - [S1 strategy and future strategy candidates](docs/05-strategies.md)
