@@ -82,6 +82,8 @@ class DetailFacts:
     notes: tuple[str, ...]
     lifecycle: tuple[str, ...]
     actions: tuple[ActionFacts, ...]
+    summary: str = ""  # UI-only human overview, never eligibility
+    time_fields: tuple[tuple[str, int], ...] = ()  # exact epoch ms for display zone
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +97,7 @@ class RowFacts:
     cells: tuple[str, ...]
     search: str  # lower-case haystack of every shown value and full ID
     detail: DetailFacts
+    display_times: tuple[tuple[int, int], ...] = ()  # (column index, raw UTC epoch ms)
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,6 +179,12 @@ def _candidate_row(snap: Snapshot, c: S1Candidate) -> RowFacts:
         notes=(explanation, "No entry can be recorded on a developing candidate."),
         lifecycle=(),
         actions=(ActionFacts("Record entry", False, "A developing candidate is not tradable."),),
+        summary=explanation,
+        time_fields=(
+            ("Detected", c.first_detected_ms),
+            ("Last changed", c.last_changed_ms),
+            ("Pair available", pair.available_at_ms),
+        ),
     )
     return RowFacts(
         key=c.candidate_id,
@@ -187,6 +196,7 @@ def _candidate_row(snap: Snapshot, c: S1Candidate) -> RowFacts:
         cells=cells,
         search=_haystack(*cells, *(v for _, v in fields)),
         detail=detail,
+        display_times=((DEVELOPING_COLUMNS.index("Detected (UTC)"), c.first_detected_ms),),
     )
 
 
@@ -321,6 +331,26 @@ def _signal_row(
     tone = "error" if lane.terminal else "warning" if (lane.blocked or v.pre_roll) else "ready"
     if lane.operator is not None or overlay is None:
         tone = "warning"
+    if overlay is None:
+        summary = "Local journal unavailable — cannot verify whether this signal was claimed."
+    elif v.pre_roll:
+        summary = "Pre-roll history — this proposal predates the visible replay window."
+    elif lane.terminal:
+        summary = f"{lane.current} — a historical signal, not a fresh proposal."
+    elif lane.operator is not None:
+        summary = f"Local operator action recorded: {operator}. No new on-plan entry implied."
+    elif lane.blocked:
+        summary = (
+            "Execution blocked for an on-plan entry. Any external fill must follow "
+            "the separately acknowledged OFF_PLAN record workflow."
+        )
+    elif live:
+        summary = (
+            f"READY {r.side.value} proposal in simulation. Exact {ent} entry, "
+            f"{ex} stop and targets follow below; no broker fill is implied."
+        )
+    else:
+        summary = f"{lane.current} — not a fresh actionable proposal."
     return RowFacts(
         key=r.signal_id,
         section=section,
@@ -338,6 +368,14 @@ def _signal_row(
             notes=tuple(notes),
             lifecycle=_lifecycle(events, r.signal_id, snap.window_start_ms),
             actions=tuple(actions),
+            summary=summary,
+            time_fields=(("Issued", r.first_ready_ms), ("Expiry", r.expiry_ms)),
+        ),
+        display_times=(
+            ((CURRENT_COLUMNS.index("Issued (UTC)"), r.first_ready_ms),
+             (CURRENT_COLUMNS.index("Expiry (UTC)"), r.expiry_ms))
+            if section is Section.CURRENT
+            else ((HISTORY_COLUMNS.index("Time (UTC)"), r.first_ready_ms),)
         ),
     )
 
@@ -391,7 +429,16 @@ def _event_row(snap: Snapshot, e: SignalEvent) -> RowFacts:
             notes=tuple(notes),
             lifecycle=(),
             actions=(ActionFacts("Record entry", False, "No signal was issued."),),
+            summary=(
+                f"{e.kind.value.replace('_', ' ').title()} — historical research event; "
+                "no SignalRecord or broker order was issued."
+            ),
+            time_fields=(
+                ("Decision (received)", e.decision_time_ms),
+                ("Event", e.event_time_ms),
+            ),
         ),
+        display_times=((HISTORY_COLUMNS.index("Time (UTC)"), e.decision_time_ms),),
     )
 
 
