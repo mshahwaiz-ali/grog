@@ -310,3 +310,8 @@ def settings_section(title: str) -> str:
 def audit_detail(label: str, value: str) -> str:
     """Audit detail row."""
     return f"{label}: {value}"
+
+
+def complete_redesign_note() -> str:
+    """Redesign status note."""
+    return "UI/UX V2 redesign in progress — presentation layer complete."
