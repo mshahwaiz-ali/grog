@@ -201,6 +201,7 @@ class GoldWindow(QMainWindow):
         self.scroll.setWidgetResizable(True)
         self.scroll.setWidget(self._build_overview())
         self.signals_page = SignalsPage()
+        self.signals_page.set_time_zone(self.preferences.time_zone)
         self.signals_scroll = QScrollArea()
         self.signals_scroll.setWidgetResizable(True)
         self.signals_scroll.setWidget(self.signals_page)
@@ -593,6 +594,7 @@ class GoldWindow(QMainWindow):
         """Purely visual repaint; never asks replay/journal workers for new data."""
         theme.activate(self.preferences.effective_theme)
         theme.apply_to(self)
+        self.signals_page.set_time_zone(self.preferences.time_zone)
         if isinstance(self.frame, OverviewFrame):
             self._update_time_display(self.frame)
 

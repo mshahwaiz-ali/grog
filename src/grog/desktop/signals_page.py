@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from grog.desktop.presentation import view_time_text
 from grog.desktop.signals_model import (
     CURRENT_COLUMNS,
     DEVELOPING_COLUMNS,
@@ -52,6 +53,7 @@ from grog.desktop.signals_model import (
 from grog.desktop.theme import SPACE, Card, label, set_tone
 
 KEY_ROLE = Qt.ItemDataRole.UserRole + 1
+TIME_ROLE = Qt.ItemDataRole.UserRole + 2  # sortable raw epoch ms, never localized display text
 ALL_SIDES = "All sides"
 ALL_STATES = "All states"
 COLUMNS = {
@@ -129,6 +131,13 @@ class _RowFilter(QSortFilterProxyModel):
         index = self.sourceModel().index(source_row, 0, parent)
         row = self._page.row_for(index.data(KEY_ROLE))
         return row is not None and self._page.accepts(row)
+
+    def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:  # noqa: N802
+        """Chronological sort is always based on raw UTC ms, not localized labels."""
+        earlier, later = left.data(TIME_ROLE), right.data(TIME_ROLE)
+        if isinstance(earlier, int) and isinstance(later, int):
+            return earlier < later if earlier != later else left.row() < right.row()
+        return super().lessThan(left, right)
 
 
 def longest_token_width(widget: QLabel) -> int:
@@ -210,6 +219,7 @@ class SignalsPage(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self._gate: Callable[[ActionFacts], tuple[bool, str]] = _read_only_gate
+        self.time_zone = "PKT"
         self.facts: SignalsFacts | None = None
         self.selected_key: str | None = None
         self.selected_section: Section | None = None
@@ -239,6 +249,14 @@ class SignalsPage(QWidget):
                 wrap=True,
             )
         )
+        self.section_summary = label(
+            "No source evaluated — research-only; no broker orders.",
+            "overviewSummary",
+            wrap=True,
+            select=True,
+        )
+        self.section_summary.setAccessibleName("Signal state counts and safety")
+        outer.addWidget(self.section_summary)
         self.journal_note = label("", "meta", wrap=True)
         outer.addWidget(self.journal_note)
 
@@ -290,6 +308,36 @@ class SignalsPage(QWidget):
         self.content.addWidget(self._build_detail(), 2)
         outer.addLayout(self.content, 1)
         self._update_tab_titles()
+
+    def set_time_zone(self, zone: str) -> None:
+        """Repaint visible dates only; keep keyed selection and source UTC unchanged."""
+        if zone not in ("PKT", "UTC"):
+            raise ValueError(f"Unsupported Signals display time zone: {zone!r}")
+        if zone == self.time_zone:
+            return
+        self.time_zone = zone
+        if self.facts is not None:
+            for section in Section:
+                self._set_rows(section, self.facts.rows(section), repaint=True)
+            self._refilter()
+        if self._shown_detail is not None:
+            self._update_detail_times(self._shown_detail)
+
+    def _display_cell(self, row: RowFacts, index: int) -> tuple[str, int | None]:
+        """Use integer timestamps supplied by the engine owner, never parse raw text."""
+        raw = row.cells[index]
+        for column, when_ms in row.display_times:
+            if column == index:
+                return view_time_text(when_ms, self.time_zone), when_ms
+        return raw, None
+
+    def _paint_cell(self, item: QStandardItem, row: RowFacts, index: int) -> None:
+        raw = row.cells[index]
+        shown, when_ms = self._display_cell(row, index)
+        if item.text() != shown:
+            item.setText(shown)
+        item.setToolTip(raw if when_ms is None else f"{shown}\nExact UTC: {raw}")
+        item.setData(when_ms, TIME_ROLE)
 
     # ------------------------------------------------------------------ structure
 
@@ -394,6 +442,11 @@ class SignalsPage(QWidget):
         )
         self.detail_title.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.detail_status = label("", "body", wrap=True)
+        self.detail_summary = label("", "body", wrap=True, select=True)
+        self.detail_summary.setAccessibleName("Plain-language signal interpretation")
+        self.detail_times = label("", "meta", wrap=True, select=True)
+        self.detail_times.setAccessibleName("Display-zone event and lifecycle times")
+        self.detail_evidence = label("EXACT PLAN & AUDIT EVIDENCE", "eyebrow")
         # QFormLayout (not QGridLayout): it gives every wrapped value its height-for-width, so
         # multi-line exact values (entry band, config hash) never overlap or crop.
         self.fields = QFormLayout()
@@ -410,7 +463,14 @@ class SignalsPage(QWidget):
         self.action_row.addStretch()
         self.action_buttons: list[QPushButton] = []
         self.action_reason = label("", "meta", wrap=True)
-        for w in (self.notice, self.detail_title, self.detail_status):
+        for w in (
+            self.notice,
+            self.detail_title,
+            self.detail_status,
+            self.detail_summary,
+            self.detail_times,
+            self.detail_evidence,
+        ):
             self.detail.body.addWidget(w)
         self.fields_box = _FieldsBox(self.fields)
         self.fields.setContentsMargins(0, 0, 0, 0)
@@ -484,11 +544,15 @@ class SignalsPage(QWidget):
         if state != ALL_STATES and row.state != state:
             return False
         needle = self.search.text().strip().lower()
-        return all(part in row.search for part in needle.split())
+        localized = " ".join(
+            view_time_text(ms, self.time_zone) for _column, ms in row.display_times
+        ).lower()
+        return all(part in row.search or part in localized for part in needle.split())
 
     def show_unavailable(self, text: str) -> None:
         self.facts = None  # the next engine frame re-renders everything
         self.journal_note.setText(text)
+        self.section_summary.setText("Signals unavailable — do not act on previous data.")
         set_tone(self.journal_note, "warning")
         if self.selected_key is not None:
             self._set_event_notice(
@@ -503,6 +567,11 @@ class SignalsPage(QWidget):
             return
         self.facts = facts
         self._rows = {r.key: r for s in Section for r in facts.rows(s)}
+        self.section_summary.setText(
+            f"{len(facts.developing)} developing · "
+            f"{len(facts.current)} READY / execution-blocked · "
+            f"{len(facts.history)} historical. No ranking or automatic selection."
+        )
         self.journal_note.setText(
             "Operator overlay: read-only local journal snapshot. " + facts.note
             if facts.journal_ok
@@ -531,18 +600,17 @@ class SignalsPage(QWidget):
         self.state_filter.setCurrentText(current)
         self.state_filter.blockSignals(False)
 
-    def _set_rows(self, section: Section, rows: tuple[RowFacts, ...]) -> None:
+    def _set_rows(
+        self, section: Section, rows: tuple[RowFacts, ...], *, repaint: bool = False
+    ) -> None:
         keys = tuple(r.key for r in rows)
         cells = tuple(r.cells for r in rows)
         model, table = self.models[section], self.tables[section]
         if keys == self._keys[section]:
-            if cells != self._cells[section]:
-                for i, row in enumerate(rows):  # same keys: update texts in place
-                    for j, text in enumerate(row.cells):
-                        item = model.item(i, j)
-                        if item.text() != text:
-                            item.setText(text)
-                            item.setToolTip(text)
+            if cells != self._cells[section] or repaint:
+                for i, row in enumerate(rows):  # same keys: update in place, preserve selection
+                    for j, _raw in enumerate(row.cells):
+                        self._paint_cell(model.item(i, j), row, j)
                 self._cells[section] = cells
             self.proxies[section].invalidate()
             return
@@ -550,9 +618,9 @@ class SignalsPage(QWidget):
         model.removeRows(0, model.rowCount())
         for row in rows:
             items = []
-            for text in row.cells:
+            for j, text in enumerate(row.cells):
                 item = QStandardItem(text)
-                item.setToolTip(text)
+                self._paint_cell(item, row, j)
                 item.setData(row.key, KEY_ROLE)
                 items.append(item)
             model.appendRow(items)
@@ -678,6 +746,14 @@ class SignalsPage(QWidget):
     def notice_kind(self) -> str | None:
         return self._event_kind
 
+    def _update_detail_times(self, detail: DetailFacts) -> None:
+        self.detail_times.setText(
+            " · ".join(
+                f"{name}: {view_time_text(ms, self.time_zone)}"
+                for name, ms in detail.time_fields
+            )
+        )
+
     def _render_detail(self, detail: DetailFacts | None) -> None:
         self._shown_detail = detail
         while self.fields.rowCount():
@@ -696,6 +772,9 @@ class SignalsPage(QWidget):
         if detail is None:
             self.detail_title.setText("Select a row to see its complete detail.")
             self.detail_status.setText("")
+            self.detail_summary.setText("")
+            self.detail_times.setText("")
+            self.detail_evidence.setVisible(False)
             self.notes.setText("")
             self.lifecycle_title.setVisible(False)
             self.lifecycle.setText("")
@@ -703,6 +782,9 @@ class SignalsPage(QWidget):
             return
         self.detail_title.setText(detail.title)
         self.detail_status.setText(detail.status)
+        self.detail_summary.setText(detail.summary)
+        self._update_detail_times(detail)
+        self.detail_evidence.setVisible(True)
         set_tone(self.detail_status, detail.tone)
         for name, value in detail.fields:
             key_label = label(name, "meta")
@@ -751,7 +833,13 @@ class SignalsPage(QWidget):
 
     def detail_text(self) -> str:
         """Everything the detail panel currently shows, for tests and copy."""
-        parts = [self.notice.text(), self.detail_title.text(), self.detail_status.text()]
+        parts = [
+            self.notice.text(),
+            self.detail_title.text(),
+            self.detail_status.text(),
+            self.detail_summary.text(),
+            self.detail_times.text(),
+        ]
         for i in range(self.fields.count()):
             widget = self.fields.itemAt(i).widget()
             if isinstance(widget, QLabel):
