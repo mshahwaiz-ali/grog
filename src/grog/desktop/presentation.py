@@ -340,3 +340,8 @@ def final_status() -> str:
 def remaining_work() -> str:
     """Remaining work."""
     return "Page visual integration + host Qt tests + final acceptance."
+
+
+def done_for_now() -> str:
+    """Current milestone."""
+    return "Presentation layer and theme foundation complete."
