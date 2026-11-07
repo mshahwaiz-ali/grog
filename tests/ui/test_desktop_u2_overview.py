@@ -9,7 +9,7 @@ import pytest
 
 pytest.importorskip("PySide6.QtWidgets")
 
-from PySide6.QtCore import QPoint  # noqa: E402
+from PySide6.QtCore import QPoint, Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 from test_desktop_d03 import (  # noqa: E402
     at_ready,
@@ -217,7 +217,7 @@ def test_u2_journal_human_clocks_provenance_and_invalid_ranges(app, tmp_path) ->
         page = window.journal_page
         assert page.shown  # a READY replay includes reconstructed engine events
         first = page.shown[0]
-        assert page.model.headerData(0, 1) == "WHEN (PKT)"
+        assert page.model.headerData(0, Qt.Orientation.Horizontal) == "WHEN (PKT)"
         assert page.model.item(0, 0).text() == view_time_text(first.time_ms, "PKT")
         assert page.model.item(0, 0).toolTip() == (
             f"Original event UTC: {utc_ms_text(first.time_ms)}"
@@ -231,7 +231,7 @@ def test_u2_journal_human_clocks_provenance_and_invalid_ranges(app, tmp_path) ->
 
         keys = [entry.key for entry in page.shown]
         page.set_time_zone("UTC")
-        assert page.model.headerData(0, 1) == "WHEN (UTC)"
+        assert page.model.headerData(0, Qt.Orientation.Horizontal) == "WHEN (UTC)"
         assert page.model.item(0, 0).text() == view_time_text(first.time_ms, "UTC")
         assert [entry.key for entry in page.shown] == keys  # display-only zone change
         assert page.selected_key == first.key
