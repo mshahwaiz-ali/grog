@@ -532,10 +532,10 @@ class GoldWindow(QMainWindow):
         self.quote_meta.setText(
             f"{view_time_text(quote.provider_ms, zone, clock='provider')}  ·  "
             f"{view_time_text(quote.received_ms, zone, clock='received')}  ·  "
-            f"Quote age {age}\\n{frame.labels.price_caveat}."
+            f"Quote age {age}\n{frame.labels.price_caveat}."
         )
         self.quote_meta.setToolTip(
-            f"Provider UTC {quote.provider_utc}\\nReceived UTC {quote.received_utc}"
+            f"Provider UTC {quote.provider_utc}\nReceived UTC {quote.received_utc}"
         )
 
     @property

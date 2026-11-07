@@ -61,12 +61,22 @@ def main(argv: Sequence[str] | None = None, env: Mapping[str, str] | None = None
                 file=sys.stderr,
             )
             return EXIT_NO_QT
+        from grog.desktop import theme
         from grog.desktop.chooser import SourceChooser
+        from grog.desktop.display_preferences import DisplayPreferences
 
         app = QApplication.instance() or QApplication(["gold-desktop"])  # noqa: F841
+        display = DisplayPreferences()
+        theme.activate(display.effective_theme)
         chooser = SourceChooser(
             plan.reason, state_dir=args.state_dir or "", config=args.config or "", env=env
         )
+
+        def update_chooser_theme() -> None:
+            theme.activate(display.effective_theme)
+            theme.apply_to(chooser)
+
+        display.changed.connect(update_chooser_theme)
         if chooser.exec() != QDialog.DialogCode.Accepted or chooser.selection is None:
             print("Gold desktop: no source opened; nothing was changed.", file=sys.stderr)
             return 0
