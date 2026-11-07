@@ -201,3 +201,8 @@ def responsive_hint(mode: str) -> str:
 def keyboard_hint(keys: str, action: str) -> str:
     """Keyboard help entry."""
     return f"{keys} — {action}"
+
+
+def source_chooser_label(name: str, mode: str) -> str:
+    """Source chooser entry."""
+    return f"{name} ({mode})"
