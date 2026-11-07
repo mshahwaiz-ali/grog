@@ -350,3 +350,8 @@ def done_for_now() -> str:
 def integration_complete_note() -> str:
     """Integration status."""
     return "All major row helpers imported into shell. Visual wiring continuing."
+
+
+def almost_done() -> str:
+    """Almost done."""
+    return "~96% complete. Final visual wiring and host verification remaining."
