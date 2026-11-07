@@ -19,7 +19,7 @@ Build a lightweight, high-quality local Python workstation (existing terminal pl
 - The owner approved a **local PySide6/Qt Widgets desktop frontend**, not a web dashboard; see docs/11 D-014, docs/02 §15, docs/09 §12 and docs/10 §11.
 - Keep Textual and the current `gold` launcher until feature parity, user acceptance and full regression tests. No change to strategies, live MT5 permissions or broker execution.
 - GUI reads existing replay snapshots and validates all manual records through the existing PositionJournal. Do not duplicate domain calculations, import Qt into the engine, or cross SQLite thread ownership.
-- D00 is bounded to documentation, pure decimal-preserving display helpers and an **isolated Qt probe**. Do not claim a working trading GUI or fabricate a `uv.lock` update before package resolution.
+- D00 is bounded to documentation, pure decimal-preserving display helpers and an **isolated Qt probe**. Do not claim a working trading GUI or fabricate a `uv.lock` update before package resolution. (Historical D00 boundary: D00–D04 are now committed; current status in docs/10 §11.)
 
 ## Before doing any work: read in this order
 
@@ -99,7 +99,7 @@ The instruction is **not** consent to connect external broker/demo accounts, ins
 
 ## Complete native desktop handoff — start only after new explicit owner instruction (2026-11-07)
 
-The owner requested a **documentation-only** complete Qt workstation handoff. D00 foundation and D01 read-only Overview preview are on main; no desktop implementation is authorized by this documentation work. Superseding the older D00-only description above **for future desktop work only**, use this exact canonical reading order once the owner asks you to begin native GUI implementation:
+The owner requested a **documentation-only** complete Qt workstation handoff. Current state: D00–D04 are committed on main (D04 at `3dd0299`) under the owner's phased authorization and D05 is a candidate (docs/10 §11); the `gold` alias cutover still needs the owner's separate explicit authorization. Superseding the older D00-only description above **for future desktop work only**, use this exact canonical reading order once the owner asks you to begin native GUI implementation:
 
 1. [docs/11 §16](docs/11-decisions.md) — authorization limits/open decisions.
 2. [docs/02 §16](docs/02-workflows-and-ux.md) — all five screens, every action/dialog, human wording, keyboard and responsive design.

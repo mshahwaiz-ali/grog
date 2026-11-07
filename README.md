@@ -2,7 +2,7 @@
 
 **XAUUSD Gold scalping research and manual trading decision-support software.**
 
-**State:** offline release **R0 (M00–M08) implemented and acceptance-audited** ([docs/14](docs/14-r0-acceptance-audit.md)): strict BID/ASK CSV import, causal bars and feed health, no-lookahead analysis, the research-only S1 v0.2 detector, SIMULATED signal eligibility, deterministic replay with evidence reports, and the Textual workstation with a local manual journal (entry, skip, partial/close, stop/target modify, unlinked external fills, restart reconciliation). Grog places **no orders**, has **no live data feed** yet (M09 MT5 reference feed is planned, not built), and **no strategy edge, live-data readiness, broker-verified fill or profitability is claimed**. OPEN thresholds (quote age, first-quote delay, spread, costs, contract) default to unset, so the default config issues no READY.  
+**State:** offline release **R0 (M00–M08) implemented and acceptance-audited** ([docs/14](docs/14-r0-acceptance-audit.md)): strict BID/ASK CSV import, causal bars and feed health, no-lookahead analysis, the research-only S1 v0.2 detector, SIMULATED signal eligibility, deterministic replay with evidence reports, and the Textual workstation with a local manual journal (entry, skip, partial/close, stop/target modify, unlinked external fills, restart reconciliation). Grog places **no orders**, has **no live data feed** yet (the M09-A/H read-only MT5 reference adapter is implemented offline but has never connected to MT5 or a broker; M09-B demo connection awaits explicit owner approval and M10 market validation has not started), and **no strategy edge, live-data readiness, broker-verified fill or profitability is claimed**. OPEN thresholds (quote age, first-quote delay, spread, costs, contract) default to unset, so the default config issues no READY.\
 **Repository:** private; default branch `main`.  
 **Last update:** 2026-11-07.
 
@@ -25,39 +25,52 @@ Grog is **rule-based software**, not GPT/Claude/LLM, an AI agent, an auto-trader
 
 Proposed strategies/indicator periods have **not** been tested; an attractive quality score is **not** a win probability. Phase 18 specifies evidence-first signals and tests. **MT5 is now the preferred reference-price adapter**, regardless of the eventual execution broker. First build broker-neutral offline BID/ASK parsing, causal MTF analysis and replay; then connect an MT5 demo data source when separately approved. The actual broker/server and live feed are not selected or installed. Numerical ranking remains experimental.
 
-## Desktop GUI — foundation in progress
+## Desktop GUI — D00–D05 implemented
 
-A **native Qt Widgets desktop frontend** is approved but **not feature-complete or accepted**; only the read-only D01 Overview preview is implemented.
-The Textual TUI and existing `gold` launcher are unchanged. D00 adds tested, UI-neutral
-price/UTC/trigger formatting and a **Qt foundation probe only**, with NO replay, signals,
-positions, journal access or broker connection.
+A **native Qt Widgets desktop frontend** is approved; D01–D04 (Overview, Signals, Positions/Journal with local manual records, Diagnostics) are implemented and natively QA'd, D05 (one-command launcher, source chooser, Textual parity) passed native QA on 2026-11-07 (full Tab cycle automated only); the `gold` alias cutover is **not** done or authorized.
+The Textual TUI (`grog ui`) is unchanged and stays the fallback. This repository does not modify the
+`gold` alias (what it maps to on a given machine is not inspected or asserted here). No MT5 or broker
+connection exists in the desktop.
 
-The D01 native GUI **read-only Overview preview** is available separately. Open it
-from a regular GNOME Terminal (Qt initialization may fail inside an inherited editor
-environment) with:
+The older preview script still opens the full five-page desktop window on the synthetic
+demo state. Run it from a regular GNOME Terminal (Qt initialization may fail inside an
+inherited editor environment):
 
 ```bash
 bash scripts/gold-desktop-preview.sh
 ```
 
-The preview reads the existing synthetic `syn` source at `/tmp/grog-demo`,
-reuses the authoritative replay and signal/journal read models, and offers
-Play/Pause, one-quote Step and replay pacing controls. The other four navigation
-pages are intentionally disabled until their milestones; **no journal writing,
-position recording, MT5 or broker operations are available**. The normal
-`gold` alias still opens the TUI. `/tmp` is temporary demo storage.
+It opens the synthetic `syn` source at `/tmp/grog-demo` with the fixture config. Manual
+records saved there go to that temporary demo journal (`/tmp` is not durable storage); there
+are no MT5 or broker operations. Prefer the D05 launcher below for your own source.
 
-Qt will be installed as an *optional* `PySide6-Essentials` dependency after Ubuntu
-package resolution, smoke testing and an authentic regenerated `uv.lock`. The current
-`pyproject.toml` and lockfile remain unchanged. One-time optional smoke (requires
-network/package access but does not edit the project lockfile):
+**D05 one-command desktop (separate launcher; the `gold` alias still opens the TUI):**
 
 ```bash
-uv run --with pyside6-essentials==6.11.3 python -m grog.desktop.probe --smoke
+bash scripts/gold-desktop.sh            # saved source, else the source chooser
+bash scripts/gold-desktop.sh --choose   # always show the chooser
+bash scripts/gold-desktop.sh --source-id ID --state-dir DIR [--config FILE] [--read-only]
 ```
 
-Removing `--smoke` opens the isolated foundation window — it does not display market
-data. Migration stages/acceptance: [docs/10 §11](docs/10-roadmap.md).
+The chooser inspects a local state directory read-only, lists its imported sources and shows the
+existing `grog import-ticks` command; it never imports, downloads, creates or copies data. Open with
+"Remember" saves only `$XDG_CONFIG_HOME/grog/desktop-source.toml` (mode 0600, absolute paths). In the
+chooser Return/Enter press only the focused button (Quit has focus first); Esc quits. Textual fallback,
+from any directory: `uv run --project /path/to/grog grog ui --mode replay --source-id ID --state-dir DIR`
+(inside the repository plain `uv run grog ui ...` works).
+
+Install once (needs [uv](https://docs.astral.sh/uv/); the `desktop` extra is the locked optional
+`PySide6-Essentials`), then optionally put a personal command on your PATH. The script works from any
+directory and through a symlink; relative `--state-dir`/`--config` paths are relative to where you run
+it. This is **not** the `gold` alias, which stays on the TUI until explicit owner sign-off:
+
+```bash
+uv sync --locked --extra desktop
+ln -s "$PWD/scripts/gold-desktop.sh" ~/.local/bin/gold-desktop   # optional, personal
+```
+
+Without uv the script prints install guidance and exits 3; without Qt, or for a missing/unknown source
+or invalid config, it exits non-zero with a message and no window, nothing written.
 
 ## Run it locally (offline demo)
 
@@ -136,6 +149,6 @@ Start with [docs/00-index.md](docs/00-index.md) for the full canonical topic map
 
 ### Complete desktop documentation handoff (2026-11-07)
 
-The implementation specification for **all five future native desktop screens** has been consolidated into the existing canonical documents, without building or enabling the remaining four screens: [full UX/actions](docs/02-workflows-and-ux.md#16-complete-native-workstation-interaction-specification--d00d05-handoff-2026-11-07), [data flow and thread ownership](docs/09-architecture.md#13-desktop-implementation-ports-concurrency-and-state-ownership--d00d05-handoff-2026-11-07), [functional and visual verification](docs/08-validation.md#20-complete-native-desktop-acceptance-matrix-and-verification-protocol-2026-11-07), [D00–D05 staged implementation](docs/10-roadmap.md#12-desktop-implementation-order-verification-gates-and-grok-handoff--2026-11-07) and [scope/approvals](docs/11-decisions.md#16-desktop-workstation-handoff-scope-and-unresolved-gaps--2026-11-07). Follow [AGENTS.md](AGENTS.md) after **explicit owner permission to start**. There is no newly verified test run or live trading capability from a documentation commit.
+The implementation specification for **all five native desktop screens** was consolidated into the existing canonical documents (the screens have since been built in D01–D04): [full UX/actions](docs/02-workflows-and-ux.md#16-complete-native-workstation-interaction-specification--d00d05-handoff-2026-11-07), [data flow and thread ownership](docs/09-architecture.md#13-desktop-implementation-ports-concurrency-and-state-ownership--d00d05-handoff-2026-11-07), [functional and visual verification](docs/08-validation.md#20-complete-native-desktop-acceptance-matrix-and-verification-protocol-2026-11-07), [D00–D05 staged implementation](docs/10-roadmap.md#12-desktop-implementation-order-verification-gates-and-grok-handoff--2026-11-07) and [scope/approvals](docs/11-decisions.md#16-desktop-workstation-handoff-scope-and-unresolved-gaps--2026-11-07). Follow [AGENTS.md](AGENTS.md); phase status and evidence are in [docs/10 §11](docs/10-roadmap.md).
 
-**Actual current state:** D01 read-only Overview preview exists and the other four desktop pages remain disabled; the standard `gold` Bash alias and `grog ui` still launch the Textual interface. The owner reported a successful optional PySide6-Essentials 6.11.3 launch in a regular Ubuntu terminal; Qt is **not** integrated into project `pyproject.toml`/`uv.lock`, and an editor-inherited GNOME settings-schema error needs diagnosis. The application must not change `gold` or enable MT5 without separately passing the documented gates and the owner's approval.
+**Current state (2026-11-07):** D00–D04 are committed on main (D04 at `3dd0299`): Overview, Signals, Positions/Journal with local manual records, and Diagnostics. D05 (launcher, source chooser, Textual parity) passed native QA on 2026-11-07. Qt is the optional locked `desktop` extra (PySide6-Essentials 6.11.3 in `pyproject.toml`/`uv.lock`); the VS Code-terminal GNOME settings issue remains a known limitation (docs/10 §11). `grog ui` remains the Textual fallback; this repository does not change the `gold` alias, and cutover needs the owner's separate explicit sign-off. No MT5/broker activation (M09-B blocked on owner approval, M10 not started).
