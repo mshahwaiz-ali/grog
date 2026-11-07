@@ -1,103 +1,221 @@
-"""Gold desktop design system: tokens, one stylesheet and small widget factories.
+"""Gold desktop presentation tokens and Qt widget factories (UI only).
 
-Tokens follow docs/02 §16.1. Status always carries words as well as colour; gold is an
-accent for identity and READY research proposals, never for warnings or safety states.
-Every page (Overview, Signals; Positions/Journal/Diagnostics later) builds from these.
+The active Dark/Light palette is selected by the desktop display controller. Rendering
+changes never modify the replay engine, source selection, local journal or Textual UI.
+Semantic tones are stored on widgets so an already-open dialog can be recolored.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass, fields
+
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
-BG = "#0B111A"
-SURFACE = "#121D2A"
-RAISED = "#192838"
-DIVIDER = "#2B3C50"
-TEXT = "#E7EDF5"
-TEXT_2 = "#A1B1C3"
-GOLD = "#E6BA63"
-BUY = "#33C6A1"
-SELL = "#FF7D7D"
-WARNING = "#F2BE60"
-ERROR = "#FF6666"
-
-SPACE = (4, 8, 12, 16, 24)  # the only spacing steps used in layouts
+SPACE = (4, 8, 12, 16, 24)
 RADIUS = 12
 FONT_STACK = "'Inter', 'Noto Sans', 'DejaVu Sans', sans-serif"
 
-TONES = {  # tone -> (text colour, background, border)
-    "neutral": (TEXT, RAISED, DIVIDER),
-    "ready": (GOLD, "#2A2416", "#6F5A33"),
-    "warning": (WARNING, "#2C2414", "#6D5527"),
-    "error": (ERROR, "#2D1719", "#6E2E33"),
-    "ok": (BUY, "#11281F", "#24584A"),
-    "info": (TEXT_2, SURFACE, DIVIDER),
+
+@dataclass(frozen=True, slots=True)
+class Palette:
+    bg: str
+    chrome: str
+    surface: str
+    raised: str
+    active: str
+    divider: str
+    text: str
+    muted: str
+    tertiary: str
+    focus: str
+    buy: str
+    sell: str
+    warning: str
+    error: str
+    positive_bg: str
+    positive_border: str
+    warning_bg: str
+    warning_border: str
+    error_bg: str
+    error_border: str
+    ready_bg: str
+    ready_border: str
+    disabled_text: str
+    disabled_bg: str
+    control_border: str
+    primary_bg: str
+    primary_text: str
+    primary_hover: str
+    table_alt: str
+
+
+PALETTES = {
+    "Dark": Palette(
+        "#111111", "#151515", "#1B1B1B", "#242424", "#2A2A29", "#323232",
+        "#F4F4F1", "#A7A7A3", "#92928E", "#D5C3A4", "#40B99A", "#E98C80",
+        "#ECC37E", "#F08E83", "#153229", "#285C4D", "#392D1B", "#73582F",
+        "#3C2424", "#824844", "#302A22", "#786348", "#787872", "#202020",
+        "#4B4B49", "#40372B", "#F7EAD5", "#514537", "#202020",
+    ),
+    "Light": Palette(
+        "#FAFAF9", "#F5F5F3", "#FFFFFF", "#F5F5F3", "#EAEAE6", "#E6E6E3",
+        "#232320", "#64645E", "#77776F", "#71624C", "#177D63", "#B64E47",
+        "#8D5F21", "#B84541", "#E2F5EC", "#9BD9BF", "#FBF1E1", "#E7C991",
+        "#FBE8E6", "#E4ACA9", "#F3EDE3", "#D6C4A4", "#999991", "#F2F2F0",
+        "#C6C6C0", "#EAE2D6", "#3B3024", "#DED0BE", "#F7F7F5",
+    ),
 }
 
-STYLESHEET = f"""
-QMainWindow, QWidget#root {{ background: {BG}; color: {TEXT}; }}
-QWidget {{ font-family: {FONT_STACK}; font-size: 14px; color: {TEXT}; }}
-QToolTip {{ background: {RAISED}; color: {TEXT}; border: 1px solid {DIVIDER}; padding: 6px; }}
-QFrame#sidebar {{ background: #0E1621; border-right: 1px solid {DIVIDER}; }}
-QFrame#statusStrip {{ background: #0E1621; border-bottom: 1px solid {DIVIDER}; }}
-QFrame#toolbar {{ background: #0E1621; border-top: 1px solid {DIVIDER}; }}
-QFrame#card {{ background: {SURFACE}; border: 1px solid {DIVIDER}; border-radius: {RADIUS}px; }}
-QFrame#metric {{ background: {SURFACE}; border: 1px solid {DIVIDER}; border-radius: {RADIUS}px; }}
-QLabel {{ background: transparent; }}
-QLabel#brand {{ font-size: 22px; font-weight: 800; color: {GOLD}; letter-spacing: 2px; }}
-QLabel#brandSub {{ font-size: 11px; color: {TEXT_2}; }}
-QLabel#pageTitle {{ font-size: 24px; font-weight: 700; color: {TEXT}; }}
-QLabel#pagePurpose {{ font-size: 13px; color: {TEXT_2}; }}
-QLabel#eyebrow {{ font-size: 11px; font-weight: 700; color: {TEXT_2}; letter-spacing: 1px; }}
-QLabel#cardTitle {{ font-size: 15px; font-weight: 700; color: {TEXT}; }}
-QLabel#body {{ font-size: 14px; color: #DCE4EE; }}
-QLabel#meta {{ font-size: 12px; color: {TEXT_2}; }}
-QLabel#mono {{ font-family: 'DejaVu Sans Mono', 'Noto Sans Mono', monospace; font-size: 12px;
-    color: {TEXT_2}; }}
-QLabel#quote {{ font-size: 28px; font-weight: 700; color: {TEXT}; }}
-QLabel#metricValue {{ font-size: 17px; font-weight: 650; color: {TEXT}; }}
-QLabel#headline {{ font-size: 23px; font-weight: 750; }}
-QLabel#navCount {{ font-size: 11px; color: {TEXT_2}; }}
-QPushButton {{ background: {RAISED}; color: {TEXT}; border: 1px solid #36495E;
-    border-radius: 8px; padding: 8px 14px; font-weight: 600; }}
-QPushButton:hover {{ background: #22344A; }}
-QPushButton:pressed {{ background: #15212F; }}
-QPushButton:focus {{ border: 1px solid {GOLD}; }}
-QPushButton:disabled {{ color: #5F6F82; background: #111B27; border-color: #223144; }}
-QPushButton#primary {{ background: #3A2F1B; color: #F4D597; border-color: #7A6236; }}
-QPushButton#primary:hover {{ background: #4A3C22; }}
-QPushButton#primary:disabled {{ color: #5F6F82; background: #111B27; border-color: #223144; }}
-QPushButton#nav, QPushButton#navActive {{ text-align: left; padding: 10px 12px;
-    border-radius: 8px; border: 1px solid transparent; background: transparent; }}
-QPushButton#nav:disabled {{ color: #5F6F82; }}
-QPushButton#navActive {{ background: #2A2416; color: #F4D597; border-color: #5E4C2C; }}
-QLineEdit, QComboBox {{ background: {SURFACE}; color: {TEXT}; border: 1px solid #36495E;
-    border-radius: 8px; padding: 6px 10px; selection-background-color: #3A2F1B; }}
-QLineEdit:focus, QComboBox:focus {{ border: 1px solid {GOLD}; }}
-QComboBox QAbstractItemView {{ background: {SURFACE}; color: {TEXT};
-    selection-background-color: #2A2416; }}
-QTabWidget::pane {{ border: 1px solid {DIVIDER}; border-radius: 8px; top: -1px;
-    background: {SURFACE}; }}
-QTabBar::tab {{ background: transparent; color: {TEXT_2}; padding: 8px 14px;
-    border: 1px solid transparent; border-bottom: none; font-weight: 600; }}
-QTabBar::tab:selected {{ color: #F4D597; background: {SURFACE}; border-color: {DIVIDER};
-    border-top-left-radius: 8px; border-top-right-radius: 8px; }}
-QTabBar::tab:focus {{ color: {GOLD}; }}
-QTableView {{ background: {SURFACE}; alternate-background-color: #15212F; color: {TEXT};
-    gridline-color: {DIVIDER}; border: none; selection-background-color: #2A2416;
-    selection-color: #F4D597; font-size: 13px; }}
-QTableView:focus {{ border: 1px solid {GOLD}; }}
-QHeaderView::section {{ background: #0E1621; color: {TEXT_2}; border: none;
-    border-bottom: 1px solid {DIVIDER}; padding: 6px 8px; font-size: 12px; font-weight: 700; }}
-QScrollBar:horizontal {{ background: {BG}; height: 10px; }}
-QScrollBar::handle:horizontal {{ background: {DIVIDER}; border-radius: 5px; min-width: 30px; }}
-QScrollArea {{ border: none; background: {BG}; }}
-QScrollArea > QWidget > QWidget {{ background: {BG}; }}
-QScrollBar:vertical {{ background: {BG}; width: 10px; }}
-QScrollBar::handle:vertical {{ background: {DIVIDER}; border-radius: 5px; min-height: 30px; }}
-QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; }}
-"""
+
+def _stylesheet(palette: Palette) -> str:
+    """One neutral Qt stylesheet for every existing page and future dialog."""
+    sheet = """
+    QMainWindow, QDialog, QWidget#root { background: @BG@; color: @TEXT@; }
+    QWidget { font-family: @FONT_STACK@; font-size: 14px; color: @TEXT@; }
+    QToolTip { background: @RAISED@; color: @TEXT@; border: 1px solid @DIVIDER@;
+        padding: 6px; }
+    QFrame#sidebar { background: @CHROME@; border-right: 1px solid @DIVIDER@; }
+    QFrame#statusStrip { background: @CHROME@; border-bottom: 1px solid @DIVIDER@; }
+    QFrame#toolbar { background: @CHROME@; border-top: 1px solid @DIVIDER@; }
+    QFrame#card, QFrame#metric { background: @SURFACE@;
+        border: 1px solid @DIVIDER@; border-radius: 12px; }
+    QFrame#metric[grogRaised="true"] { background: @RAISED@; }
+    QLabel { background: transparent; }
+    QLabel#brand { font-size: 22px; font-weight: 800; color: @FOCUS@;
+        letter-spacing: 2px; }
+    QLabel#brandSub { font-size: 11px; color: @MUTED@; }
+    QLabel#pageTitle { font-size: 24px; font-weight: 700; color: @TEXT@; }
+    QLabel#pagePurpose { font-size: 13px; color: @MUTED@; }
+    QLabel#eyebrow { font-size: 11px; font-weight: 700; color: @MUTED@;
+        letter-spacing: 1px; }
+    QLabel#cardTitle { font-size: 15px; font-weight: 700; color: @TEXT@; }
+    QLabel#body { font-size: 14px; color: @TEXT@; }
+    QLabel#meta { font-size: 12px; color: @MUTED@; }
+    QLabel#mono { font-family: 'DejaVu Sans Mono', 'Noto Sans Mono', monospace;
+        font-size: 12px; color: @MUTED@; }
+    QLabel#quote { font-size: 28px; font-weight: 700; color: @TEXT@; }
+    QLabel#metricValue { font-size: 17px; font-weight: 650; color: @TEXT@; }
+    QLabel#headline { font-size: 23px; font-weight: 750; color: @TEXT@; }
+    QLabel#navCount { font-size: 11px; color: @MUTED@; }
+    QPushButton { background: @RAISED@; color: @TEXT@;
+        border: 1px solid @CONTROL_BORDER@; border-radius: 8px;
+        padding: 8px 14px; font-weight: 600; }
+    QPushButton:hover { background: @ACTIVE@; }
+    QPushButton:pressed { background: @ACTIVE@; }
+    QPushButton:focus { border: 1px solid @FOCUS@; }
+    QPushButton:disabled { color: @DISABLED_TEXT@; background: @DISABLED_BG@;
+        border-color: @DIVIDER@; }
+    QPushButton#primary { background: @PRIMARY_BG@; color: @PRIMARY_TEXT@;
+        border-color: @READY_BORDER@; }
+    QPushButton#primary:hover { background: @PRIMARY_HOVER@; }
+    QPushButton#primary:disabled { color: @DISABLED_TEXT@;
+        background: @DISABLED_BG@; border-color: @DIVIDER@; }
+    QPushButton#nav, QPushButton#navActive { text-align: left; padding: 10px 12px;
+        border-radius: 8px; border: 1px solid transparent; background: transparent; }
+    QPushButton#nav:disabled { color: @DISABLED_TEXT@; }
+    QPushButton#navActive { background: @ACTIVE@; color: @TEXT@;
+        border-color: @DIVIDER@; }
+    QPushButton#settingsNavActive { background: @ACTIVE@; color: @TEXT@;
+        border-color: @DIVIDER@; text-align: left; }
+    QLineEdit, QComboBox { background: @SURFACE@; color: @TEXT@;
+        border: 1px solid @CONTROL_BORDER@; border-radius: 8px;
+        padding: 6px 10px; selection-background-color: @ACTIVE@;
+        selection-color: @TEXT@; }
+    QLineEdit:focus, QComboBox:focus { border: 1px solid @FOCUS@; }
+    QComboBox QAbstractItemView, QMenu, QListView { background: @SURFACE@;
+        color: @TEXT@; border: 1px solid @DIVIDER@;
+        selection-background-color: @ACTIVE@; selection-color: @TEXT@; }
+    QRadioButton { color: @TEXT@; spacing: 8px; padding: 6px; }
+    QRadioButton:focus { border: 1px solid @FOCUS@; border-radius: 6px; }
+    QTabWidget::pane { border: 1px solid @DIVIDER@; border-radius: 8px;
+        top: -1px; background: @SURFACE@; }
+    QTabBar::tab { background: transparent; color: @MUTED@; padding: 8px 14px;
+        border: 1px solid transparent; border-bottom: none; font-weight: 600; }
+    QTabBar::tab:selected { color: @TEXT@; background: @SURFACE@;
+        border-color: @DIVIDER@; border-top-left-radius: 8px;
+        border-top-right-radius: 8px; }
+    QTabBar::tab:focus { color: @FOCUS@; }
+    QTableView { background: @SURFACE@; alternate-background-color: @TABLE_ALT@;
+        color: @TEXT@; gridline-color: @DIVIDER@; border: none;
+        selection-background-color: @ACTIVE@; selection-color: @TEXT@;
+        font-size: 13px; }
+    QTableView:focus { border: 1px solid @FOCUS@; }
+    QHeaderView::section { background: @CHROME@; color: @MUTED@; border: none;
+        border-bottom: 1px solid @DIVIDER@; padding: 6px 8px;
+        font-size: 12px; font-weight: 700; }
+    QScrollArea { border: none; background: @BG@; }
+    QScrollArea > QWidget > QWidget { background: @BG@; }
+    QScrollBar:horizontal { background: @BG@; height: 10px; }
+    QScrollBar:vertical { background: @BG@; width: 10px; }
+    QScrollBar::handle:horizontal { background: @DIVIDER@; border-radius: 5px;
+        min-width: 30px; }
+    QScrollBar::handle:vertical { background: @DIVIDER@; border-radius: 5px;
+        min-height: 30px; }
+    QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
+    """
+    for token in fields(Palette):
+        key = f"@{token.name.upper()}@"
+        sheet = sheet.replace(key, getattr(palette, token.name))
+    return sheet.replace("@FONT_STACK@", FONT_STACK)
+
+
+def _tones(palette: Palette) -> dict[str, tuple[str, str, str]]:
+    return {
+        "neutral": (palette.text, palette.raised, palette.divider),
+        "ready": (palette.focus, palette.ready_bg, palette.ready_border),
+        "warning": (palette.warning, palette.warning_bg, palette.warning_border),
+        "error": (palette.error, palette.error_bg, palette.error_border),
+        "ok": (palette.buy, palette.positive_bg, palette.positive_border),
+        "info": (palette.muted, palette.surface, palette.divider),
+    }
+
+
+def activate(name: str) -> None:
+    """Set this application's presentation colors; no OS-wide palette mutation."""
+    if name not in PALETTES:
+        raise ValueError(f"Unknown desktop theme: {name!r}")
+    global BG, SURFACE, RAISED, DIVIDER, TEXT, TEXT_2, GOLD, BUY, SELL, WARNING, ERROR
+    global TONES, STYLESHEET, ACTIVE_NAME
+    palette = PALETTES[name]
+    ACTIVE_NAME = name
+    BG, SURFACE, RAISED, DIVIDER = (
+        palette.bg, palette.surface, palette.raised, palette.divider
+    )
+    TEXT, TEXT_2, GOLD = palette.text, palette.muted, palette.focus
+    BUY, SELL, WARNING, ERROR = (
+        palette.buy, palette.sell, palette.warning, palette.error
+    )
+    TONES = _tones(palette)
+    STYLESHEET = _stylesheet(palette)
+
+
+def apply_to(root: QWidget) -> None:
+    """Reapply the current palette and every inline semantic tone recursively."""
+    widgets = [root, *root.findChildren(QWidget)]
+    for widget in widgets:
+        if isinstance(widget, QDialog) and widget.objectName() in ("chooser", "manualForm"):
+            role = widget.objectName()
+            widget.setStyleSheet(STYLESHEET + f"QDialog#{role} {{ background: {BG}; }}")
+        elif widget is root:
+            widget.setStyleSheet(STYLESHEET)
+        tone = widget.property("_grog_tone")
+        if isinstance(tone, str):
+            set_tone(widget, tone, pill=bool(widget.property("_grog_pill")))
+        accent = widget.property("_grog_accent")
+        if isinstance(widget, Card) and isinstance(accent, str):
+            widget.set_accent(accent)
+
+
+activate("Dark")
 
 
 def label(text: str = "", role: str = "body", *, wrap: bool = False, select: bool = False):
@@ -118,6 +236,9 @@ def pill(text: str = "", tone: str = "info") -> QLabel:
 
 
 def set_tone(widget: QWidget, tone: str, *, pill: bool = False) -> None:
+    """Retain semantic state so existing widgets recolor on a theme switch."""
+    widget.setProperty("_grog_tone", tone)
+    widget.setProperty("_grog_pill", pill)
     fg, bg, border = TONES.get(tone, TONES["info"])
     if pill:
         widget.setStyleSheet(
@@ -141,6 +262,7 @@ class Card(QFrame):
             self.body.addWidget(label(title.upper(), "eyebrow"))
 
     def set_accent(self, tone: str) -> None:
+        self.setProperty("_grog_accent", tone)
         fg, bg, border = TONES.get(tone, TONES["neutral"])
         self.setStyleSheet(
             f"QFrame#{self.objectName()} {{ background: {bg}; border: 1px solid {border};"
