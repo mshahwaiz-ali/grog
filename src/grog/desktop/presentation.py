@@ -261,3 +261,8 @@ def positions_row(side: str, entry: str, sl: str) -> str:
 def journal_row(time: str, event: str, detail: str) -> str:
     """Journal table row summary."""
     return f"{time} · {journal_event_label(event)} · {detail}"
+
+
+def diagnostics_summary(health: str, detail: str) -> str:
+    """Diagnostics health summary."""
+    return f"{health}: {detail}"
