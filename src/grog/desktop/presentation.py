@@ -131,3 +131,8 @@ def empty_state(page: str) -> str:
 def provenance_line(source_id: str, mode: str) -> str:
     """Source provenance for summaries. Full details in audit."""
     return f"Source {source_id} · {mode}"
+
+
+def alert_banner(severity: str, message: str) -> str:
+    """Human alert for fault/warning states."""
+    return f"{severity.upper()}: {message}"
