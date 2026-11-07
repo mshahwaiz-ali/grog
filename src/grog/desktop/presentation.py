@@ -271,3 +271,8 @@ def diagnostics_summary(health: str, detail: str) -> str:
 def form_field_label(name: str, required: bool = False) -> str:
     """Form field label."""
     return f"{name}{" *" if required else ""}"
+
+
+def help_section(title: str, items: list[str]) -> str:
+    """Keyboard help section."""
+    return title + "\n" + "\n".join(items)
