@@ -33,9 +33,7 @@ class DisplayPreferences(QObject):
 
     changed = Signal()
 
-    def __init__(
-        self, settings: QSettings | None = None, parent: QObject | None = None
-    ) -> None:
+    def __init__(self, settings: QSettings | None = None, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._settings = (
             settings
@@ -107,7 +105,5 @@ class DisplayPreferences(QObject):
             self._update_scheme(scheme)
 
     def _update_scheme(self, scheme: Qt.ColorScheme) -> None:
-        self.effective_theme, self.system_fallback = resolve_appearance(
-            self.appearance, scheme
-        )
+        self.effective_theme, self.system_fallback = resolve_appearance(self.appearance, scheme)
         self.changed.emit()
