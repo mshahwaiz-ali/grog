@@ -335,3 +335,8 @@ def acceptance_note() -> str:
 def final_status() -> str:
     """Final redesign status."""
     return "Foundation complete. Page visual integration and host tests remaining."
+
+
+def remaining_work() -> str:
+    """Remaining work."""
+    return "Page visual integration + host Qt tests + final acceptance."
