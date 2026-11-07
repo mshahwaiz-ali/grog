@@ -146,3 +146,8 @@ def confirmation_footer(action: str) -> str:
 def exact_value_row(label: str, value: str) -> str:
     """Exact value for audit/detail rows."""
     return f"{label}: {value}"
+
+
+def market_context(h1: str, m15: str, m5: str) -> str:
+    """Market context row for Overview."""
+    return f"H1 {h1} · M15 {m15} · M5 {m5}"
