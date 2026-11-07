@@ -460,7 +460,8 @@ def test_unavailable_engine_marks_selected_detail_stale_until_next_frame(app) ->
     finally:
         finish(app, window)
 
-# ------------------------------------------------------------------ U2-B readable clocks and source evidence
+
+# U2-B: readable clock labels and exact source evidence
 
 
 def test_u2_time_zone_switch_preserves_selection_plan_and_audit_utc(app) -> None:
@@ -483,9 +484,8 @@ def test_u2_time_zone_switch_preserves_selection_plan_and_audit_utc(app) -> None
         assert item.text() == view_time_text(issued_ms, "PKT")
         assert item.data(TIME_ROLE) == issued_ms
         assert original in item.toolTip()
-        assert page.models[Section.CURRENT].horizontalHeaderItem(issued_column).text() == (
-            "Issued (PKT)"
-        )
+        header = page.models[Section.CURRENT].horizontalHeaderItem(issued_column)
+        assert header.text() == "Issued (PKT)"
         assert "Issued: " in page.detail_times.text()
         assert "PKT" in page.detail_times.text()
         assert "READY" in page.detail_summary.text() and "simulation" in page.detail_summary.text()
@@ -497,9 +497,7 @@ def test_u2_time_zone_switch_preserves_selection_plan_and_audit_utc(app) -> None
         assert page.models[Section.CURRENT].item(0, issued_column).text() == view_time_text(
             issued_ms, "UTC"
         )
-        assert page.models[Section.CURRENT].horizontalHeaderItem(issued_column).text() == (
-            "Issued (UTC)"
-        )
+        assert header.text() == "Issued (UTC)"
         assert "UTC" in page.detail_times.text()
         assert original in page.detail_text()
         assert (s.cursor, window.frame.transport.processed, page.selected_key) == before
@@ -557,8 +555,7 @@ def test_u2_history_time_sort_uses_source_milliseconds_across_zone_changes(app) 
         settle(app)
         after = [proxy.index(i, time_column).data(TIME_ROLE) for i in range(proxy.rowCount())]
         assert after == ms
-        assert "Time (UTC)" == page.models[Section.HISTORY].horizontalHeaderItem(
-            time_column
-        ).text()
+        header = page.models[Section.HISTORY].horizontalHeaderItem(time_column)
+        assert header.text() == "Time (UTC)"
     finally:
         finish(app, window)

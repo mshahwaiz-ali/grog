@@ -362,8 +362,6 @@ def test_u2_unreadable_journal_summary_fails_closed_without_changing_plan() -> N
     ).signals.find(sid)
     assert unverified.detail.summary.startswith("Local journal unavailable")
     assert not any(a.enabled for a in unverified.detail.actions)
-    assert _field(unverified, "E0 = ASK (entry side)") == _field(
-        good, "E0 = ASK (entry side)"
-    ) if good.side == "BUY" else _field(unverified, "E0 = BID (entry side)") == _field(
-        good, "E0 = BID (entry side)"
-    )
+    entry_side = "ASK" if good.side == "BUY" else "BID"
+    field = f"E0 = {entry_side} (entry side)"
+    assert _field(unverified, field) == _field(good, field)
