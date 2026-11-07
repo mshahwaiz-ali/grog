@@ -46,9 +46,7 @@ class SettingsPage(QWidget):
             self.appearance_group.addButton(control)
             appearance.body.addWidget(control)
             control.toggled.connect(
-                lambda checked, choice=value: (
-                    preferences.set_appearance(choice) if checked else None
-                )
+                lambda checked, choice=value: self._choose_appearance(checked, choice)
             )
             self.appearance_buttons[value] = control
         self.effective_note = label("", "meta", wrap=True, select=True)
@@ -66,9 +64,7 @@ class SettingsPage(QWidget):
             self.time_group.addButton(control)
             time_card.body.addWidget(control)
             control.toggled.connect(
-                lambda checked, choice=value: (
-                    preferences.set_time_zone(choice) if checked else None
-                )
+                lambda checked, choice=value: self._choose_time_zone(checked, choice)
             )
             self.time_buttons[value] = control
         time_card.body.addWidget(
@@ -95,6 +91,14 @@ class SettingsPage(QWidget):
         layout.addStretch()
         preferences.changed.connect(self._update_note)
         self._update_note()
+
+    def _choose_appearance(self, checked: bool, choice: str) -> None:
+        if checked:
+            self.preferences.set_appearance(choice)
+
+    def _choose_time_zone(self, checked: bool, choice: str) -> None:
+        if checked:
+            self.preferences.set_time_zone(choice)
 
     def _update_note(self) -> None:
         pref = self.preferences

@@ -60,18 +60,66 @@ class Palette:
 
 PALETTES = {
     "Dark": Palette(
-        "#111111", "#151515", "#1B1B1B", "#242424", "#2A2A29", "#323232",
-        "#F4F4F1", "#A7A7A3", "#92928E", "#D5C3A4", "#40B99A", "#E98C80",
-        "#ECC37E", "#F08E83", "#153229", "#285C4D", "#392D1B", "#73582F",
-        "#3C2424", "#824844", "#302A22", "#786348", "#787872", "#202020",
-        "#4B4B49", "#40372B", "#F7EAD5", "#514537", "#202020",
+        bg="#111111",
+        chrome="#151515",
+        surface="#1B1B1B",
+        raised="#242424",
+        active="#2A2A29",
+        divider="#323232",
+        text="#F4F4F1",
+        muted="#A7A7A3",
+        tertiary="#92928E",
+        focus="#D5C3A4",
+        buy="#40B99A",
+        sell="#E98C80",
+        warning="#ECC37E",
+        error="#F08E83",
+        positive_bg="#153229",
+        positive_border="#285C4D",
+        warning_bg="#392D1B",
+        warning_border="#73582F",
+        error_bg="#3C2424",
+        error_border="#824844",
+        ready_bg="#302A22",
+        ready_border="#786348",
+        disabled_text="#787872",
+        disabled_bg="#202020",
+        control_border="#4B4B49",
+        primary_bg="#40372B",
+        primary_text="#F7EAD5",
+        primary_hover="#514537",
+        table_alt="#202020",
     ),
     "Light": Palette(
-        "#FAFAF9", "#F5F5F3", "#FFFFFF", "#F5F5F3", "#EAEAE6", "#E6E6E3",
-        "#232320", "#64645E", "#77776F", "#71624C", "#177D63", "#B64E47",
-        "#8D5F21", "#B84541", "#E2F5EC", "#9BD9BF", "#FBF1E1", "#E7C991",
-        "#FBE8E6", "#E4ACA9", "#F3EDE3", "#D6C4A4", "#999991", "#F2F2F0",
-        "#C6C6C0", "#EAE2D6", "#3B3024", "#DED0BE", "#F7F7F5",
+        bg="#FAFAF9",
+        chrome="#F5F5F3",
+        surface="#FFFFFF",
+        raised="#F5F5F3",
+        active="#EAEAE6",
+        divider="#E6E6E3",
+        text="#232320",
+        muted="#64645E",
+        tertiary="#77776F",
+        focus="#71624C",
+        buy="#177D63",
+        sell="#B64E47",
+        warning="#8D5F21",
+        error="#B84541",
+        positive_bg="#E2F5EC",
+        positive_border="#9BD9BF",
+        warning_bg="#FBF1E1",
+        warning_border="#E7C991",
+        error_bg="#FBE8E6",
+        error_border="#E4ACA9",
+        ready_bg="#F3EDE3",
+        ready_border="#D6C4A4",
+        disabled_text="#999991",
+        disabled_bg="#F2F2F0",
+        control_border="#C6C6C0",
+        primary_bg="#EAE2D6",
+        primary_text="#3B3024",
+        primary_hover="#DED0BE",
+        table_alt="#F7F7F5",
     ),
 }
 
@@ -188,11 +236,17 @@ def activate(name: str) -> None:
     palette = PALETTES[name]
     ACTIVE_NAME = name
     BG, SURFACE, RAISED, DIVIDER = (
-        palette.bg, palette.surface, palette.raised, palette.divider
+        palette.bg,
+        palette.surface,
+        palette.raised,
+        palette.divider,
     )
     TEXT, TEXT_2, GOLD = palette.text, palette.muted, palette.focus
     BUY, SELL, WARNING, ERROR = (
-        palette.buy, palette.sell, palette.warning, palette.error
+        palette.buy,
+        palette.sell,
+        palette.warning,
+        palette.error,
     )
     TONES = _tones(palette)
     STYLESHEET = _stylesheet(palette)

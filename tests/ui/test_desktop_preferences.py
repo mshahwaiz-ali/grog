@@ -13,10 +13,7 @@ from PySide6.QtCore import QSettings, Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget  # noqa: E402
 
 from grog.desktop import theme  # noqa: E402
-from grog.desktop.display_preferences import (  # noqa: E402
-    DisplayPreferences,
-    resolve_appearance,
-)
+from grog.desktop.display_preferences import DisplayPreferences, resolve_appearance  # noqa: E402
 from grog.desktop.settings_page import SettingsPage  # noqa: E402
 
 
@@ -162,9 +159,15 @@ def test_settings_page_controls_are_readable_and_write_only_display_prefs(app, t
 
 
 def test_window_settings_preserve_replay_and_numbered_pages(app, tmp_path) -> None:
-    from PySide6.QtCore import QThread
-    from test_desktop_d03 import at_ready, decisions, events, finish, make_state, pending
-    from test_desktop_d03 import wait_until
+    from test_desktop_d03 import (
+        at_ready,
+        decisions,
+        events,
+        finish,
+        make_state,
+        pending,
+        wait_until,
+    )
 
     from grog.desktop.frames import OverviewFrame
     from grog.desktop.journal_worker import JournalWorker

@@ -15,9 +15,7 @@ ORGANIZATION = "Grog"
 APPLICATION = "GoldDesktop"
 
 
-def resolve_appearance(
-    appearance: str, system_scheme: Qt.ColorScheme
-) -> tuple[str, bool]:
+def resolve_appearance(appearance: str, system_scheme: Qt.ColorScheme) -> tuple[str, bool]:
     """Return effective Dark/Light and whether System had to use a Dark fallback."""
     if appearance not in APPEARANCES:
         raise ValueError(f"Unsupported appearance: {appearance!r}")
