@@ -176,3 +176,8 @@ def key_value_list(pairs: list[tuple[str, str]]) -> str:
 def page_heading(title: str, purpose: str = "") -> str:
     """Page heading with optional purpose."""
     return title if not purpose else f"{title}\n{purpose}"
+
+
+def compact_table_header(*columns: str) -> str:
+    """Compact table header for Signals/Positions."""
+    return " | ".join(columns)
