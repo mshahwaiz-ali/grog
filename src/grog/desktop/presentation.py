@@ -206,3 +206,8 @@ def keyboard_hint(keys: str, action: str) -> str:
 def source_chooser_label(name: str, mode: str) -> str:
     """Source chooser entry."""
     return f"{name} ({mode})"
+
+
+def fault_state(code: str, message: str) -> str:
+    """Fault state for Diagnostics."""
+    return f"FAULT {code}: {message}"
