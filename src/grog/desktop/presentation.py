@@ -92,3 +92,12 @@ def status_label(raw: str) -> str:
         "NO TRADE": "No trade",
     }
     return mapping.get(raw, raw)
+
+
+def decision_headline(state: str) -> str:
+    """Primary decision headline for Overview. Exact state remains in detail."""
+    return {
+        "NO TRADE": "No trade right now",
+        "FORMING": "Developing · not tradable yet",
+        "READY": "READY research proposal",
+    }.get(state, state)
