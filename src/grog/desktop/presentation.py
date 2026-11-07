@@ -256,3 +256,8 @@ def signals_row(side: str, status: str, time: str) -> str:
 def positions_row(side: str, entry: str, sl: str) -> str:
     """Positions table row summary."""
     return f"{position_side_label(side)} · Entry {entry} · SL {sl}"
+
+
+def journal_row(time: str, event: str, detail: str) -> str:
+    """Journal table row summary."""
+    return f"{time} · {journal_event_label(event)} · {detail}"
