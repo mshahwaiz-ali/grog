@@ -317,6 +317,7 @@ def test_gui29_history_labels_actual_event_kinds_without_fabricated_records() ->
         (row,) = [r for r in other.history if r.kind != "SIGNAL"]
         assert row.kind == kind.value and row.detail.title == f"EVENT {kind.value}"
 
+
 # ------------------------------------------------------------------ U2-B presentation metadata
 
 

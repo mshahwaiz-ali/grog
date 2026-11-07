@@ -755,8 +755,7 @@ class SignalsPage(QWidget):
     def _update_detail_times(self, detail: DetailFacts) -> None:
         self.detail_times.setText(
             " · ".join(
-                f"{name}: {view_time_text(ms, self.time_zone)}"
-                for name, ms in detail.time_fields
+                f"{name}: {view_time_text(ms, self.time_zone)}" for name, ms in detail.time_fields
             )
         )
 
