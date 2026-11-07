@@ -136,3 +136,8 @@ def provenance_line(source_id: str, mode: str) -> str:
 def alert_banner(severity: str, message: str) -> str:
     """Human alert for fault/warning states."""
     return f"{severity.upper()}: {message}"
+
+
+def confirmation_footer(action: str) -> str:
+    """Confirmation text for manual forms. No broker order."""
+    return f"Confirm {action} (local record only · no broker order)"
