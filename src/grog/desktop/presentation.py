@@ -191,3 +191,8 @@ def detail_panel(title: str, body: str) -> str:
 def status_pill(text: str, tone: str = "info") -> str:
     """Status pill text. Color comes from theme."""
     return text
+
+
+def responsive_hint(mode: str) -> str:
+    """Responsive layout hint."""
+    return {"wide": "Full layout", "medium": "Compact", "narrow": "Stacked"}.get(mode, mode)
