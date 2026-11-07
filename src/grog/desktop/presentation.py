@@ -251,3 +251,8 @@ def overview_summary(state: str, reason: str) -> str:
 def signals_row(side: str, status: str, time: str) -> str:
     """Signals table row summary."""
     return f"{side} · {status_label(status)} · {time}"
+
+
+def positions_row(side: str, entry: str, sl: str) -> str:
+    """Positions table row summary."""
+    return f"{position_side_label(side)} · Entry {entry} · SL {sl}"
