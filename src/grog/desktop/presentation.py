@@ -126,3 +126,8 @@ def empty_state(page: str) -> str:
         "positions": "No open manual positions",
         "journal": "No journal events yet",
     }.get(page, "Nothing to show")
+
+
+def provenance_line(source_id: str, mode: str) -> str:
+    """Source provenance for summaries. Full details in audit."""
+    return f"Source {source_id} · {mode}"
