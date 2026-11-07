@@ -1,1 +1,1 @@
-PLACEHOLDER_WINDOW
+PLACEHOLDER - real content follows in next if this fails
