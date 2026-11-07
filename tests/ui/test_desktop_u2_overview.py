@@ -12,8 +12,6 @@ pytest.importorskip("PySide6.QtWidgets")
 from PySide6.QtCore import QPoint  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from grog.desktop.frames import OverviewFrame  # noqa: E402
-from grog.replay.session import Playback  # noqa: E402
 from test_desktop_d03 import (  # noqa: E402
     at_ready,
     decisions,
@@ -23,6 +21,9 @@ from test_desktop_d03 import (  # noqa: E402
     open_d03,
     wait_until,
 )
+
+from grog.desktop.frames import OverviewFrame  # noqa: E402
+from grog.replay.session import Playback  # noqa: E402
 from ui_support import open_journal, record_unlinked, session  # noqa: E402
 
 
@@ -118,9 +119,10 @@ def test_overview_does_not_hide_unreadable_local_journal(app) -> None:
 
     window = GoldWindow(
         LoadRequest("syn"),
-        worker=ReplayWorker(loader=lambda _request: session(), journal_reader=lambda _r: (
-            None, None, "Journal not connected"
-        )),
+        worker=ReplayWorker(
+            loader=lambda _request: session(),
+            journal_reader=lambda _r: (None, None, "Journal not connected"),
+        ),
     )
     window.show()
     try:
