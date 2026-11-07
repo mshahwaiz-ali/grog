@@ -242,6 +242,13 @@ def test_u2_journal_human_clocks_provenance_and_invalid_ranges(app, tmp_path) ->
         assert "Correct the UTC time range" in page.chronology.text()
         page.from_utc.clear()
         assert [entry.key for entry in page.shown] == keys
+        from PySide6.QtWidgets import QBoxLayout
+
+        page.set_layout_mode("narrow")
+        assert page.filter_row.direction() == QBoxLayout.Direction.TopToBottom
+        assert page.range_row.direction() == QBoxLayout.Direction.TopToBottom
+        page.set_layout_mode("medium")
+        assert page.filter_row.direction() == QBoxLayout.Direction.LeftToRight
     finally:
         finish(app, window)
 
@@ -266,5 +273,8 @@ def test_u2_diagnostics_health_first_with_full_disclosed_evidence(app, tmp_path)
         page.mark_stale("simulated source fault", "2026-10-14 00:00:00 UTC")
         assert "stale" in page.health_note.text().lower()
         assert "simulated source fault" in page.text()
+        page.apply(None)
+        assert page.summary.text() == "Waiting for source diagnostics…"
+        assert "no problems found" not in page.text()
     finally:
         finish(app, window)
