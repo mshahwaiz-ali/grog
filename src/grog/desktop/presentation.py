@@ -216,3 +216,8 @@ def fault_state(code: str, message: str) -> str:
 def high_dpi_note() -> str:
     """High-DPI note. Logical pixels used."""
     return "Layout uses logical pixels; high-DPI safe."
+
+
+def system_theme_note() -> str:
+    """System appearance note."""
+    return "System appearance unavailable — using Dark"
