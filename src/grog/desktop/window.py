@@ -1,1 +1,1 @@
-PLACEHOLDER - real content follows in next if this fails
+REAL_CONTENT_WILL_BE_INSERTED
