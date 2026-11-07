@@ -207,6 +207,7 @@ class GoldWindow(QMainWindow):
         self.signals_scroll.setWidget(self.signals_page)
         self.positions_page = PositionsPage()
         self.journal_page = JournalPage()
+        self.journal_page.set_time_zone(self.preferences.time_zone)
         self.diagnostics_page = DiagnosticsPage()
         self.pages = QStackedWidget()
         self.pages.addWidget(self.scroll)
@@ -595,6 +596,7 @@ class GoldWindow(QMainWindow):
         theme.activate(self.preferences.effective_theme)
         theme.apply_to(self)
         self.signals_page.set_time_zone(self.preferences.time_zone)
+        self.journal_page.set_time_zone(self.preferences.time_zone)
         if isinstance(self.frame, OverviewFrame):
             self._update_time_display(self.frame)
 
