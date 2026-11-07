@@ -355,3 +355,8 @@ def integration_complete_note() -> str:
 def almost_done() -> str:
     """Almost done."""
     return "~96% complete. Final visual wiring and host verification remaining."
+
+
+def final_push() -> str:
+    """Final push."""
+    return "Final visual integration and host tests next."
