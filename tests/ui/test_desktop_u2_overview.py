@@ -133,3 +133,75 @@ def test_overview_does_not_hide_unreadable_local_journal(app) -> None:
         window.close()
         wait_until(app, lambda: not window._threads_running(), "owner threads stopped")
         app.processEvents()
+
+# U2-C: position counters must reflect local records, never inferred broker state.
+
+
+def test_u2_positions_summary_and_unverified_mode_are_truthful(app, tmp_path) -> None:
+    from grog.desktop.journal_model import JournalMode, JournalSnapshot
+    from grog.desktop.records_pages import PositionsPage
+    from grog.journal.positions import PositionState
+
+    store, journal = open_journal(tmp_path)
+    try:
+        open_position = record_unlinked(journal)
+    finally:
+        store.close()
+
+    recon = replace(
+        open_position,
+        position_id="recon-fixture",
+        state=PositionState.RECONCILIATION_REQUIRED,
+    )
+    closed = replace(
+        open_position,
+        position_id="closed-fixture",
+        state=PositionState.CLOSED,
+    )
+    snapshot = JournalSnapshot(
+        generation=1,
+        sequence=1,
+        source_id="syn",
+        mode=JournalMode.WRITABLE,
+        reason="U2 isolated fixture",
+        positions=(open_position, recon, closed),
+        events=(),
+        decisions=(),
+        claims=(),
+    )
+    page = PositionsPage()
+    page.show()
+    app.processEvents()
+    try:
+        assert page.open_metric.value.text() == "—"
+        assert page.reconcile_metric.value.text() == "—"
+        page.apply_snapshot(snapshot)
+        assert page.open_metric.value.text() == "2"
+        assert page.reconcile_metric.value.text() == "1"
+        assert page.closed_metric.value.text() == "1"
+        assert "recon-fixture" in page.worklist.text()
+        assert "at your broker" in page.worklist.text()
+        assert not page.off_plan_button.isEnabled()
+
+        page.filter.setCurrentText("All")
+        page.table.selectRow(1)
+        app.processEvents()
+        assert page.selected_key == "recon-fixture"
+        assert "RECONCILIATION REQUIRED" in page.detail_summary.text()
+        assert "not broker-synced" in page.detail_summary.text()
+        assert "No automatic broker order" in page.detail_text()
+
+        page.set_layout_mode("narrow")
+        from PySide6.QtWidgets import QBoxLayout
+
+        assert page.summary_row.direction() == QBoxLayout.Direction.TopToBottom
+        page.apply_snapshot(
+            replace(snapshot, mode=JournalMode.UNAVAILABLE, reason="read failed", positions=())
+        )
+        assert page.open_metric.value.text() == "—"
+        assert page.reconcile_metric.value.text() == "—"
+        assert page.closed_metric.value.text() == "—"
+        assert "status UNKNOWN" in page.worklist.text()
+        assert "read failed" in page.mode_text.text()
+    finally:
+        page.close()
