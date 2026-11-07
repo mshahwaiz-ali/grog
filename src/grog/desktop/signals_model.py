@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 NO_EVENT_RECORD = (
     "No signal was issued, so no SignalRecord exists; this row is the engine event itself."
 )
-READ_ONLY = "Manual journal records arrive in D03; this build is read-only."
+UNCONFIRMED = "Operator records unavailable — this READY cannot be confirmed unclaimed."
 
 
 class Section(StrEnum):
@@ -67,8 +67,10 @@ HISTORY_COLUMNS = ("ID", "Event", "Side", "Time (UTC)", "State / outcome", "Summ
 @dataclass(frozen=True, slots=True)
 class ActionFacts:
     name: str
-    enabled: bool  # always False in D02
+    enabled: bool  # engine/overlay eligibility only; the GUI also needs a writable journal
     reason: str
+    kind: str = ""  # "entry" | "skip" (D03 manual forms) or "" (informational only)
+    signal_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -300,12 +302,22 @@ def _signal_row(
         notes.append(f"{lane.why_not_actionable}.")
     if lane.can_record and overlay is not None:
         notes.extend(exposure(positions, r.side).warnings())
-    why = lane.why_not_actionable
-    reason = f"{why}. {READ_ONLY}" if why else READ_ONLY
-    actions = [ActionFacts("Record entry (on-plan)", False, reason)]
-    actions.append(ActionFacts("Skip", False, reason))
-    if lane.blocked and lane.can_record:
-        actions.append(ActionFacts("Record external fill — OFF_PLAN", False, READ_ONLY))
+    sid = r.signal_id
+    if lane.can_record and overlay is not None:
+        # A READY that is EXECUTION BLOCKED can still be recorded, always OFF_PLAN (the
+        # journal classifies it); the button says so before the form opens.
+        entry = "Record entry — OFF_PLAN (blocked)" if lane.blocked else "Record entry (on-plan)"
+        actions = [
+            ActionFacts(entry, True, "", "entry", sid),
+            ActionFacts("Skip", True, "", "skip", sid),
+        ]
+    else:
+        why = lane.why_not_actionable
+        reason = UNCONFIRMED if overlay is None else f"{why}." if why else "Not READY."
+        actions = [
+            ActionFacts("Record entry", False, reason, "entry", sid),
+            ActionFacts("Skip", False, reason, "skip", sid),
+        ]
     tone = "error" if lane.terminal else "warning" if (lane.blocked or v.pre_roll) else "ready"
     if lane.operator is not None or overlay is None:
         tone = "warning"

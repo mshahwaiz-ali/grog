@@ -1,4 +1,5 @@
-"""Standalone native Gold desktop (D01: replay-backed Overview); no CLI or alias cutover.
+"""Standalone native Gold desktop (replay-backed; D03 local manual records); no CLI or
+alias cutover.
 
 The window opens immediately; the source is verified, loaded and causally pre-rolled on
 the replay owner thread. A source that cannot be loaded before the first engine frame
@@ -15,12 +16,18 @@ from collections.abc import Sequence
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Gold desktop Overview — offline replay, simulated, read-only"
+        description="Gold desktop — offline replay, simulated; manual records are local "
+        "journal entries only (no broker orders)"
     )
     parser.add_argument("--source-id", required=True, help="existing imported quote source")
     parser.add_argument("--config", help="existing replay configuration TOML")
     parser.add_argument("--state-dir", help="existing local state directory")
     parser.add_argument("--from", dest="from_ts", help="visible replay window start UTC")
+    parser.add_argument(
+        "--read-only",
+        action="store_true",
+        help="open the local journal read-only (saved records UNVERIFIED, nothing recorded)",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -33,7 +40,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 3
 
+    from grog.desktop.journal_worker import JournalWorker
     from grog.desktop.loading import EXIT_NOT_FOUND, LoadRequest, database_path
+    from grog.desktop.replay_worker import ReplayWorker
     from grog.desktop.window import GoldWindow
 
     request = LoadRequest(args.source_id, args.config, args.state_dir, args.from_ts)
@@ -51,7 +60,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         window.close()
         application.exit(code)
 
-    window = GoldWindow(request, on_startup_failure=startup_failed)
+    def pending_journal(_request: LoadRequest):
+        # The journal owner thread reads (and alone writes) records and pushes them.
+        return None, None, "Opening the local journal…"
+
+    def refuse_writable(_db):
+        raise PermissionError("--read-only requested")
+
+    journal = JournalWorker(writable_opener=refuse_writable) if args.read_only else JournalWorker()
+    window = GoldWindow(
+        request,
+        worker=ReplayWorker(journal_reader=pending_journal),
+        journal_worker=journal,
+        on_startup_failure=startup_failed,
+    )
     window.show()
     code = int(application.exec())
     window.shutdown()

@@ -1,10 +1,11 @@
-"""Native Gold desktop shell, read-only Overview (D01) and Signals (D02) pages.
+"""Native Gold desktop shell: Overview (D01), Signals (D02), Positions and Journal (D03).
 
 Qt GUI thread only: this module renders detached frames published by the replay worker
-and sends user intents back through queued signals. It never touches the
-``ReplaySession``, SQLite or the journal, performs no trading arithmetic and places no
-orders. Signals (D02) is read-only; Positions, Journal and Diagnostics stay disabled until
-D03-D04.
+and the journal owner and sends user intents back through queued signals. It never
+touches the ``ReplaySession`` or SQLite, performs no trading arithmetic and places no
+orders. Manual local records (D03) go through :class:`ManualController`, which pauses the
+replay, revalidates at save time and lets only the journal owner thread write.
+Diagnostics stays disabled until D04.
 """
 
 from __future__ import annotations
@@ -37,7 +38,10 @@ from grog.desktop.frames import (
     StatusFrame,
 )
 from grog.desktop.loading import LoadRequest
+from grog.desktop.manual_controller import ManualController
+from grog.desktop.records_pages import JournalPage, PositionsPage
 from grog.desktop.replay_worker import ReplayWorker
+from grog.desktop.signals_model import ActionFacts
 from grog.desktop.signals_page import SignalsPage
 from grog.desktop.theme import SPACE, Card, Metric, label, pill, set_tone
 from grog.replay.session import Playback
@@ -49,8 +53,8 @@ MIN_WIDTH, MIN_HEIGHT = 820, 620
 PAGES = (
     ("Overview", None),
     ("Signals", None),
-    ("Positions", "D03"),
-    ("Journal", "D03"),
+    ("Positions", None),
+    ("Journal", None),
     ("Diagnostics", "D04"),
 )
 
@@ -79,6 +83,7 @@ class GoldWindow(QMainWindow):
         request: LoadRequest,
         *,
         worker: QObject | None = None,
+        journal_worker: QObject | None = None,
         on_startup_failure: Callable[[int, str], None] | None = None,
     ) -> None:
         super().__init__()
@@ -96,6 +101,8 @@ class GoldWindow(QMainWindow):
         self._closing = False
         self._refresh_after: int | None = None
         self._source_id = request.source_id
+        self._request = request
+        self._journal_generation = 0
         self.frame: OverviewFrame | StatusFrame | None = None  # last applied frame
         self.frames_received = 0
         self.frames_applied = 0
@@ -130,6 +137,26 @@ class GoldWindow(QMainWindow):
         self.shutdown_requested.connect(self.worker.shutdown)
         self.thread.finished.connect(self._owner_finished)
         self.thread.start()
+        # D03: the journal owner (only writer). Without one the window stays read-only.
+        self.manual: ManualController | None = None
+        if journal_worker is not None:
+            self.manual = ManualController(
+                journal_worker,
+                self.worker,
+                parent_widget=self,
+                request_pause=self.request_pause,
+                frame=lambda: self.frame if isinstance(self.frame, OverviewFrame) else None,
+                generation=lambda: self._generation,
+            )
+            self.manual.snapshot_changed.connect(self._on_journal_snapshot)
+            self.manual.busy_changed.connect(lambda _b: self._sync_controls())
+            self.manual.notice.connect(self._set_notice)
+            self.manual.thread.finished.connect(self._owner_finished)
+        for page in (self.signals_page, self.positions_page, self.journal_page):
+            page.action_requested.connect(self._on_action_requested)
+        self.signals_page.set_action_gate(self._signal_gate)
+        self.positions_page.set_gate(self._record_gate)
+        self.journal_page.set_gate(self._record_gate)
         self.load_source(request)
 
     # ================================================================ structure
@@ -154,9 +181,16 @@ class GoldWindow(QMainWindow):
         self.signals_scroll = QScrollArea()
         self.signals_scroll.setWidgetResizable(True)
         self.signals_scroll.setWidget(self.signals_page)
+        self.positions_page = PositionsPage()
+        self.journal_page = JournalPage()
         self.pages = QStackedWidget()
         self.pages.addWidget(self.scroll)
         self.pages.addWidget(self.signals_scroll)
+        for page in (self.positions_page, self.journal_page):
+            holder = QScrollArea()
+            holder.setWidgetResizable(True)
+            holder.setWidget(page)
+            self.pages.addWidget(holder)
         column.addWidget(self.pages, 1)
         column.addWidget(self._build_toolbar())
         outer.addLayout(column, 1)
@@ -191,8 +225,8 @@ class GoldWindow(QMainWindow):
             self.nav.append(button)
             self.nav_counts.append(count)
         self.later_note = label(
-            "Positions, Journal and Diagnostics are available in later phases "
-            "(D03–D04). This build shows Overview and Signals (read-only).",
+            "Diagnostics arrives in a later phase (D04). Manual records are local journal "
+            "entries only.",
             "meta",
             wrap=True,
         )
@@ -395,6 +429,14 @@ class GoldWindow(QMainWindow):
             ("Q", self.close),
             ("1", lambda: self.show_page(0)),
             ("2", lambda: self.show_page(1)),
+            ("3", lambda: self.show_page(2)),
+            ("4", lambda: self.show_page(3)),
+            ("E", lambda: self._shortcut_action("entry")),
+            ("S", lambda: self._shortcut_action("skip")),
+            ("P", lambda: self._shortcut_action("partial")),
+            ("M", lambda: self._shortcut_action("modify")),
+            ("X", lambda: self._shortcut_action("close")),
+            ("N", lambda: self._shortcut_action("offplan")),
         ):
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.activated.connect(action)
@@ -428,6 +470,13 @@ class GoldWindow(QMainWindow):
         self._pending = None
         self._pause_waiting = None
         self._sync_controls()  # intents of the previous source are disabled immediately
+        self._request = request
+        if getattr(self, "manual", None) is not None:
+            # The writable journal opens only after this source loaded (first engine frame):
+            # a source that cannot be loaded leaves the state directory byte-for-byte unchanged.
+            self.manual.forget_snapshot()
+            self.positions_page.apply_snapshot(None)
+            self.journal_page.apply_snapshot(None)
         self.load_requested.emit(request, self._generation)
         return self._generation
 
@@ -436,6 +485,8 @@ class GoldWindow(QMainWindow):
         if self._controls_ready():
             self._refresh_after = self.frame.tag.sequence
             self._set_notice("Refreshing the view from the replay owner…")
+            if self.manual is not None:
+                self.manual.reload()  # the journal owner re-reads and pushes records
             self.refresh_requested.emit()
 
     def _set_notice(self, text: str) -> None:
@@ -472,6 +523,7 @@ class GoldWindow(QMainWindow):
             not self._closed
             and not self._closing
             and self._pause_waiting is None
+            and not (getattr(self, "manual", None) is not None and self.manual.busy)
             and isinstance(self.frame, OverviewFrame)
             and self.frame.tag.generation == self._generation
             and self.frame.tag.source_id == self._source_id
@@ -511,6 +563,9 @@ class GoldWindow(QMainWindow):
         self.frame = frame
         if isinstance(frame, OverviewFrame):
             self._has_engine_frame = True
+            if self.manual is not None and self._journal_generation != self._generation:
+                self._journal_generation = self._generation
+                self.manual.open_journal(self._request, self._generation)
             self._apply_overview(frame)
         else:
             self._apply_status(frame)
@@ -698,15 +753,26 @@ class GoldWindow(QMainWindow):
         self.signal_ids.setText("\n".join(ids))
         self.signal_ids.setVisible(bool(ids))
         self.pace.setText(t.pace_text)
-        self.progress.setText(
-            f"{t.processed:,} / {t.total:,} quotes  ·  {t.pre_roll:,} pre-roll (history)"
-        )
+        self.progress.setText(self._progress_text(t))
         self.play.setText("Pause" if playing else "Play")
         self.signals_page.apply(f.signals)
-        counts = ("", f"{f.ready} ready · {f.forming} developing", "", "", "")
+        self.positions_page.apply_marks(f.marks)
+        self.journal_page.apply_engine(f.engine_rows, (f.tag.source_id, f.tag.generation))
+        snap = self.manual.snapshot if self.manual is not None else None
+        rr = len(snap.needs_reconciliation()) if snap is not None else 0
+        pos_count = (
+            f"{len(snap.open_positions())} open" + (f" · {rr} to reconcile" if rr else "")
+            if snap is not None and snap.readable
+            else ""
+        )
+        counts = ("", f"{f.ready} ready · {f.forming} developing", pos_count, "", "")
         for label_widget, text in zip(self.nav_counts, counts, strict=True):
             label_widget.setText(text)
             label_widget.setVisible(bool(text))
+
+    @staticmethod
+    def _progress_text(t) -> str:
+        return f"{t.processed:,} / {t.total:,} quotes  ·  {t.pre_roll:,} pre-roll (history)"
 
     def _sync_controls(self) -> None:
         f = self.frame
@@ -720,6 +786,14 @@ class GoldWindow(QMainWindow):
         self.slower.setEnabled(live and t.pace_text != "50 ev/s")
         if self._pause_waiting is not None:
             self.progress.setText("Pausing — waiting for the replay owner to confirm…")
+        elif getattr(self, "manual", None) is not None and self.manual.busy:
+            self.progress.setText("Paused while recording — Play/Step resume after the form closes")
+        elif t is not None and not self._closing:
+            self.progress.setText(self._progress_text(t))
+        if hasattr(self, "positions_page"):
+            self.signals_page.refresh_actions()
+            self.positions_page.set_gate(self._record_gate)
+            self.journal_page.set_gate(self._record_gate)
 
     # ================================================================ layout
 
@@ -738,6 +812,8 @@ class GoldWindow(QMainWindow):
         horizontal = QBoxLayout.Direction.LeftToRight
         self.columns.setDirection(horizontal if mode == "wide" else vertical)
         self.signals_page.set_layout_mode(mode)
+        self.positions_page.set_layout_mode(mode)
+        self.journal_page.set_layout_mode(mode)
         self.context_row.setDirection(vertical if mode == "narrow" else horizontal)
         if mode == "narrow":
             self.strip_bottom.addWidget(self.clock_text)
@@ -769,25 +845,120 @@ class GoldWindow(QMainWindow):
             "The window closes as soon as the replay owner thread has stopped."
         )
         self.progress.setText("Closing…")
+        if self.manual is not None:
+            n = self.manual.oversight_count()
+            self.description.setText(
+                self.description.text()
+                + f" {n} local open position(s) still need your external oversight at the "
+                "broker; Grog does not close or monitor them after exit. Any save already "
+                "submitted finishes and reports first."
+            )
+            self.manual.shutdown()  # queued after any in-flight command on its own thread
         self.shutdown_requested.emit()  # queued behind any in-progress work
         self.thread.quit()
 
+    def _threads_running(self) -> bool:
+        journal = self.manual.thread.isRunning() if self.manual is not None else False
+        return self.thread.isRunning() or journal
+
     @Slot()
     def _owner_finished(self) -> None:
-        if self._closing and not self._closed:
+        if self._closing and not self._closed and not self._threads_running():
             self._closed = True
             self.close()
 
     def shutdown(self) -> None:
         """Blocking join for use only after the Qt event loop has ended (program exit)."""
+        if self.manual is not None and self.manual.dialog is not None:
+            self.manual.dialog.state = self.manual.dialog.EDITING
+            self.manual.dialog.done(0)  # nothing unsaved is written on forced exit
         self._begin_close()
         self.thread.wait()
+        if self.manual is not None:
+            # stopped -> thread.quit() is queued to this (finished) loop: quit directly.
+            from PySide6.QtCore import QCoreApplication
+
+            deadline = 200
+            while self.manual.thread.isRunning() and deadline:
+                QCoreApplication.processEvents()
+                self.manual.thread.wait(25)
+                deadline -= 1
+            if self.manual.thread.isRunning():
+                self.manual.thread.quit()
+                self.manual.thread.wait()
         self._closed = True
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 - Qt API
-        if self.thread.isRunning():
+        if self.manual is not None and not self._closing:
+            ok, why = self.manual.can_close()
+            if not ok:
+                event.ignore()
+                self._set_notice(f"Not closing: {why}")
+                return
+        if self._threads_running():
             event.ignore()  # never destroy a running owner thread; close asynchronously
             self._begin_close()
             return
         self._closing = self._closed = True
         super().closeEvent(event)
+
+    # ================================================================ D03 manual records
+
+    @Slot(object)
+    def _on_journal_snapshot(self, snap) -> None:
+        self.positions_page.apply_snapshot(snap)
+        self.journal_page.apply_snapshot(snap)
+        self._sync_controls()
+
+    def _frame_current(self) -> bool:
+        f = self.frame
+        return (
+            isinstance(f, OverviewFrame)
+            and f.tag.generation == self._generation
+            and f.tag.source_id == self._source_id
+        )
+
+    def _record_gate(self) -> str | None:
+        if getattr(self, "manual", None) is None:
+            return "Local journal not connected — read-only."
+        if self._closing or self._closed:
+            return "Grog is closing."
+        if self._pause_waiting is not None:
+            return "Waiting for the replay to pause."
+        if not self._frame_current():
+            return "No current replay frame (loading or stopped)."
+        return self.manual.why_not_writable()
+
+    def _signal_gate(self, action: ActionFacts) -> tuple[bool, str]:
+        why = self._record_gate()
+        return (why is None, why or "")
+
+    @Slot(str, str)
+    def _on_action_requested(self, kind: str, target: str) -> None:
+        if self._record_gate() is not None or self.manual is None:
+            self._set_notice(f"Nothing opened: {self._record_gate()}")
+            return
+        if kind in ("entry", "skip"):
+            self.manual.open_signal_form(kind, target)
+        elif kind == "offplan":
+            self.manual.open_off_plan()
+        else:
+            self.manual.open_position_form(kind, target)
+
+    def _shortcut_action(self, kind: str) -> None:
+        """Scoped keys: act on the visible page's selection only (never through inputs)."""
+        page = self.page_index
+        if kind in ("entry", "skip") and page == 1:
+            for b in self.signals_page.action_buttons:
+                if b.property("action_kind") == kind and b.isEnabled():
+                    b.click()
+                    return
+            self._set_notice(f"{kind.title()}: select a READY signal whose action is enabled.")
+        elif kind in ("partial", "modify", "close") and page == 2:
+            b = self.positions_page.buttons[kind]
+            if b.isEnabled():
+                b.click()
+            else:
+                self._set_notice(self.positions_page.action_reason.text() or "Select a position.")
+        elif kind == "offplan" and page in (2, 3):
+            self._on_action_requested("offplan", "")

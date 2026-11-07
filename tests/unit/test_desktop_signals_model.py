@@ -76,7 +76,7 @@ def test_gui23_unknown_threshold_is_unavailable_not_zero() -> None:
     )
     from types import SimpleNamespace
 
-    owner = SimpleNamespace(snapshot=lambda: unknown, pipeline=s.pipeline)
+    owner = SimpleNamespace(snapshot=lambda: unknown, pipeline=s.pipeline, cursor=s.cursor)
     facts = _facts(owner)
     for row in facts.developing:
         assert _field(row, "Trigger level (exact)") == "UNAVAILABLE — not 0"
@@ -126,7 +126,12 @@ def test_gui24_ready_sell_then_buy_use_engine_sides_and_exact_immutable_plan() -
         issued = next(e for e in s.pipeline.signals.events if e.signal_id == sid)
         assert row.detail.lifecycle[0].startswith(f"#{issued.sequence} READY_ISSUED at ")
         assert ", ".join(c.value for c in issued.reason_codes) in row.detail.lifecycle[0]
-        assert [a.enabled for a in row.detail.actions] == [False, False]
+        # D03: an unclaimed READY is eligible for the local entry/skip forms (the window
+        # additionally requires a writable journal); the kinds carry the full signal ID.
+        assert [(a.kind, a.signal_id, a.enabled) for a in row.detail.actions] == [
+            ("entry", sid, True),
+            ("skip", sid, True),
+        ]
         assert nth == len(seen)
     assert seen == {Side.BUY, Side.SELL}
 
@@ -159,7 +164,10 @@ def test_gui25_issued_plan_is_immutable_while_current_state_changes_and_never_re
             terminal_seen = True
             assert row.section is Section.HISTORY and row.state == state.state.value
             assert any("never resurrected" in note for note in row.detail.notes)
-        assert not any(a.enabled for a in row.detail.actions)
+        # D03: eligible only while READY (blocked => OFF_PLAN entry); terminal never again.
+        assert all(a.enabled is (not terminal_seen) for a in row.detail.actions)
+        if terminal_seen:
+            assert all("terminal" in a.reason for a in row.detail.actions)
         if terminal_seen and len(seen_states) > 6:
             break
     assert {"READY", "EXECUTION BLOCKED"} <= set(seen_states) and terminal_seen
@@ -223,7 +231,8 @@ def test_gui26_exposure_is_a_factual_warning_without_limit(tmp_path: Path) -> No
         assert "Overlap/exposure policy is OPEN: Grog shows this, it applies no limit." in (
             row.detail.notes
         )
-        assert all(not a.enabled for a in row.detail.actions)
+        # exposure is a warning only: it never disables the eligible local forms
+        assert all(a.enabled for a in row.detail.actions)
 
 
 # ------------------------------------------------------------------ GUI-27 operator overlay

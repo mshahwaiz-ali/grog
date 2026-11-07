@@ -46,4 +46,6 @@ def composite(real_session, views, *, snap=None):
     """A session-like owner whose snapshot carries the given real signal views."""
     base = real_session.snapshot() if snap is None else snap
     composed = dataclasses.replace(base, signals=tuple(views))
-    return SimpleNamespace(snapshot=lambda: composed, pipeline=real_session.pipeline)
+    return SimpleNamespace(
+        snapshot=lambda: composed, pipeline=real_session.pipeline, cursor=real_session.cursor
+    )

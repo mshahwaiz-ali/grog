@@ -230,8 +230,8 @@ def test_later_pages_are_explained_without_relying_on_disabled_tooltips(app) -> 
     try:
         wait_until(app, lambda: isinstance(window.frame, OverviewFrame), "frame")
         assert window.later_note.isVisibleTo(window)
-        assert "available in later phases" in window.later_note.text()
-        assert [b.isEnabled() for b in window.nav] == [True, True, False, False, False]
+        assert "later phase (D04)" in window.later_note.text()  # D03 enabled Positions/Journal
+        assert [b.isEnabled() for b in window.nav] == [True, True, True, True, False]
     finally:
         finish(app, window)
 

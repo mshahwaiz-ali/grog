@@ -4,13 +4,24 @@ Qt GUI thread only. Renders the detached :class:`SignalsFacts` of each applied f
 Search and filters act on the already-built rows and never reach the replay owner, so
 they cannot alter market state. Rows are keyed by full IDs: the selection and its detail
 survive replay updates, sorting and filtering, and a row that moves (READY -> History) or
-leaves the snapshot is announced instead of being silently replaced. Manual record actions
-are visible but disabled with their reason until D03.
+leaves the snapshot is announced instead of being silently replaced. D03: Record entry /
+Skip buttons emit ``action_requested``; whether they are enabled combines the engine's
+eligibility with the window's gate (writable journal, no open form, current frame).
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QModelIndex, QObject, QSortFilterProxyModel, Qt, QTimer
+from collections.abc import Callable
+
+from PySide6.QtCore import (
+    QEvent,
+    QModelIndex,
+    QObject,
+    QSortFilterProxyModel,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -32,6 +43,7 @@ from grog.desktop.signals_model import (
     CURRENT_COLUMNS,
     DEVELOPING_COLUMNS,
     HISTORY_COLUMNS,
+    ActionFacts,
     DetailFacts,
     RowFacts,
     Section,
@@ -188,9 +200,16 @@ class _FieldsBox(QWidget):
         QTimer.singleShot(0, self.sync_height)  # again once wrapped children have settled
 
 
+def _read_only_gate(action: ActionFacts) -> tuple[bool, str]:
+    return False, "Local journal not connected — read-only."
+
+
 class SignalsPage(QWidget):
+    action_requested = Signal(str, str)  # (entry | skip, full signal ID)
+
     def __init__(self) -> None:
         super().__init__()
+        self._gate: Callable[[ActionFacts], tuple[bool, str]] = _read_only_gate
         self.facts: SignalsFacts | None = None
         self.selected_key: str | None = None
         self.selected_section: Section | None = None
@@ -662,7 +681,15 @@ class SignalsPage(QWidget):
     def _render_detail(self, detail: DetailFacts | None) -> None:
         self._shown_detail = detail
         while self.fields.rowCount():
-            self.fields.removeRow(0)  # deletes the row's label widgets
+            # takeRow + deleteLater, never removeRow: removeRow deletes the label widgets
+            # synchronously inside a frame update and intermittently segfaulted (proved on
+            # 43e1fd9: test_selected_ready_moving_to_history..., 4 of 6 runs).
+            taken = self.fields.takeRow(0)
+            for item in (taken.labelItem, taken.fieldItem):
+                widget = item.widget() if item is not None else None
+                if widget is not None:
+                    widget.hide()
+                    widget.deleteLater()
         for button in self.action_buttons:
             button.deleteLater()
         self.action_buttons = []
@@ -688,16 +715,38 @@ class SignalsPage(QWidget):
         self.notes.setText("\n".join(detail.notes))
         self.lifecycle_title.setVisible(bool(detail.lifecycle))
         self.lifecycle.setText("\n".join(detail.lifecycle))
-        reasons = []
         for action in detail.actions:
             button = QPushButton(action.name)
-            button.setEnabled(action.enabled)
-            button.setToolTip(action.reason)
-            button.setAccessibleDescription(action.reason)
+            button.setProperty("action_kind", action.kind)
+            button.setProperty("signal_id", action.signal_id)
+            if action.kind:
+                button.clicked.connect(
+                    lambda _c=False, a=action: self.action_requested.emit(a.kind, a.signal_id)
+                )
             self.action_row.insertWidget(self.action_row.count() - 1, button)
             self.action_buttons.append(button)
-            if action.reason not in reasons:
-                reasons.append(action.reason)
+        self.refresh_actions()
+
+    def set_action_gate(self, gate: Callable[[ActionFacts], tuple[bool, str]]) -> None:
+        """D03: the window decides whether an eligible action can open a form now
+        (writable journal, no open form, fresh frame); the engine decides eligibility."""
+        self._gate = gate
+        self.refresh_actions()
+
+    def refresh_actions(self) -> None:
+        detail = self._shown_detail
+        if detail is None:
+            return
+        reasons = []
+        for button, action in zip(self.action_buttons, detail.actions, strict=False):
+            enabled, reason = action.enabled, action.reason
+            if enabled:
+                enabled, reason = self._gate(action)
+            button.setEnabled(enabled)
+            button.setToolTip(reason or f"{action.name}: opens a local-journal form")
+            button.setAccessibleDescription(reason)
+            if not enabled and reason and reason not in reasons:
+                reasons.append(reason)
         self.action_reason.setText("Disabled: " + " ".join(reasons) if reasons else "")
 
     def detail_text(self) -> str:

@@ -23,14 +23,16 @@ from grog.desktop.overview_model import OverviewState, from_snapshot
 from grog.desktop.presentation import price_text, utc_ms_text
 from grog.desktop.signals_model import SignalsFacts, build_signals_facts
 from grog.domain.enums import SignalState, Timeframe
+from grog.journal.positions import PlanRef, observations, r_breakdown
 from grog.replay.session import Playback
 from grog.ui.format import pace_label, utc
 from grog.ui.lanes import signal_lane
-from grog.ui.manual import live_positions_panel, positions_strip
+from grog.ui.manual import _clock, live_positions_panel, mark_cell, mark_for, positions_strip
 from grog.ui.panels import (
     _bias_detail,
     banner,
     display_atr,
+    journal_rows,
     m5_atr,
     plain,
     playback_label,
@@ -148,6 +150,91 @@ class CauseFacts:
 
 
 @dataclass(frozen=True, slots=True)
+class MarkFacts:
+    """Replay-side monitoring facts of one recorded open position (observations only).
+
+    ``events`` is the journal event count of the position the facts were computed from;
+    the GUI shows them only next to a journal snapshot of exactly that version."""
+
+    position_id: str
+    events: int
+    closeable_side: str  # BID (BUY) / ASK (SELL)
+    closeable: Decimal | None
+    mark_text: str  # price, ``*`` when not FRESH, ``—`` when unavailable
+    quote_ms: int | None
+    freshness: str
+    reason: str | None
+    unrealized_units: Decimal | None
+    move_r: Decimal | None
+    realized_r: Decimal | None
+    unrealized_r: Decimal | None
+    total_r: Decimal | None
+    original_risk_units: Decimal | None
+    observations: tuple[str, ...]
+    touched: tuple[tuple[str, int], ...]  # (STOP|TP1|TARGET, first touch replay UTC ms)
+
+
+@dataclass(frozen=True, slots=True)
+class EngineRow:
+    """One SIM ENGINE signal event (session replay, simulated, not persisted)."""
+
+    key: str  # the engine event ID: stable across frames
+    time_ms: int  # decision (receipt) time of the causing input
+    event_ms: int  # provider/bar/expiry time of the event
+    kind: str
+    side: str
+    ref: str  # full signal or candidate ID
+    cells: tuple[str, ...]  # JOURNAL_COLUMNS order (shared terminal wording)
+    search: str
+
+
+@dataclass(frozen=True, slots=True)
+class ClockFacts:
+    """Replay clock facts a manual form needs (playback is never live freshness)."""
+
+    virtual_ms: int | None  # received time of the latest processed replay quote
+    playback: Playback
+    cursor: int
+    h1_bias: str | None
+    strategy_version: str
+
+
+@dataclass(frozen=True, slots=True)
+class SignalCheck:
+    """Fresh engine eligibility of one signal, read on the replay owner thread."""
+
+    token: int
+    source_id: str
+    generation: int
+    signal_id: str
+    cursor: int
+    playback: Playback
+    virtual_ms: int | None
+    found: bool
+    state: str  # READY | EXPIRED | INVALIDATED | ... or "UNKNOWN" when not found
+    blocked: bool
+    pre_roll: bool
+    plan: PlanRef | None
+    h1_bias: str | None
+    reason: str = ""  # why the check could not be made
+
+    @property
+    def ready(self) -> bool:
+        return self.found and self.state == SignalState.READY.value
+
+    def same_eligibility(self, other: SignalCheck) -> bool:
+        """True when nothing the form showed has changed (source, generation, cursor,
+        engine state, blocked flag and the immutable plan)."""
+        return (
+            self.found
+            and other.found
+            and (self.source_id, self.generation, self.signal_id, self.cursor)
+            == (other.source_id, other.generation, other.signal_id, other.cursor)
+            and (self.state, self.blocked, self.plan) == (other.state, other.blocked, other.plan)
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class OverviewFrame:
     tag: FrameTag
     labels: ModeLabels
@@ -164,6 +251,9 @@ class OverviewFrame:
     ready_ids: tuple[str, ...]  # full immutable IDs, engine order, never ranked
     blocked_ids: tuple[str, ...]
     signals: SignalsFacts  # D02 Signals page rows/details from the same snapshot
+    marks: tuple[MarkFacts, ...] = ()  # D03: one per recorded open position
+    engine_rows: tuple[EngineRow, ...] = ()  # D03 Journal: every session engine event
+    clock: ClockFacts | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,6 +295,70 @@ def _positions(
     strip = positions_strip(positions, snap, tracker)
     advisories = tuple(plain([line]) for line in strip[:-1]) if positions else ()
     return PositionFacts(True, journal_note, len(positions), rr, off, lines, advisories)
+
+
+def mark_facts(
+    snap, positions: Sequence[ManualPosition] | None, tracker: TouchTracker
+) -> tuple[MarkFacts, ...]:
+    """Marks/R/observations via the shared validated helpers (no new arithmetic)."""
+    if positions is None:
+        return ()
+    feed = snap.health.status.value if snap.health else None
+    bias = snap.context.h1_bias.value if snap.context else None
+    ended = snap.playback is Playback.ENDED
+    out = []
+    for p in positions:
+        m = mark_for(p, snap)
+        rb = r_breakdown(p, m)
+        touched = tracker.touched(p)
+        obs = observations(
+            p,
+            touched,
+            feed_status=feed,
+            h1_bias_now=bias,
+            replay_ended=ended,
+            clock_ms=_clock(snap, p),
+        )
+        out.append(
+            MarkFacts(
+                position_id=p.position_id,
+                events=p.events,
+                closeable_side=m.closeable_side,
+                closeable=m.closeable,
+                mark_text=mark_cell(m),
+                quote_ms=m.quote_ms,
+                freshness=m.freshness,
+                reason=m.reason,
+                unrealized_units=m.unrealized_price_units,
+                move_r=rb.move_r,
+                realized_r=rb.realized_r,
+                unrealized_r=rb.unrealized_r,
+                total_r=rb.total_r,
+                original_risk_units=rb.original_risk_units,
+                observations=tuple(obs),
+                touched=tuple(sorted(touched.items())),
+            )
+        )
+    return tuple(out)
+
+
+def engine_rows(events: Sequence, version: str, start: int = 0) -> tuple[EngineRow, ...]:
+    """SIM ENGINE rows for ``events[start:]`` using the shared terminal row wording."""
+    tail = list(events[start:])
+    rows = journal_rows(tail, version)
+    return tuple(
+        EngineRow(
+            key=r.key,
+            time_ms=e.decision_time_ms,
+            event_ms=e.event_time_ms,
+            kind=e.kind.value,
+            side=e.side.value,
+            ref=e.signal_id or e.candidate_id,
+            cells=tuple(r.cells),
+            search=r.search,
+        )
+        for e, r in zip(tail, rows, strict=True)
+    )
 
 
 def _codes(reasons: Sequence[str]) -> str:
@@ -259,6 +413,7 @@ def build_overview_frame(
     positions: Sequence[ManualPosition] | None,
     tracker: TouchTracker,
     journal_note: str,
+    engine: tuple[EngineRow, ...] | None = None,
 ) -> OverviewFrame:
     """Snapshot the owner's engine once and detach every value the GUI may show.
 
@@ -370,6 +525,83 @@ def build_overview_frame(
         ready_ids=ready_ids,
         blocked_ids=blocked_ids,
         signals=build_signals_facts(snap, events, overlay, positions, journal_note),
+        marks=mark_facts(snap, positions, tracker),
+        engine_rows=engine if engine is not None else engine_rows(events, _version(session)),
+        clock=ClockFacts(
+            virtual_ms=snap.virtual_time_ms,
+            playback=snap.playback,
+            cursor=session.cursor,
+            h1_bias=snap.context.h1_bias.value if snap.context else None,
+            strategy_version=_version(session),
+        ),
+    )
+
+
+def _version(session) -> str:
+    return session.pipeline.detector.params.strategy_version
+
+
+def signal_check(
+    session: ReplaySession | None,
+    *,
+    token: int,
+    source_id: str,
+    generation: int,
+    signal_id: str,
+    reason: str = "",
+) -> SignalCheck:
+    """Read one signal's current engine eligibility (owner thread only)."""
+    if session is None or reason:
+        return SignalCheck(
+            token,
+            source_id,
+            generation,
+            signal_id,
+            -1,
+            Playback.PAUSED,
+            None,
+            False,
+            "UNKNOWN",
+            False,
+            False,
+            None,
+            None,
+            reason or "replay is not loaded",
+        )
+    snap = session.snapshot()
+    view = next((v for v in snap.signals if v.record.signal_id == signal_id), None)
+    bias = snap.context.h1_bias.value if snap.context else None
+    if view is None:
+        return SignalCheck(
+            token,
+            source_id,
+            generation,
+            signal_id,
+            session.cursor,
+            snap.playback,
+            snap.virtual_time_ms,
+            False,
+            "UNKNOWN",
+            False,
+            False,
+            None,
+            bias,
+            "signal is not in this replay at the current cursor",
+        )
+    return SignalCheck(
+        token=token,
+        source_id=source_id,
+        generation=generation,
+        signal_id=signal_id,
+        cursor=session.cursor,
+        playback=snap.playback,
+        virtual_ms=snap.virtual_time_ms,
+        found=True,
+        state=view.status.state.value,
+        blocked=bool(view.status.blocked),
+        pre_roll=bool(view.pre_roll),
+        plan=PlanRef.from_record(view.record),
+        h1_bias=bias,
     )
 
 

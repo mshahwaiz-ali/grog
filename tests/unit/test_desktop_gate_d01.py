@@ -228,10 +228,16 @@ def test_gui21_multiple_ready_blocked_entered_skipped_are_all_counted_unranked(
     assert (frame.ready, frame.blocked) == (2, 1)
     assert frame.overview.headline == "2 simulated proposals ready"
     assert "No ranking or automatic selection" in frame.overview.description
-    shown = " ".join(_strings(frame))
+    # D03 adds the SIM ENGINE event log (engine_rows) to the frame. This composite owner
+    # drops `gone` from the snapshot while the real pipeline log still holds its genuine
+    # issuance event, so the log is checked separately: every row must come from that
+    # real log, and nothing outside the log may mention `gone`.
+    shown = " ".join(_strings(dataclasses.replace(frame, engine_rows=())))
     for used in (entered, skipped, gone):  # acted-on or absent signals are never offered
         assert used.record.signal_id not in frame.ready_ids
     assert gone.record.signal_id not in shown  # no extra signal is invented
+    logged = {e.event_id for e in s.pipeline.signals.events}
+    assert frame.engine_rows and {r.key for r in frame.engine_rows} <= logged
     # Reversed engine order is mirrored, never re-sorted or ranked.
     flipped = _frame(composite(s, tuple(reversed(views)), snap=live), overlay)
     assert flipped.ready_ids == tuple(reversed(frame.ready_ids))

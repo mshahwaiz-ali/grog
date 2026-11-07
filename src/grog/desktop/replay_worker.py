@@ -22,6 +22,8 @@ from grog.desktop.frames import (
     Phase,
     StatusFrame,
     build_overview_frame,
+    engine_rows,
+    signal_check,
 )
 from grog.desktop.loading import LoadRequest, describe_failure, load_session, read_journal
 from grog.desktop.presentation import utc_ms_text
@@ -45,6 +47,7 @@ class ReplayWorker(QObject):
 
     frame = Signal(object)  # OverviewFrame | StatusFrame
     pause_acknowledged = Signal(object)  # PauseAck
+    signal_checked = Signal(object)  # SignalCheck (fresh eligibility for a manual form)
     stopped = Signal()
 
     def __init__(
@@ -70,6 +73,9 @@ class ReplayWorker(QObject):
         self._last_tick = 0.0
         self._last_frame = 0.0
         self._faulted = False
+        # D03: operator records pushed by the journal owner thread, keyed by source_id.
+        self._pushed: tuple[str, object, object, str] | None = None
+        self._engine: tuple = ()
         self.owner_thread_name: str | None = None  # test evidence only
 
     # ------------------------------------------------------------------ helpers
@@ -90,6 +96,10 @@ class ReplayWorker(QObject):
         if session is None or tracker is None or self._faulted:
             return
         try:
+            events = session.pipeline.signals.events  # append-only engine event log
+            if len(events) != len(self._engine):
+                version = session.pipeline.detector.params.strategy_version
+                self._engine += engine_rows(events, version, start=len(self._engine))
             frame = build_overview_frame(
                 session,
                 tag=self._tag(),
@@ -97,6 +107,7 @@ class ReplayWorker(QObject):
                 positions=self._positions,
                 tracker=tracker,
                 journal_note=self._journal_note,
+                engine=self._engine,
             )
         except Exception as exc:  # noqa: BLE001 - surface any presenter fault, stop safely
             self._fault(exc)
@@ -136,6 +147,7 @@ class ReplayWorker(QObject):
             self._timer.stop()
         self._session = None
         self._tracker = None
+        self._engine = ()
         self._faulted = False
         self._source_id = request.source_id
         self._generation = generation
@@ -154,7 +166,11 @@ class ReplayWorker(QObject):
         )
         try:  # the whole initialisation: source, journal read and tracker wiring
             session = self._loader(request)
-            overlay, positions, note = self._journal_reader(request)
+            pushed = self._pushed
+            if pushed is not None and pushed[0] == request.source_id:
+                _, overlay, positions, note = pushed
+            else:
+                overlay, positions, note = self._journal_reader(request)
             self._request = request
             tracker = TouchTracker()
             if positions is not None:
@@ -228,11 +244,47 @@ class ReplayWorker(QObject):
             self._session.slower()
             self._publish()
 
+    @Slot(str, object, object, str)
+    def set_journal(self, source_id: str, overlay, positions, note: str) -> None:
+        """D03: operator records read by the journal owner thread (never SQLite here).
+
+        ``overlay`` is a fresh dict and ``positions`` a fresh list of frozen positions (or
+        ``None`` when unreadable); this worker owns them from now on."""
+        self._pushed = (source_id, overlay, positions, note)
+        if self._session is None or source_id != self._source_id:
+            return  # kept for the matching load
+        self._overlay, self._positions, self._journal_note = overlay, positions, note
+        if self._tracker is not None:
+            self._tracker.track(positions or [])
+        self._publish()
+
+    @Slot(int, int, str)
+    def check_signal(self, token: int, generation: int, signal_id: str) -> None:
+        """Fresh engine eligibility of ``signal_id`` at the current cursor."""
+        reason = ""
+        if generation != self._generation:
+            reason = "source generation changed"
+        elif self._faulted:
+            reason = "replay stopped (fault or shutdown)"
+        self.signal_checked.emit(
+            signal_check(
+                self._session,
+                token=token,
+                source_id=self._source_id,
+                generation=self._generation,
+                signal_id=signal_id,
+                reason=reason,
+            )
+        )
+
     @Slot()
     def refresh(self) -> None:
         """Re-read the operator overlay read-only (as the terminal's refresh does) and
         republish the current snapshot; the replay itself never moves."""
         if self._session is None or self._faulted:
+            return
+        if self._pushed is not None:
+            self._publish()  # the journal owner thread re-reads and pushes records
             return
         try:
             overlay, positions, note = self._journal_reader(self._request)
