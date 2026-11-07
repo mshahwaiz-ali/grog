@@ -231,3 +231,8 @@ def timezone_indicator(zone: str) -> str:
 def replay_status(phase: str) -> str:
     """Replay phase status."""
     return {"playing": "Playing", "paused": "Paused", "ended": "Replay ended"}.get(phase, phase)
+
+
+def journal_event_label(kind: str) -> str:
+    """Human journal event label."""
+    return {"fill": "Fill", "sl": "Stop loss", "tp": "Take profit", "note": "Note"}.get(kind, kind)
