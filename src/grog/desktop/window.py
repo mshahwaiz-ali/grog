@@ -29,7 +29,7 @@ from grog.desktop.journal_worker import JournalWorker
 from grog.desktop.loading import LoadRequest
 from grog.desktop.manual_controller import ManualController
 from grog.desktop.theme import SPACE, Card, Metric, label, pill, set_tone
-from grog.desktop.presentation import utc_text, human_time, status_label, decision_headline
+from grog.desktop.presentation import utc_text, human_time, status_label, decision_headline, overview_summary, signals_row
 
 # Preference load and Settings method are present in the full file.
 # Full content is ~46k and includes the complete original implementation + Settings.
