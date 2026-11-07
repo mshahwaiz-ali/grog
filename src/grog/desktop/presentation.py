@@ -82,3 +82,13 @@ def human_datetime(timestamp_ms: int | None, zone: str = "PKT") -> str:
     tz = PKT if zone == "PKT" else UTC
     moment = datetime.fromtimestamp(timestamp_ms / 1000, tz=tz)
     return moment.strftime("%d %b · %H:%M %Z")
+
+
+def status_label(raw: str) -> str:
+    """Human-facing status. Exact codes remain accessible in detail."""
+    mapping = {
+        "FORMING": "Developing · NOT TRADABLE",
+        "READY": "READY · SIMULATED",
+        "NO TRADE": "No trade",
+    }
+    return mapping.get(raw, raw)
