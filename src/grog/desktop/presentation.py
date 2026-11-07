@@ -226,3 +226,8 @@ def system_theme_note() -> str:
 def timezone_indicator(zone: str) -> str:
     """Explicit timezone indicator."""
     return zone if zone in ("PKT", "UTC") else "UTC"
+
+
+def replay_status(phase: str) -> str:
+    """Replay phase status."""
+    return {"playing": "Playing", "paused": "Paused", "ended": "Replay ended"}.get(phase, phase)
