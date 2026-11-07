@@ -188,8 +188,6 @@ The **approved paired dark/light visual concepts** from the owner review define 
 Dark and Light share **identical geometry, labels, information priority and interactions**; only semantic colors/shadows/borders adapt. Do not reproduce invented data, fake checkmarks, fake open positions, or a tradable BUY from an illustrative mockup. At 820×620, collapse sidebar and stack content while keeping safety, mode/fidelity, decision, details and replay controls accessible. At large sizes keep line lengths moderate, not stretched across the entire window.
 
 ### Sidebar
-
-### Sidebar
 - Brand: GROG / Gold, one subdued mark, five known views with readable active selection and small **meaningful** counts only.
 - Settings at bottom, separate from numbered workspaces; readable collapsed state at 820px.
 - No duplicate sentence about “manual only” on every panel. Keep one visible, reliable **No broker orders** caveat in the app shell and critical local-record areas.

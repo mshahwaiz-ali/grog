@@ -576,7 +576,7 @@ D00 can verify pure formatter tests here. GUI-02 remains **PENDING formal accept
 
 ## 20. Complete native desktop acceptance matrix and verification protocol (2026-11-07)
 
-**Status:** Implementation-ready **test plan awaiting explicit owner implementation approval**, not evidence that a GUI has passed. See [02 §16](02-workflows-and-ux.md) for UI behavior, [09 §13](09-architecture.md) for data ownership, [10 §12](10-roadmap.md) for phase gates. Existing GUI-01..10 (§19), R0 UI-01..22, ST-01..15, M09 REF acceptance cases and R0-ACC operator journey remain mandatory; do not rename or weaken them. The existing `tests/ui/test_desktop_overview.py` has **seven declared D01 test functions** (the Qt-dependent one skips when PySide6 is unavailable); their prior pass status is owner-reported, **not verified by this docs-only audit**.
+**Status:** This is the **original D00–D05 functional acceptance contract**, written before those phases were implemented by `c0ef834`. It remains binding as a regression suite for owner-approved U0–U5 visual redesign; [§21](#21-desktop-uiux-v2-additional-acceptance--owner-approved-2026-11-07) adds theme/readability cases. See [02 §16](02-workflows-and-ux.md), [09 §13](09-architecture.md) and [10 §13](10-roadmap.md). GUI-01..10 (§19), GUI-11..62, R0 UI-01..22, ST-01..15, M09 reference fixtures and R0-ACC remain mandatory. Prior test claims are historical evidence, **not substitutes for fresh tests in each U-phase**.
 
 ### 20.1 Deterministic test harness rules
 

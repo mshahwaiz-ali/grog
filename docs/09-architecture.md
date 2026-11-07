@@ -375,7 +375,9 @@ Detailed acceptance case IDs: [08 — Validation](08-validation.md); milestone-s
 
 **Status: historical D00–D05 architecture handoff, now implemented on main by `c0ef834` (2026-11-07). The owner-approved V2 UI redesign follows [desktop-visual-redesign.md](desktop-visual-redesign.md), preserving this already-running architecture.** Approved D-014 scope remains fixed. [02 §16](02-workflows-and-ux.md) owns exact layouts and actions; [08 §20](08-validation.md) owns test cases; [10 §12](10-roadmap.md) owns phased gates; [11 §16](11-decisions.md) records decisions/open gaps. The code observations below are from GitHub main at `ead4f8991e327a8ecf263d59530173a391ad9e2e`, not proof that this Qt release has been run or accepted.
 
-### 13.1 As-built map and why D01 is not yet an application
+### 13.1 Historical as-built map — D01 through D05
+
+The D01 row below records an **early, superseded phase state**; D02–D05 rows document the subsequent completed capabilities. As of `c0ef834` all five screens and the separate journal/source pathways exist. U0 must inspect the **current implementation** before modifying any UI boundary.
 
 | Existing element | Actual responsibility | Desktop contract |
 | --- | --- | --- |
