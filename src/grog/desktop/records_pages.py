@@ -44,7 +44,7 @@ from grog.desktop.records_model import (
     position_detail,
     position_rows,
 )
-from grog.desktop.theme import SPACE, Card, label, set_tone
+from grog.desktop.theme import SPACE, Card, Metric, label, set_tone
 from grog.journal.positions import JournalError, PositionState
 from grog.ui.manual import parse_time
 
@@ -140,6 +140,18 @@ class PositionsPage(QWidget):
         self.mode_text = label("", "body", wrap=True, select=True)
         self.mode_banner.body.addWidget(self.mode_text)
         outer.addWidget(self.mode_banner)
+
+        # Counts reflect the detached journal only; broker state is never inferred.
+        self.summary_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.summary_row.setSpacing(SPACE[2])
+        self.open_metric = Metric("Open local", caption="Not broker-synced")
+        self.reconcile_metric = Metric("Need reconciliation", caption="Verify externally")
+        self.closed_metric = Metric("Closed local", caption="Records only")
+        for metric in (self.open_metric, self.reconcile_metric, self.closed_metric):
+            metric.setProperty("grogRaised", "true")
+            self.summary_row.addWidget(metric, 1)
+        outer.addLayout(self.summary_row)
+
         self.worklist = label("", "body", wrap=True)
         self.worklist.setAccessibleName("Reconciliation worklist")
         outer.addWidget(self.worklist)
@@ -174,6 +186,8 @@ class PositionsPage(QWidget):
             "Select a position to see its complete record.", "cardTitle", wrap=True, select=True
         )
         self.detail_status = label("", "body", wrap=True)
+        self.detail_summary = label("", "overviewSummary", wrap=True, select=True)
+        self.detail_summary.setAccessibleName("Local position status summary")
         self.detail_body = label("", "body", wrap=True, select=True)
         self.events_title = label("EVENTS (append-only, oldest first)", "eyebrow")
         self.events = label("", "mono", wrap=True, select=True)
@@ -181,6 +195,7 @@ class PositionsPage(QWidget):
         for w in (
             self.detail_title,
             self.detail_status,
+            self.detail_summary,
             self.detail_body,
             self.events_title,
             self.events,
@@ -218,6 +233,11 @@ class PositionsPage(QWidget):
         """Records have many exact columns: the table always spans the page width and
         the complete detail follows below it (no column is hidden behind the detail)."""
         self.content.setDirection(QBoxLayout.Direction.TopToBottom)
+        self.summary_row.setDirection(
+            QBoxLayout.Direction.TopToBottom
+            if mode == "narrow"
+            else QBoxLayout.Direction.LeftToRight
+        )
 
     def apply_snapshot(self, snap: JournalSnapshot | None) -> None:
         self.snapshot = snap
@@ -236,6 +256,21 @@ class PositionsPage(QWidget):
 
     def _render(self) -> None:
         snap = self.snapshot
+        if snap is None or not snap.readable:
+            counts = ("—", "—", "—")
+        else:
+            open_count = len(snap.open_positions())
+            counts = (
+                str(open_count),
+                str(len(snap.needs_reconciliation())),
+                str(len(snap.positions) - open_count),
+            )
+        for metric, value in zip(
+            (self.open_metric, self.reconcile_metric, self.closed_metric),
+            counts,
+            strict=True,
+        ):
+            metric.value.setText(value)
         if snap is None:
             self.mode_text.setText("Opening the local journal…")
             self.mode_banner.set_accent("warning")
@@ -248,8 +283,14 @@ class PositionsPage(QWidget):
         self.mode_banner.set_accent(tone)
         self.mode_text.setText(f"Local journal {snap.mode.value} — {snap.reason}")
         set_tone(self.mode_text, tone)
-        rr = snap.needs_reconciliation()
-        if rr:
+        rr = snap.needs_reconciliation() if snap.readable else []
+        if not snap.readable:
+            self.worklist.setText(
+                "Reconciliation status UNKNOWN — local records could not be read. "
+                "No broker positions can be inferred."
+            )
+            set_tone(self.worklist, "error")
+        elif rr:
             restored = f" ({len(snap.restored)} marked at this start)" if snap.restored else ""
             self.worklist.setText(
                 f"RECONCILIATION REQUIRED: {len(rr)} position(s){restored} — verify each at "
@@ -289,12 +330,16 @@ class PositionsPage(QWidget):
                 self.detail_title.setText(f"{self.selected_key} is not in the current records.")
             else:
                 self.detail_title.setText("Select a position to see its complete record.")
-            for w in (self.detail_status, self.detail_body, self.events):
+            for w in (self.detail_status, self.detail_summary, self.detail_body, self.events):
                 w.setText("")
         else:
             title, status, lines, events = position_detail(snap, pos, self.marks)
             self.detail_title.setText(title)
             self.detail_status.setText(status)
+            self.detail_summary.setText(
+                f"{pos.side.value} · {pos.state.value.replace('_', ' ')} · "
+                f"{pos.plan_status.value} · local record, not broker-synced"
+            )
             set_tone(
                 self.detail_status,
                 "error" if pos.state is PositionState.RECONCILIATION_REQUIRED else "neutral",
@@ -333,6 +378,7 @@ class PositionsPage(QWidget):
         parts = [
             self.detail_title.text(),
             self.detail_status.text(),
+            self.detail_summary.text(),
             self.detail_body.text(),
             self.events.text(),
             self.action_reason.text(),
