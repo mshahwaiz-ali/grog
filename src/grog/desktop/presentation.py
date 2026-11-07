@@ -186,3 +186,8 @@ def compact_table_header(*columns: str) -> str:
 def detail_panel(title: str, body: str) -> str:
     """Detail panel content."""
     return f"{title}\n{body}"
+
+
+def status_pill(text: str, tone: str = "info") -> str:
+    """Status pill text. Color comes from theme."""
+    return text
