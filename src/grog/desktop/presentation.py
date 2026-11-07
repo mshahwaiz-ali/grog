@@ -211,3 +211,8 @@ def source_chooser_label(name: str, mode: str) -> str:
 def fault_state(code: str, message: str) -> str:
     """Fault state for Diagnostics."""
     return f"FAULT {code}: {message}"
+
+
+def high_dpi_note() -> str:
+    """High-DPI note. Logical pixels used."""
+    return "Layout uses logical pixels; high-DPI safe."
