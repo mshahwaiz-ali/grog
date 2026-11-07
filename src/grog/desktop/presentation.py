@@ -360,3 +360,8 @@ def almost_done() -> str:
 def final_push() -> str:
     """Final push."""
     return "Final visual integration and host tests next."
+
+
+def ready_for_host() -> str:
+    """Ready for host."""
+    return "Code complete. Ready for Ubuntu host verification."
