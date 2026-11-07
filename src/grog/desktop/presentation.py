@@ -101,3 +101,12 @@ def decision_headline(state: str) -> str:
         "FORMING": "Developing · not tradable yet",
         "READY": "READY research proposal",
     }.get(state, state)
+
+
+def quote_metric(bid: str, ask: str, side: str = "") -> str:
+    """Prominent sourced quote display. Exact values preserved."""
+    if side == "BUY":
+        return f"ASK {ask}"
+    if side == "SELL":
+        return f"BID {bid}"
+    return f"BID {bid} / ASK {ask}"
