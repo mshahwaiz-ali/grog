@@ -205,3 +205,66 @@ def test_u2_positions_summary_and_unverified_mode_are_truthful(app, tmp_path) ->
         assert "read failed" in page.mode_text.text()
     finally:
         page.close()
+
+
+def test_u2_journal_human_clocks_provenance_and_invalid_ranges(app, tmp_path) -> None:
+    from grog.desktop.presentation import utc_ms_text, view_time_text
+
+    replay, _sid = at_ready()
+    window = open_d03(app, replay, make_state(tmp_path))
+    try:
+        window.show_page(3)
+        page = window.journal_page
+        assert page.shown  # a READY replay includes reconstructed engine events
+        first = page.shown[0]
+        assert page.model.headerData(0, 1) == "WHEN (PKT)"
+        assert page.model.item(0, 0).text() == view_time_text(first.time_ms, "PKT")
+        assert page.model.item(0, 0).toolTip() == (
+            f"Original event UTC: {utc_ms_text(first.time_ms)}"
+        )
+        assert "reconstructed SIM ENGINE observation" in page.chronology.text()
+        page.table.selectRow(0)
+        app.processEvents()
+        assert "SIM ENGINE" in page.detail_source.text()
+        assert "RECORDED UTC" in page.detail_text_label.text()
+        assert "Engine event ID:" in page.detail_text_label.text()
+
+        keys = [entry.key for entry in page.shown]
+        page.set_time_zone("UTC")
+        assert page.model.headerData(0, 1) == "WHEN (UTC)"
+        assert page.model.item(0, 0).text() == view_time_text(first.time_ms, "UTC")
+        assert [entry.key for entry in page.shown] == keys  # display-only zone change
+        assert page.selected_key == first.key
+
+        page.from_utc.setText("not a UTC timestamp")
+        assert page.model.rowCount() == 0
+        assert page.range_error.text()
+        assert "Correct the UTC time range" in page.chronology.text()
+        page.from_utc.clear()
+        assert [entry.key for entry in page.shown] == keys
+    finally:
+        finish(app, window)
+
+
+def test_u2_diagnostics_health_first_with_full_disclosed_evidence(app, tmp_path):
+    replay, _sid = at_ready()
+    window = open_d03(app, replay, make_state(tmp_path))
+    try:
+        window.show_page(4)
+        page = window.diagnostics_page
+        assert page.facts is not None
+        assert "reference adapter is not connected" in page.health_note.text()
+        assert not page.evidence_host.isVisibleTo(window)
+        page.evidence_toggle.click()
+        app.processEvents()
+        assert page.evidence_host.isVisibleTo(window)
+        assert "Config sha256:" in page.text()
+        assert "REFERENCE ADAPTER" in page.text()
+        page.evidence_toggle.click()
+        app.processEvents()
+        assert not page.evidence_host.isVisibleTo(window)
+        page.mark_stale("simulated source fault", "2026-10-14 00:00:00 UTC")
+        assert "stale" in page.health_note.text().lower()
+        assert "simulated source fault" in page.text()
+    finally:
+        finish(app, window)
