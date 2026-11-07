@@ -290,3 +290,8 @@ def responsive_layout(width: int) -> str:
     if width >= 900:
         return "medium"
     return "narrow"
+
+
+def theme_mode_label(mode: str) -> str:
+    """Theme mode label."""
+    return {"dark": "Dark", "light": "Light", "system": "System"}.get(mode, mode)
