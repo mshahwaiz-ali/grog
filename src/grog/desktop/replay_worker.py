@@ -62,6 +62,7 @@ class ReplayWorker(QObject):
         self._overlay = None
         self._positions = None
         self._journal_note = ""
+        self._request: LoadRequest | None = None
         self._source_id = ""
         self._generation = 0
         self._sequence = 0
@@ -154,6 +155,7 @@ class ReplayWorker(QObject):
         try:  # the whole initialisation: source, journal read and tracker wiring
             session = self._loader(request)
             overlay, positions, note = self._journal_reader(request)
+            self._request = request
             tracker = TouchTracker()
             if positions is not None:
                 tracker.track(positions)
@@ -228,6 +230,18 @@ class ReplayWorker(QObject):
 
     @Slot()
     def refresh(self) -> None:
+        """Re-read the operator overlay read-only (as the terminal's refresh does) and
+        republish the current snapshot; the replay itself never moves."""
+        if self._session is None or self._faulted:
+            return
+        try:
+            overlay, positions, note = self._journal_reader(self._request)
+        except Exception as exc:  # noqa: BLE001 - fail closed, never an invented empty overlay
+            overlay, positions = None, None
+            note = f"Journal unavailable (refresh failed: {exc})"
+        self._overlay, self._positions, self._journal_note = overlay, positions, note
+        if self._tracker is not None and positions is not None:
+            self._tracker.track(positions)
         self._publish()
 
     @Slot()

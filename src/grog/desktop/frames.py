@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 
 from grog.desktop.overview_model import OverviewState, from_snapshot
 from grog.desktop.presentation import price_text, utc_ms_text
+from grog.desktop.signals_model import SignalsFacts, build_signals_facts
 from grog.domain.enums import SignalState, Timeframe
 from grog.replay.session import Playback
 from grog.ui.format import pace_label, utc
@@ -162,6 +163,7 @@ class OverviewFrame:
     blocked: int
     ready_ids: tuple[str, ...]  # full immutable IDs, engine order, never ranked
     blocked_ids: tuple[str, ...]
+    signals: SignalsFacts  # D02 Signals page rows/details from the same snapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -367,6 +369,7 @@ def build_overview_frame(
         blocked=blocked,
         ready_ids=ready_ids,
         blocked_ids=blocked_ids,
+        signals=build_signals_facts(snap, events, overlay, positions, journal_note),
     )
 
 

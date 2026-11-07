@@ -1,9 +1,10 @@
-"""Native Gold desktop shell and the read-only Overview page (D01).
+"""Native Gold desktop shell, read-only Overview (D01) and Signals (D02) pages.
 
 Qt GUI thread only: this module renders detached frames published by the replay worker
 and sends user intents back through queued signals. It never touches the
 ``ReplaySession``, SQLite or the journal, performs no trading arithmetic and places no
-orders. Signals, Positions, Journal and Diagnostics stay disabled until D02-D04.
+orders. Signals (D02) is read-only; Positions, Journal and Diagnostics stay disabled until
+D03-D04.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -36,6 +38,7 @@ from grog.desktop.frames import (
 )
 from grog.desktop.loading import LoadRequest
 from grog.desktop.replay_worker import ReplayWorker
+from grog.desktop.signals_page import SignalsPage
 from grog.desktop.theme import SPACE, Card, Metric, label, pill, set_tone
 from grog.replay.session import Playback
 
@@ -45,7 +48,7 @@ MIN_WIDTH, MIN_HEIGHT = 820, 620
 
 PAGES = (
     ("Overview", None),
-    ("Signals", "D02"),
+    ("Signals", None),
     ("Positions", "D03"),
     ("Journal", "D03"),
     ("Diagnostics", "D04"),
@@ -147,7 +150,14 @@ class GoldWindow(QMainWindow):
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setWidget(self._build_overview())
-        column.addWidget(self.scroll, 1)
+        self.signals_page = SignalsPage()
+        self.signals_scroll = QScrollArea()
+        self.signals_scroll.setWidgetResizable(True)
+        self.signals_scroll.setWidget(self.signals_page)
+        self.pages = QStackedWidget()
+        self.pages.addWidget(self.scroll)
+        self.pages.addWidget(self.signals_scroll)
+        column.addWidget(self.pages, 1)
         column.addWidget(self._build_toolbar())
         outer.addLayout(column, 1)
         self._install_shortcuts()
@@ -166,11 +176,14 @@ class GoldWindow(QMainWindow):
         self.nav_counts: list[QLabel] = []
         for index, (title, phase) in enumerate(PAGES):
             button = QPushButton(f"{index + 1}   {title}")
-            button.setObjectName("navActive" if phase is None else "nav")
+            button.setObjectName("navActive" if index == 0 else "nav")
             button.setAccessibleName(f"{title} page")
             if phase is not None:
                 button.setEnabled(False)
-                button.setToolTip(f"{title} arrives in {phase}. This D01 build shows Overview.")
+                button.setToolTip(f"{title} arrives in {phase}.")
+            else:
+                button.setToolTip(f"Show {title} ({index + 1})")
+                button.clicked.connect(lambda _checked=False, i=index: self.show_page(i))
             side.addWidget(button)
             count = label("", "navCount")
             count.setContentsMargins(SPACE[3] + 2, 0, 0, SPACE[1])
@@ -178,8 +191,8 @@ class GoldWindow(QMainWindow):
             self.nav.append(button)
             self.nav_counts.append(count)
         self.later_note = label(
-            "Signals, Positions, Journal and Diagnostics are available in later phases "
-            "(D02–D04). This build shows Overview only.",
+            "Positions, Journal and Diagnostics are available in later phases "
+            "(D03–D04). This build shows Overview and Signals (read-only).",
             "meta",
             wrap=True,
         )
@@ -380,10 +393,29 @@ class GoldWindow(QMainWindow):
             ("-", self.slower_requested.emit),
             ("R", self.refresh),
             ("Q", self.close),
+            ("1", lambda: self.show_page(0)),
+            ("2", lambda: self.show_page(1)),
         ):
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.activated.connect(action)
             self.shortcuts.append(shortcut)
+
+    # ================================================================ pages
+
+    def show_page(self, index: int) -> None:
+        """Switch the visible page; never touches replay state or the journal."""
+        if PAGES[index][1] is not None:
+            return
+        self.pages.setCurrentIndex(index)
+        for i, button in enumerate(self.nav):
+            if PAGES[i][1] is None:
+                button.setObjectName("navActive" if i == index else "nav")
+                button.style().unpolish(button)
+                button.style().polish(button)
+
+    @property
+    def page_index(self) -> int:
+        return self.pages.currentIndex()
 
     # ================================================================ intents
 
@@ -565,6 +597,9 @@ class GoldWindow(QMainWindow):
         for count in self.nav_counts:
             count.setText("")
             count.setVisible(False)
+        self.signals_page.show_unavailable(
+            "Signals unavailable — " + ("source fault" if fault else "loading source")
+        )
 
     def _apply_overview(self, f: OverviewFrame) -> None:
         o, q, t, d, p = f.overview, f.quote, f.transport, f.diagnostics, f.positions
@@ -667,6 +702,7 @@ class GoldWindow(QMainWindow):
             f"{t.processed:,} / {t.total:,} quotes  ·  {t.pre_roll:,} pre-roll (history)"
         )
         self.play.setText("Pause" if playing else "Play")
+        self.signals_page.apply(f.signals)
         counts = ("", f"{f.ready} ready · {f.forming} developing", "", "", "")
         for label_widget, text in zip(self.nav_counts, counts, strict=True):
             label_widget.setText(text)
@@ -701,6 +737,7 @@ class GoldWindow(QMainWindow):
         vertical = QBoxLayout.Direction.TopToBottom
         horizontal = QBoxLayout.Direction.LeftToRight
         self.columns.setDirection(horizontal if mode == "wide" else vertical)
+        self.signals_page.set_layout_mode(mode)
         self.context_row.setDirection(vertical if mode == "narrow" else horizontal)
         if mode == "narrow":
             self.strip_bottom.addWidget(self.clock_text)

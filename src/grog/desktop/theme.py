@@ -2,7 +2,7 @@
 
 Tokens follow docs/02 §16.1. Status always carries words as well as colour; gold is an
 accent for identity and READY research proposals, never for warnings or safety states.
-Every page (Overview now, Signals/Positions/Journal/Diagnostics later) builds from these.
+Every page (Overview, Signals; Positions/Journal/Diagnostics later) builds from these.
 """
 
 from __future__ import annotations
@@ -72,6 +72,26 @@ QPushButton#nav, QPushButton#navActive {{ text-align: left; padding: 10px 12px;
     border-radius: 8px; border: 1px solid transparent; background: transparent; }}
 QPushButton#nav:disabled {{ color: #5F6F82; }}
 QPushButton#navActive {{ background: #2A2416; color: #F4D597; border-color: #5E4C2C; }}
+QLineEdit, QComboBox {{ background: {SURFACE}; color: {TEXT}; border: 1px solid #36495E;
+    border-radius: 8px; padding: 6px 10px; selection-background-color: #3A2F1B; }}
+QLineEdit:focus, QComboBox:focus {{ border: 1px solid {GOLD}; }}
+QComboBox QAbstractItemView {{ background: {SURFACE}; color: {TEXT};
+    selection-background-color: #2A2416; }}
+QTabWidget::pane {{ border: 1px solid {DIVIDER}; border-radius: 8px; top: -1px;
+    background: {SURFACE}; }}
+QTabBar::tab {{ background: transparent; color: {TEXT_2}; padding: 8px 14px;
+    border: 1px solid transparent; border-bottom: none; font-weight: 600; }}
+QTabBar::tab:selected {{ color: #F4D597; background: {SURFACE}; border-color: {DIVIDER};
+    border-top-left-radius: 8px; border-top-right-radius: 8px; }}
+QTabBar::tab:focus {{ color: {GOLD}; }}
+QTableView {{ background: {SURFACE}; alternate-background-color: #15212F; color: {TEXT};
+    gridline-color: {DIVIDER}; border: none; selection-background-color: #2A2416;
+    selection-color: #F4D597; font-size: 13px; }}
+QTableView:focus {{ border: 1px solid {GOLD}; }}
+QHeaderView::section {{ background: #0E1621; color: {TEXT_2}; border: none;
+    border-bottom: 1px solid {DIVIDER}; padding: 6px 8px; font-size: 12px; font-weight: 700; }}
+QScrollBar:horizontal {{ background: {BG}; height: 10px; }}
+QScrollBar::handle:horizontal {{ background: {DIVIDER}; border-radius: 5px; min-width: 30px; }}
 QScrollArea {{ border: none; background: {BG}; }}
 QScrollArea > QWidget > QWidget {{ background: {BG}; }}
 QScrollBar:vertical {{ background: {BG}; width: 10px; }}

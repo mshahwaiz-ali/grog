@@ -56,6 +56,10 @@ def _human_condition(snap: Snapshot, candidate) -> str:
     return trigger_explanation(candidate.side.value, level)
 
 
+# Public name for the desktop Signals read model (same wording as the Overview).
+human_condition = _human_condition
+
+
 def from_snapshot(
     snap: Snapshot,
     events: Sequence[SignalEvent],

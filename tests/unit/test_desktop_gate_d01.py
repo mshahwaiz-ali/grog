@@ -116,9 +116,13 @@ def test_gui19_ready_levels_are_exact_engine_decimals_and_r_fees_not_fabricated(
         assert isinstance(value, Decimal)
         assert format(value, ",f") in text
     # The Overview has no R-multiple or fee field (they belong to signal detail/journal);
-    # no frame text claims one.
-    lowered = " ".join(_strings(frame)).lower()
+    # no Overview text claims one. The D02 Signals detail states fees/net R as UNKNOWN.
+    overview_only = dataclasses.replace(frame, signals=None)
+    lowered = " ".join(_strings(overview_only)).lower()
     assert "fee" not in lowered and "r-multiple" not in lowered and " 1r" not in lowered
+    (row,) = frame.signals.current
+    fees = [v for _k, v in row.detail.fields if "fee" in v.lower()]
+    assert fees == ["UNKNOWN — net R/fees not confirmed"]
 
 
 # ------------------------------------------------------------------ GUI-20 bar provenance
