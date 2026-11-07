@@ -156,3 +156,8 @@ def market_context(h1: str, m15: str, m5: str) -> str:
 def timeline_entry(time: str, event: str) -> str:
     """Timeline entry for Journal."""
     return f"{time} · {event}"
+
+
+def filter_bar(active: int, total: int) -> str:
+    """Filter bar summary for Signals/Journal."""
+    return f"Showing {active} of {total}"
