@@ -221,3 +221,8 @@ def high_dpi_note() -> str:
 def system_theme_note() -> str:
     """System appearance note."""
     return "System appearance unavailable — using Dark"
+
+
+def timezone_indicator(zone: str) -> str:
+    """Explicit timezone indicator."""
+    return zone if zone in ("PKT", "UTC") else "UTC"
