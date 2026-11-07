@@ -315,3 +315,8 @@ def audit_detail(label: str, value: str) -> str:
 def complete_redesign_note() -> str:
     """Redesign status note."""
     return "UI/UX V2 redesign in progress — presentation layer complete."
+
+
+def page_integration_note() -> str:
+    """Page integration status."""
+    return "Helpers wired into shell. Full page visual integration continuing."
