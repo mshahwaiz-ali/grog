@@ -9,7 +9,7 @@ not colour alone (docs/02 §16.6, docs/08 GUI-52/53/58).
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QGridLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGridLayout, QPushButton, QVBoxLayout, QWidget
 
 from grog.desktop.diagnostics_model import DiagGroup, DiagnosticsFacts, journal_group, overall
 from grog.desktop.journal_model import JournalSnapshot
@@ -59,14 +59,34 @@ class DiagnosticsPage(QWidget):
         outer.addWidget(self.summary)
         outer.addWidget(self.source_summary)
         outer.addWidget(self.mode_line)
-        self.grid = QGridLayout()
+        self.health_note = label("", "overviewSummary", wrap=True, select=True)
+        self.health_note.setAccessibleName("Operational implications")
+        outer.addWidget(self.health_note)
+        self.attention_note = label("", "body", wrap=True, select=True)
+        self.attention_note.setAccessibleName("Diagnostic attention items")
+        outer.addWidget(self.attention_note)
+        self.evidence_toggle = QPushButton("Show complete technical evidence")
+        self.evidence_toggle.setCheckable(True)
+        self.evidence_toggle.setAccessibleName("Toggle complete diagnostic evidence")
+        self.evidence_toggle.toggled.connect(self._toggle_evidence)
+        outer.addWidget(self.evidence_toggle)
+        self.evidence_host = QWidget()
+        self.grid = QGridLayout(self.evidence_host)
+        self.grid.setContentsMargins(0, 0, 0, 0)
         self.grid.setHorizontalSpacing(SPACE[3])
         self.grid.setVerticalSpacing(SPACE[3])
-        outer.addLayout(self.grid)
+        outer.addWidget(self.evidence_host)
+        self.evidence_host.setVisible(False)
         outer.addStretch()
         self.cards: list[Card] = []
         self.columns = 2
         self._shown: tuple = ()
+
+    def _toggle_evidence(self, show: bool) -> None:
+        self.evidence_host.setVisible(show)
+        self.evidence_toggle.setText(
+            "Hide complete technical evidence" if show else "Show complete technical evidence"
+        )
 
     # ------------------------------------------------------------------ inputs
 
@@ -106,17 +126,58 @@ class DiagnosticsPage(QWidget):
         self.stale.setVisible(self.stale_reason is not None)
         self.stale_text.setText(self.stale_reason or "")
         if self.facts is not None:
-            tone, verdict = overall(self.groups(), stale=self.stale_reason is not None)
+            groups = self.groups()
+            tone, verdict = overall(groups, stale=self.stale_reason is not None)
             self.summary.setText(verdict)
             set_tone(self.summary, tone)
             scoped = self.facts.summary.removeprefix("Summary: ")
             self.source_summary.setText(f"Replay source checks only (terminal summary): {scoped}")
             self.mode_line.setText(self.facts.mode_line)
+            issues = [
+                (g.title, r.verdict, r.text)
+                for g in groups
+                for r in g.rows
+                if r.verdict in ("ERROR", "DEGRADED", "UNKNOWN")
+                or (
+                    r.verdict == "NOT CONFIGURED"
+                    and g.title != "REFERENCE ADAPTER (READ-ONLY)"
+                )
+            ]
+            if self.stale_reason:
+                self.health_note.setText(
+                    "Source information is stale. Do not treat the last quote as current."
+                )
+                set_tone(self.health_note, "error")
+            elif issues:
+                self.health_note.setText(
+                    f"{len(issues)} operational check(s) need attention. "
+                    "Read the warnings before relying on this replay."
+                )
+                set_tone(self.health_note, "warning")
+            else:
+                self.health_note.setText(
+                    "Replay checks and local journal have no reported problems. "
+                    "The reference adapter is not connected; no live broker data is validated."
+                )
+                set_tone(self.health_note, "neutral")
+            self.attention_note.setText(
+                "\n".join(f"{title} · {status}: {detail}" for title, status, detail in issues)
+                if issues
+                else "No unresolved source or journal warnings in the available diagnostics."
+            )
+            set_tone(self.attention_note, "warning" if issues else "info")
         elif self.stale_reason is not None:  # startup fault: never "waiting" for a frame
             self.summary.setText("No diagnostics — this source did not load")
             set_tone(self.summary, "warning")
             self.source_summary.setText("")
             self.mode_line.setText("")
+            self.health_note.setText("No source evidence is available.")
+            set_tone(self.health_note, "warning")
+            self.attention_note.setText(self.stale_reason)
+            set_tone(self.attention_note, "error")
+        else:
+            self.health_note.setText("Waiting for source diagnostics and local journal status.")
+            self.attention_note.setText("")
         if not self.isVisible():
             return  # hidden page: rebuilt from the latest facts when shown (showEvent)
         groups = self.groups()
