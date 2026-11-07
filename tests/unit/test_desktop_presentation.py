@@ -65,9 +65,7 @@ def test_missing_trigger_is_unknown_and_bad_side_rejected() -> None:
 def test_view_time_has_named_zone_absolute_date_and_role() -> None:
     ms = 1768497845123  # 2026-01-15 17:24:05.123 UTC
     assert view_time_text(ms) == "15 Jan 2026 · 10:24 PM PKT"
-    assert view_time_text(ms, "UTC", clock="provider") == (
-        "Provider 15 Jan 2026 · 05:24 PM UTC"
-    )
+    assert view_time_text(ms, "UTC", clock="provider") == ("Provider 15 Jan 2026 · 05:24 PM UTC")
     assert view_time_text(ms, clock="received") == "Received 15 Jan 2026 · 10:24 PM PKT"
     assert view_time_text(ms, clock="available") == "Available 15 Jan 2026 · 10:24 PM PKT"
     assert view_time_text(ms, clock="replay") == "Replay 15 Jan 2026 · 10:24 PM PKT"
