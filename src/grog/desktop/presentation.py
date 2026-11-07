@@ -276,3 +276,8 @@ def form_field_label(name: str, required: bool = False) -> str:
 def help_section(title: str, items: list[str]) -> str:
     """Keyboard help section."""
     return title + "\n" + "\n".join(items)
+
+
+def chooser_confirm(source: str) -> str:
+    """Source chooser confirmation."""
+    return f"Open {source} (read-only inspect until operator action)"
