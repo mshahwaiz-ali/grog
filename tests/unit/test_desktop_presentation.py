@@ -59,6 +59,7 @@ def test_missing_trigger_is_unknown_and_bad_side_rejected() -> None:
     with pytest.raises(ValueError, match="Unexpected signal side"):
         trigger_explanation("LONG", Decimal("1.00"))
 
+
 # U1: only the view changes; persisted/replay/audit clocks remain UTC integers.
 
 
