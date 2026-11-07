@@ -281,3 +281,12 @@ def help_section(title: str, items: list[str]) -> str:
 def chooser_confirm(source: str) -> str:
     """Source chooser confirmation."""
     return f"Open {source} (read-only inspect until operator action)"
+
+
+def responsive_layout(width: int) -> str:
+    """Responsive layout mode."""
+    if width >= 1200:
+        return "wide"
+    if width >= 900:
+        return "medium"
+    return "narrow"
