@@ -423,7 +423,8 @@ class JournalPage(QWidget):
         )
         self.chronology.setAccessibleName("Most recent matching journal event")
         outer.addWidget(self.chronology)
-        f1 = QHBoxLayout()
+        self.filter_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        f1 = self.filter_row
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search IDs, reasons, notes, mode…")
         self.search.setAccessibleName("Search journal")
@@ -444,7 +445,8 @@ class JournalPage(QWidget):
             w.setMinimumContentsLength(9)  # long action names never widen the page
             f1.addWidget(w)
         outer.addLayout(f1)
-        f2 = QHBoxLayout()
+        self.range_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        f2 = self.range_row
         self.from_utc = QLineEdit()
         self.from_utc.setPlaceholderText("From UTC, e.g. 2026-10-14T00:00:00Z")
         self.from_utc.setAccessibleName("From UTC")
@@ -521,6 +523,13 @@ class JournalPage(QWidget):
 
     def set_layout_mode(self, mode: str) -> None:
         self.content.setDirection(QBoxLayout.Direction.TopToBottom)
+        direction = (
+            QBoxLayout.Direction.TopToBottom
+            if mode == "narrow"
+            else QBoxLayout.Direction.LeftToRight
+        )
+        self.filter_row.setDirection(direction)
+        self.range_row.setDirection(direction)
 
     def apply_snapshot(self, snap: JournalSnapshot | None) -> None:
         self.snapshot = snap
