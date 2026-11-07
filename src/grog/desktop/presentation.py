@@ -300,3 +300,8 @@ def theme_mode_label(mode: str) -> str:
 def timezone_mode_label(zone: str) -> str:
     """Timezone mode label."""
     return {"PKT": "PKT (Asia/Karachi)", "UTC": "UTC"}.get(zone, zone)
+
+
+def settings_section(title: str) -> str:
+    """Settings section title."""
+    return title
