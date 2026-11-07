@@ -110,3 +110,10 @@ def quote_metric(bid: str, ask: str, side: str = "") -> str:
     if side == "SELL":
         return f"BID {bid}"
     return f"BID {bid} / ASK {ask}"
+
+
+def reason_summary(codes: list[str]) -> str:
+    """Human-readable reason summary. Full codes available in detail."""
+    if not codes:
+        return "No additional reasons"
+    return "; ".join(codes[:3]) + ("..." if len(codes) > 3 else "")
