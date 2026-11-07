@@ -394,6 +394,13 @@ def test_gui56_every_manual_form_and_help_real_geometry(app, tmp_path, size, mod
                     field.objectName(),
                     _scroll_geometry(field, area),
                 )
+            if kind == "skip" and mode == "narrow":
+                # The caret can be visible while the bottom of its QLineEdit is
+                # clipped. Moving keyboard focus must reveal the whole control.
+                area.verticalScrollBar().setValue(0)
+                fields[-1].setFocus()
+                settle(app)
+                assert _inside(fields[-1], viewport), _scroll_geometry(fields[-1], area)
             region = dialog.preview_scroll  # fixed-height preview region, always visible
             assert region.isVisible() and _inside(region, dialog), kind
             assert region.height() >= 4 * dialog.preview.fontMetrics().lineSpacing(), kind

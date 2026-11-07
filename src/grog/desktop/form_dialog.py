@@ -11,7 +11,7 @@ input and the same action ID; success is shown only from the journal's result.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, Qt, Signal
 from PySide6.QtGui import QCloseEvent, QKeyEvent
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -36,6 +36,39 @@ from grog.journal.positions import new_action_id
 PREVIEW_LINES = 7  # fixed preview region height (lines); longer previews scroll inside
 
 TONE = {"error": "error", "caution": "warning", "gold": "ready", "ok": "ok", "muted": "info"}
+
+
+class ManualFieldsScrollArea(QScrollArea):
+    """Keep complete focused controls visible, not only the input-method cursor.
+
+    Qt can consider a QLineEdit visible when its caret is on-screen although the
+    control's border is clipped at the bottom of a compact dialog.
+    """
+
+    def ensureWidgetVisible(
+        self, child_widget: QWidget, xmargin: int = 50, ymargin: int = 50
+    ) -> None:  # noqa: N802 - Qt API
+        super().ensureWidgetVisible(child_widget, xmargin, ymargin)
+        content = self.widget()
+        if content is None or not content.isAncestorOf(child_widget):
+            return
+        view = self.viewport()
+        pos = child_widget.mapTo(view, QPoint(0, 0))
+        horizontal = self.horizontalScrollBar()
+        vertical = self.verticalScrollBar()
+        if pos.x() < 0:
+            horizontal.setValue(horizontal.value() + pos.x())
+        elif pos.x() + child_widget.width() > view.width():
+            horizontal.setValue(horizontal.value() + pos.x() + child_widget.width() - view.width())
+        if pos.y() < 0:
+            vertical.setValue(vertical.value() + pos.y())
+        elif pos.y() + child_widget.height() > view.height():
+            vertical.setValue(vertical.value() + pos.y() + child_widget.height() - view.height())
+
+    def eventFilter(self, watched, event: QEvent) -> bool:  # noqa: N802 - Qt API
+        if event.type() == QEvent.Type.FocusIn and isinstance(watched, QWidget):
+            self.ensureWidgetVisible(watched)
+        return super().eventFilter(watched, event)
 
 
 class ManualFormDialog(QDialog):
@@ -63,7 +96,7 @@ class ManualFormDialog(QDialog):
         outer.setSpacing(SPACE[2])
         title = label(spec.title, "cardTitle", wrap=True)
         outer.addWidget(title)
-        scroll = QScrollArea()
+        scroll = ManualFieldsScrollArea()
         scroll.setWidgetResizable(True)
         body = QWidget()
         column = QVBoxLayout(body)
@@ -125,6 +158,7 @@ class ManualFormDialog(QDialog):
             err.setVisible(False)
             err.setAccessibleName(f"{f.label} error")
             box.addWidget(err)
+            w.installEventFilter(scroll)  # Tab/focus keeps the entire input within view
             self.inputs[f.key], self.errors[f.key] = w, err
             form.addRow(label("" if f.kind == ACK else f.label, "meta"), box)
         fields_card.body.addLayout(form)
