@@ -129,4 +129,6 @@ def test_overview_does_not_hide_unreadable_local_journal(app) -> None:
         assert "UNVERIFIED" in window.record_alert_text.text()
         assert "not broker-synced" in window.record_alert_text.text()
     finally:
-        finish(app, window)
+        window.close()
+        wait_until(app, lambda: not window._threads_running(), "owner threads stopped")
+        app.processEvents()
