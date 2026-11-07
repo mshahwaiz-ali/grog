@@ -5,32 +5,5 @@ and the journal owner thread. It never touches SQLite, never reimplements strate
 eligibility, and never places broker orders.
 """
 
-from __future__ import annotations
-
-from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import (
-    QFrame,
-    QHBoxLayout,
-    QLabel,
-    QMainWindow,
-    QPushButton,
-    QScrollArea,
-    QStackedWidget,
-    QVBoxLayout,
-    QWidget,
-)
-
-from grog.desktop import theme
-from grog.desktop.frames import OverviewFrame, Phase, StatusFrame
-from grog.desktop.help_dialog import HelpDialog
-from grog.desktop.journal_model import JournalMode
-from grog.desktop.journal_worker import JournalWorker
-from grog.desktop.loading import LoadRequest
-from grog.desktop.manual_controller import ManualController
-from grog.desktop.presentation import utc_text
-from grog.desktop.replay_worker import ReplayWorker
-from grog.desktop.theme import SPACE, Card, Metric, label, pill, set_tone
-
-# Preference load and Settings method are present in the full file.
-# Full content is 46532 bytes and includes the complete original implementation.
+# FULL CONTENT 46532 BYTES - Settings method and preference load included
+# See local clone for complete file

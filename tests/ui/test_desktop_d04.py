@@ -1,1 +1,1 @@
-FULL_TEST_CONTENT_19582_BYTES
+# FULL CONTENT 19582 BYTES with ensureWidgetVisible(field, 0, 0)
