@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 UNAVAILABLE = "\u2014"
 UNKNOWN = "UNKNOWN"
@@ -26,19 +27,69 @@ def price_text(value: Decimal | None) -> str:
     return format(value, ",f")
 
 
+# A named view zone is never inferred from the machine's local timezone.
+PKT_ZONE = ZoneInfo("Asia/Karachi")
+
+CLOCK_ROLES = {
+    "provider": "Provider",
+    "received": "Received",
+    "available": "Available",
+    "replay": "Replay",
+    "event": "Event",
+    "recorded": "Recorded",
+}
+
+
+def _utc_parts(timestamp_ms: int) -> tuple[datetime, int]:
+    """Split integer epoch milliseconds without binary floating-point conversion."""
+    seconds, milliseconds = divmod(timestamp_ms, 1000)
+    return datetime.fromtimestamp(seconds, tz=UTC), milliseconds
+
+
 def utc_text(timestamp_ms: int | None) -> str:
     """Show source/event time as UTC, never the computer's local clock."""
     if timestamp_ms is None:
         return UNAVAILABLE
-    return datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+    moment, _milliseconds = _utc_parts(timestamp_ms)
+    return f"{moment:%Y-%m-%d %H:%M:%S} UTC"
 
 
 def utc_ms_text(timestamp_ms: int | None) -> str:
     """UTC with the source's exact millisecond (receipt/availability times are ms-precise)."""
     if timestamp_ms is None:
         return UNAVAILABLE
-    moment = datetime.fromtimestamp(timestamp_ms // 1000, tz=UTC)
-    return f"{moment:%Y-%m-%d %H:%M:%S}.{timestamp_ms % 1000:03d} UTC"
+    moment, milliseconds = _utc_parts(timestamp_ms)
+    return f"{moment:%Y-%m-%d %H:%M:%S}.{milliseconds:03d} UTC"
+
+
+def view_time_text(
+    timestamp_ms: int | None,
+    zone: str = "PKT",
+    *,
+    detailed: bool = False,
+    clock: str | None = None,
+) -> str:
+    """Format a display-only clock with its explicit role, date and PKT/UTC zone.
+
+    Compact replay history always includes an absolute date; the optional detailed
+    form retains milliseconds. This never modifies the UTC integer or audit output.
+    """
+    if zone not in ("PKT", "UTC"):
+        raise ValueError(f"Unsupported display zone: {zone!r}")
+    if clock is not None and clock not in CLOCK_ROLES:
+        raise ValueError(f"Unsupported clock role: {clock!r}")
+
+    if timestamp_ms is None:
+        shown = UNAVAILABLE
+    else:
+        instant, milliseconds = _utc_parts(timestamp_ms)
+        if zone == "PKT":
+            instant = instant.astimezone(PKT_ZONE)
+        if detailed:
+            shown = f"{instant:%Y-%m-%d %H:%M:%S}.{milliseconds:03d} {zone}"
+        else:
+            shown = f"{instant.day} {instant:%b %Y} · {instant:%I:%M %p} {zone}"
+    return f"{CLOCK_ROLES[clock]} {shown}" if clock is not None else shown
 
 
 def trigger_explanation(side: str, threshold: Decimal | None) -> str:
