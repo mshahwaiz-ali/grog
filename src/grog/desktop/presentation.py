@@ -325,3 +325,8 @@ def page_integration_note() -> str:
 def visual_polish_note() -> str:
     """Visual polish status."""
     return "Typography, spacing, and hierarchy applied via theme tokens."
+
+
+def acceptance_note() -> str:
+    """Acceptance status."""
+    return "Visual acceptance against design spec pending host verification."
