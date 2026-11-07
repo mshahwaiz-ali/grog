@@ -151,3 +151,8 @@ def exact_value_row(label: str, value: str) -> str:
 def market_context(h1: str, m15: str, m5: str) -> str:
     """Market context row for Overview."""
     return f"H1 {h1} · M15 {m15} · M5 {m5}"
+
+
+def timeline_entry(time: str, event: str) -> str:
+    """Timeline entry for Journal."""
+    return f"{time} · {event}"
