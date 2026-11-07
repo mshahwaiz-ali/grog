@@ -176,6 +176,11 @@ class DiagnosticsPage(QWidget):
             self.attention_note.setText(self.stale_reason)
             set_tone(self.attention_note, "error")
         else:
+            # Source switching must never leave a previous source's "OK" summary visible.
+            self.summary.setText("Waiting for source diagnostics…")
+            set_tone(self.summary, "info")
+            self.source_summary.setText("")
+            self.mode_line.setText("")
             self.health_note.setText("Waiting for source diagnostics and local journal status.")
             self.attention_note.setText("")
         if not self.isVisible():
@@ -210,6 +215,8 @@ class DiagnosticsPage(QWidget):
 
     def text(self) -> str:
         parts = [self.stale_text.text() if self.stale_reason else "", self.summary.text()]
+        parts.append(self.health_note.text())
+        parts.append(self.attention_note.text())
         parts.append(self.source_summary.text())
         parts.append(self.mode_line.text())
         for g in self.groups():
