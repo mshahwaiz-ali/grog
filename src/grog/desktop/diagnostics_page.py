@@ -138,10 +138,7 @@ class DiagnosticsPage(QWidget):
                 for g in groups
                 for r in g.rows
                 if r.verdict in ("ERROR", "DEGRADED", "UNKNOWN")
-                or (
-                    r.verdict == "NOT CONFIGURED"
-                    and g.title != "REFERENCE ADAPTER (READ-ONLY)"
-                )
+                or (r.verdict == "NOT CONFIGURED" and g.title != "REFERENCE ADAPTER (READ-ONLY)")
             ]
             if self.stale_reason:
                 self.health_note.setText(

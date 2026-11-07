@@ -134,6 +134,7 @@ def test_overview_does_not_hide_unreadable_local_journal(app) -> None:
         wait_until(app, lambda: not window._threads_running(), "owner threads stopped")
         app.processEvents()
 
+
 # U2-C: position counters must reflect local records, never inferred broker state.
 
 

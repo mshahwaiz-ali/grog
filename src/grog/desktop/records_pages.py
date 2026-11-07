@@ -207,12 +207,18 @@ class PositionsPage(QWidget):
         actions = QGridLayout()
         actions.setSpacing(SPACE[2])
         self.buttons: dict[str, QPushButton] = {}
-        for index, (kind, text, tip) in enumerate((
-            ("partial", "Partial close…", "Record a partial close you made at your broker (p)"),
-            ("close", "Close…", "Record the full close of the remaining quantity (x)"),
-            ("modify", "Modify stop/target…", "Record a stop/target change at your broker (m)"),
-            ("confirm", "Confirm still open…", "Record that you verified it open at the broker"),
-        )):
+        for index, (kind, text, tip) in enumerate(
+            (
+                ("partial", "Partial close…", "Record a partial close you made at your broker (p)"),
+                ("close", "Close…", "Record the full close of the remaining quantity (x)"),
+                ("modify", "Modify stop/target…", "Record a stop/target change at your broker (m)"),
+                (
+                    "confirm",
+                    "Confirm still open…",
+                    "Record that you verified it open at the broker",
+                ),
+            )
+        ):
             b = QPushButton(text)
             b.setToolTip(tip)
             b.clicked.connect(lambda _c=False, k=kind: self._emit(k))
@@ -469,9 +475,7 @@ class JournalPage(QWidget):
 
         self.content = QBoxLayout(QBoxLayout.Direction.TopToBottom)
         self.content.setSpacing(SPACE[3])
-        self.table, self.model = _table(
-            ("WHEN (PKT)", *JOURNAL_PAGE_COLUMNS[1:]), "Journal table"
-        )
+        self.table, self.model = _table(("WHEN (PKT)", *JOURNAL_PAGE_COLUMNS[1:]), "Journal table")
         # Secondary exact clocks/versions remain in the model and complete audit detail.
         for col in (1, 9, 10):
             self.table.setColumnHidden(col, True)
@@ -642,9 +646,7 @@ class JournalPage(QWidget):
             self.selected_key,
         )
         for row, entry in enumerate(self.shown):
-            self.model.item(row, 0).setToolTip(
-                f"Original event UTC: {utc_ms_text(entry.time_ms)}"
-            )
+            self.model.item(row, 0).setToolTip(f"Original event UTC: {utc_ms_text(entry.time_ms)}")
         self._render_detail()
 
     def _on_select(self) -> None:
