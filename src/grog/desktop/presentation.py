@@ -181,3 +181,8 @@ def page_heading(title: str, purpose: str = "") -> str:
 def compact_table_header(*columns: str) -> str:
     """Compact table header for Signals/Positions."""
     return " | ".join(columns)
+
+
+def detail_panel(title: str, body: str) -> str:
+    """Detail panel content."""
+    return f"{title}\n{body}"
