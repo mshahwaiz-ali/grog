@@ -33,6 +33,14 @@ def utc_text(timestamp_ms: int | None) -> str:
     return datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
+def utc_ms_text(timestamp_ms: int | None) -> str:
+    """UTC with the source's exact millisecond (receipt/availability times are ms-precise)."""
+    if timestamp_ms is None:
+        return UNAVAILABLE
+    moment = datetime.fromtimestamp(timestamp_ms // 1000, tz=UTC)
+    return f"{moment:%Y-%m-%d %H:%M:%S}.{timestamp_ms % 1000:03d} UTC"
+
+
 def trigger_explanation(side: str, threshold: Decimal | None) -> str:
     """Describe the *pending* M5 BID close condition, never infer READY.
 

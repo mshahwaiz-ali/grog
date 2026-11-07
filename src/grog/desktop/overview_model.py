@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from grog.desktop.presentation import price_text, trigger_explanation, utc_text
+from grog.desktop.presentation import price_text, trigger_explanation, utc_ms_text
 from grog.domain.enums import FeedStatus, SignalState
 from grog.replay.session import Playback
 from grog.ui.lanes import signal_lane
@@ -95,7 +95,7 @@ def from_snapshot(
         f"{candidate.side.value}: {_human_condition(snap, candidate)}" for candidate in snap.forming
     )
     latest = tuple(
-        f"{utc_text(item.time_ms)}  |  {item.state}"
+        f"{utc_ms_text(item.time_ms)}  |  {item.state}"
         + ("  |  historical pre-roll" if item.pre_roll else "")
         for item in reversed(snap.feed)
     )[:4]
@@ -185,7 +185,7 @@ def from_snapshot(
         source=status + f"  ·  Source {snap.source.source_id}",
         source_health=health_value,
         source_health_detail=health_detail,
-        virtual_utc=utc_text(snap.virtual_time_ms) + "  ·  virtual",
+        virtual_utc=utc_ms_text(snap.virtual_time_ms) + "  ·  virtual",
         playback="REPLAY " + snap.playback.value,
         bid=price_text(quote.bid if quote else None),
         ask=price_text(quote.ask if quote else None),

@@ -235,8 +235,8 @@ Independent of MT5 M09-B and research M10; no broker connectivity/automation. Co
 
 | Phase | Task | Acceptance gate | Status |
 | --- | --- | --- | --- |
-| D00 | Optional Qt packaging, current code and probe verification | GUI-01..03, GUI-11..14; authentic lock and visible/offscreen Qt | FOUNDATION EXISTS; LOCK/ACCEPTANCE PENDING |
-| D01 | Harden replay-backed Overview with worker ownership | GUI-04/05, GUI-15..22; event and precision parity | PREVIEW EXISTS; NOT ACCEPTED |
+| D00 | Optional Qt packaging, current code and probe verification | GUI-01..03, GUI-11..14; authentic lock and visible/offscreen Qt | DONE at `c4bd23c` (owner verified a regular Ubuntu GNOME terminal launch; VS Code-terminal GNOME settings issue remains a known limitation) |
+| D01 | Harden replay-backed Overview with worker ownership | GUI-04/05, GUI-15..22; event and precision parity | IMPLEMENTED (replay owner thread, detached frames, redesigned Overview); OWNER VISUAL/FUNCTIONAL ACCEPTANCE PENDING. GUI-22 dialog/modal clauses are N/A until D03 forms exist (D01 has no dialogs or source switcher); its pause-acknowledgement and stale-intent parts are tested |
 | D02 | Signals forming/READY/blocked/history, full details | GUI-23..29; immutable issuance and status parity | NOT STARTED |
 | D03 | Positions, Journal, all confirmed manual forms/reconciliation | GUI-06/07, GUI-30..50; transactional recovery | NOT STARTED |
 | D04 | Diagnostics, fault handling, responsive/high-DPI QA | GUI-08/09, GUI-51..59; five-screen visual acceptance | NOT STARTED |

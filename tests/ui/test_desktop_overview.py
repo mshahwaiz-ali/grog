@@ -82,25 +82,55 @@ def test_price_scale_remains_lossless_in_quote_cards() -> None:
 
 
 def test_qt_preview_uses_actual_snapshot_and_is_read_only(tmp_path, monkeypatch) -> None:
+    """D01: the window renders worker frames of the real engine and never writes the journal.
+
+    The engine now lives on the replay owner thread, so stepping goes through the worker.
+    """
     pytest.importorskip("PySide6")
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtCore import QThread
     from PySide6.QtWidgets import QApplication
 
+    from grog.desktop.frames import OverviewFrame
+    from grog.desktop.loading import LoadRequest, read_journal
+    from grog.desktop.replay_worker import ReplayWorker
     from grog.desktop.window import GoldWindow
     from ui_support import open_journal
 
-    s = session()
-    store, journal = open_journal(tmp_path)
+    store, _journal = open_journal(tmp_path)
+    store.close()
+    db = tmp_path / "state" / "state.sqlite3"
+    before = db.read_bytes()
+    sessions = []
+
+    def loader(_request):
+        sessions.append(session())
+        return sessions[-1]
+
+    request = LoadRequest("syn", state_dir=str(tmp_path / "state"))
+    app = QApplication.instance() or QApplication(["gold-desktop-test"])
+    worker = ReplayWorker(loader=loader, journal_reader=read_journal)
+    window = GoldWindow(request, worker=worker)
+    window.show()
+
+    def wait(predicate):
+        for _ in range(60_000):
+            if predicate():
+                return
+            app.processEvents()
+            QThread.msleep(1)
+        raise AssertionError("timed out")
+
     try:
-        app = QApplication.instance() or QApplication(["gold-desktop-test"])
-        window = GoldWindow(s, journal)
-        window.show()
-        app.processEvents()
-        assert "SIMULATED" in window.source.text()
-        assert window.bid.text() == format(s.snapshot().quote.bid, ",f")
-        cursor = s.cursor
-        window._step()
-        assert s.cursor == cursor + 1
-        window.close()
+        wait(lambda: isinstance(window.frame, OverviewFrame))
+        frame = window.frame
+        assert "SIMULATED" in window.fidelity_pill.text()
+        assert window.bid.value.text() == format(sessions[0].snapshot().quote.bid, ",f")
+        cursor = frame.transport.processed
+        window.step_once()
+        wait(lambda: window.frame.transport.processed == cursor + 1)
+        assert sessions[0].cursor == cursor + 1
     finally:
-        store.close()
+        window.close()  # asynchronous: wait for the replay owner thread to stop
+        wait(window.thread.isFinished)
+    assert db.read_bytes() == before  # read-only: no journal or catalog write
