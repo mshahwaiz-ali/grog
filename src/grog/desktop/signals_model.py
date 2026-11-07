@@ -253,6 +253,10 @@ def _signal_row(
             ttl,
             fidelity,
         )
+        display_times = (
+            (CURRENT_COLUMNS.index("Issued (UTC)"), r.first_ready_ms),
+            (CURRENT_COLUMNS.index("Expiry (UTC)"), r.expiry_ms),
+        )
     else:
         cells = (
             r.signal_id,
@@ -263,6 +267,7 @@ def _signal_row(
             f"{ent} {price_text(r.e0)} · SL {ex} {price_text(r.sl0)} · TP2 {ex} "
             f"{price_text(r.tp2)}",
         )
+        display_times = ((HISTORY_COLUMNS.index("Time (UTC)"), r.first_ready_ms),)
     fields = (
         ("Signal ID", r.signal_id),
         ("Candidate ID", r.candidate_id),
@@ -371,12 +376,7 @@ def _signal_row(
             summary=summary,
             time_fields=(("Issued", r.first_ready_ms), ("Expiry", r.expiry_ms)),
         ),
-        display_times=(
-            ((CURRENT_COLUMNS.index("Issued (UTC)"), r.first_ready_ms),
-             (CURRENT_COLUMNS.index("Expiry (UTC)"), r.expiry_ms))
-            if section is Section.CURRENT
-            else ((HISTORY_COLUMNS.index("Time (UTC)"), r.first_ready_ms),)
-        ),
+        display_times=display_times,
     )
 
 

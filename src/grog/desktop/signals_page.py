@@ -316,6 +316,10 @@ class SignalsPage(QWidget):
         if zone == self.time_zone:
             return
         self.time_zone = zone
+        for section, model in self.models.items():
+            model.setHorizontalHeaderLabels(
+                [name.replace("(UTC)", f"({zone})") for name in COLUMNS[section]]
+            )
         if self.facts is not None:
             for section in Section:
                 self._set_rows(section, self.facts.rows(section), repaint=True)
@@ -343,7 +347,9 @@ class SignalsPage(QWidget):
 
     def _build_table(self, section: Section) -> QWidget:
         model = QStandardItemModel(0, len(COLUMNS[section]), self)
-        model.setHorizontalHeaderLabels(list(COLUMNS[section]))
+        model.setHorizontalHeaderLabels(
+            [name.replace("(UTC)", f"({self.time_zone})") for name in COLUMNS[section]]
+        )
         proxy = _RowFilter(self)
         proxy.setSourceModel(model)
         table = QTableView()
