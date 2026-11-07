@@ -59,7 +59,7 @@ class ManualFormDialog(QDialog):
         self.setMinimumWidth(640)
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(SPACE[4], SPACE[3], SPACE[4], SPACE[3])
+        outer.setContentsMargins(SPACE[3], SPACE[2], SPACE[3], SPACE[2])  # tighter for small viewports
         outer.setSpacing(SPACE[2])
         title = label(spec.title, "cardTitle", wrap=True)
         outer.addWidget(title)
