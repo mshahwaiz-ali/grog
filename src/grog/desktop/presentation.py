@@ -141,3 +141,8 @@ def alert_banner(severity: str, message: str) -> str:
 def confirmation_footer(action: str) -> str:
     """Confirmation text for manual forms. No broker order."""
     return f"Confirm {action} (local record only · no broker order)"
+
+
+def exact_value_row(label: str, value: str) -> str:
+    """Exact value for audit/detail rows."""
+    return f"{label}: {value}"
