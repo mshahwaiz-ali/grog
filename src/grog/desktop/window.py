@@ -231,7 +231,7 @@ class GoldWindow(QMainWindow):
         side = QVBoxLayout(self.sidebar)
         side.setContentsMargins(SPACE[3], SPACE[4], SPACE[3], SPACE[3])
         side.setSpacing(SPACE[0])
-        side.addWidget(label("GOLD", "brand"))
+        side.addWidget(label("GROG", "brand"))
         self.brand_sub = label("XAUUSD decision workstation", "brandSub", wrap=True)
         side.addWidget(self.brand_sub)
         side.addSpacing(SPACE[4])
@@ -320,9 +320,16 @@ class GoldWindow(QMainWindow):
         self.banner.setVisible(False)
         body.addWidget(self.banner)
 
+        # Read from the journal snapshot when available, never from inferred broker state.
+        self.record_alert = Card()
+        self.record_alert_text = label("", "body", wrap=True, select=True)
+        self.record_alert.body.addWidget(self.record_alert_text)
+        self.record_alert.setVisible(False)
+        body.addWidget(self.record_alert)
+
         self.decision = Card()
         self.decision_eyebrow = label("", "eyebrow")
-        self.headline = label("", "headline", wrap=True, select=True)
+        self.headline = label("", "overviewHeadline", wrap=True, select=True)
         self.description = label("", "body", wrap=True, select=True)
         self.lanes = label("", "meta", wrap=True)
         self.signal_ids = label("", "mono", wrap=True, select=True)
@@ -337,6 +344,24 @@ class GoldWindow(QMainWindow):
         ):
             self.decision.body.addWidget(w)
         self.decision.body.setSpacing(SPACE[1] + 2)
+        self.pending_condition = QFrame()
+        self.pending_condition.setObjectName("overviewCondition")
+        pending_layout = QVBoxLayout(self.pending_condition)
+        pending_layout.setContentsMargins(SPACE[3], SPACE[2], SPACE[3], SPACE[2])
+        pending_layout.setSpacing(SPACE[1])
+        self.pending_title = label("PENDING ENGINE CONDITION · NOT TRADABLE", "eyebrow")
+        self.pending_text = label("", "overviewConditionText", wrap=True, select=True)
+        pending_layout.addWidget(self.pending_title)
+        pending_layout.addWidget(self.pending_text)
+        self.pending_condition.setVisible(False)
+        self.decision.body.addWidget(self.pending_condition)
+        self.review_signals = QPushButton("Review signals and exact plans")
+        self.review_signals.setObjectName("overviewAction")
+        self.review_signals.setAccessibleName("Review signals without selecting a trade")
+        self.review_signals.setToolTip("Open Signals; no proposal is selected or executed")
+        self.review_signals.clicked.connect(lambda: self.show_page(1))
+        self.review_signals.setVisible(False)
+        self.decision.body.addWidget(self.review_signals)
         body.addWidget(self.decision)
 
         self.quotes = QBoxLayout(QBoxLayout.Direction.LeftToRight)
@@ -376,32 +401,85 @@ class GoldWindow(QMainWindow):
         self.watch = Card("Developing setups · not tradable")
         self.watch_text = label("", "body", wrap=True, select=True)
         self.watch.body.addWidget(self.watch_text)
-        right.addWidget(self.watch)
+        left.addWidget(self.watch)
 
-        self.positions = Card("Manual positions · local records, not broker-synced")
-        self.positions_summary = label("", "body", wrap=True)
+        self.positions = Card("Manual positions · not broker-synced")
+        self.positions_summary = label("", "overviewSummary", wrap=True)
         self.positions_detail = label("", "meta", wrap=True, select=True)
+        self.positions_expand = QPushButton("Show local record details")
+        self.positions_expand.setObjectName("overviewAction")
+        self.positions_expand.setCheckable(True)
+        self.positions_expand.setAccessibleName("Toggle local position details")
+        self.positions_expand.toggled.connect(self._toggle_position_details)
         self.positions.body.addWidget(self.positions_summary)
+        self.positions.body.addWidget(self.positions_expand)
         self.positions.body.addWidget(self.positions_detail)
-        left.addWidget(self.positions)
+        self.positions_detail.setVisible(False)
+        right.addWidget(self.positions)
 
         self.recent = Card("Recent changes")
         self.recent_text = label("", "meta", wrap=True, select=True)
         self.recent.body.addWidget(self.recent_text)
         right.addWidget(self.recent)
 
-        self.diag = Card("Data & engine diagnostics")
-        self.diag_text = label("", "meta", wrap=True, select=True)
-        self.diag.body.addWidget(self.diag_text)
-        right.addWidget(self.diag)
-
         left.addStretch()
         right.addStretch()
         self.columns.addLayout(left, 3)
         self.columns.addLayout(right, 2)
         body.addLayout(self.columns)
+
+        # Keep technical evidence available, but out of the ordinary decision path.
+        self.evidence_toggle = QPushButton("Show advanced engine evidence")
+        self.evidence_toggle.setObjectName("overviewAction")
+        self.evidence_toggle.setCheckable(True)
+        self.evidence_toggle.setAccessibleName("Toggle advanced engine evidence")
+        self.evidence_toggle.toggled.connect(self._toggle_evidence)
+        body.addWidget(self.evidence_toggle)
+        self.diag = Card("Advanced engine evidence · read-only")
+        self.diag_text = label("", "meta", wrap=True, select=True)
+        self.diag.body.addWidget(self.diag_text)
+        self.diag.setVisible(False)
+        body.addWidget(self.diag)
         body.addStretch()
         return page
+
+    def _toggle_position_details(self, expanded: bool) -> None:
+        self.positions_detail.setVisible(expanded)
+        self.positions_expand.setText(
+            "Hide local record details" if expanded else "Show local record details"
+        )
+
+    def _toggle_evidence(self, expanded: bool) -> None:
+        self.diag.setVisible(expanded)
+        self.evidence_toggle.setText(
+            "Hide advanced engine evidence" if expanded else "Show advanced engine evidence"
+        )
+
+    def _render_record_attention(self, frame: OverviewFrame) -> None:
+        """Use actual local-journal readability and reconciliation facts only."""
+        snapshot = self.manual.snapshot if self.manual is not None else None
+        if snapshot is not None:
+            readable = snapshot.readable
+            pending = len(snapshot.needs_reconciliation()) if readable else 0
+        else:
+            readable = frame.positions.journal_ok
+            pending = frame.positions.reconciliation_required or 0
+
+        if not readable:
+            self.record_alert.set_accent("error")
+            self.record_alert_text.setText(
+                "Local journal UNVERIFIED — records cannot be trusted or saved "
+                "until the journal is available. Grog is not broker-synced."
+            )
+        elif pending:
+            self.record_alert.set_accent("warning")
+            self.record_alert_text.setText(
+                f"{pending} local position(s) require reconciliation. Verify the actual "
+                "broker state before confirming a local record. No broker orders are sent."
+            )
+        else:
+            self.record_alert_text.setText("")
+        self.record_alert.setVisible(not readable or pending > 0)
 
     def _build_toolbar(self) -> QFrame:
         self.toolbar = QFrame()
@@ -710,6 +788,9 @@ class GoldWindow(QMainWindow):
         self.description.setText(detail)
         self.lanes.setText("Trading-record actions stay disabled until data is loaded.")
         self.banner.setVisible(fault)
+        self.record_alert.setVisible(False)
+        self.pending_condition.setVisible(False)
+        self.review_signals.setVisible(False)
         if fault:
             self.banner.set_accent("error")
             self.banner_text.setText(
@@ -777,6 +858,25 @@ class GoldWindow(QMainWindow):
             f"Developing {f.forming}  ·  READY (simulated) {f.ready}  ·  Execution-blocked "
             f"{f.blocked}  ·  No ranking or automatic selection"
         )
+        pending = (
+            f.forming > 0
+            and bool(o.watchlist)
+            and d.health == "FRESH"
+            and t.playback is not Playback.ENDED
+        )
+        self.pending_condition.setVisible(pending)
+        if pending:
+            if f.forming == 1 and len(o.watchlist) == 1:
+                self.pending_title.setText("PENDING ENGINE CONDITION · NOT TRADABLE")
+                self.pending_text.setText(o.watchlist[0])
+            else:
+                self.pending_title.setText("MULTIPLE DEVELOPING CONDITIONS")
+                self.pending_text.setText(
+                    f"{f.forming} candidates are developing; none is ranked or "
+                    "confirmed READY. Compare each exact condition in Signals."
+                )
+        self.review_signals.setVisible(f.forming > 0 or f.ready > 0 or f.blocked > 0)
+        self._render_record_attention(f)
 
         self.bid.value.setText(q.bid_text)
         self.ask.value.setText(q.ask_text)
@@ -993,6 +1093,8 @@ class GoldWindow(QMainWindow):
         self.positions_page.apply_snapshot(snap)
         self.journal_page.apply_snapshot(snap)
         self.diagnostics_page.apply_journal(snap)
+        if isinstance(self.frame, OverviewFrame):
+            self._render_record_attention(self.frame)
         self._sync_controls()
 
     def _frame_current(self) -> bool:

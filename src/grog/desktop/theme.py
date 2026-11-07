@@ -153,6 +153,16 @@ def _stylesheet(palette: Palette) -> str:
     QLabel#quote { font-size: 28px; font-weight: 700; color: @TEXT@; }
     QLabel#metricValue { font-size: 17px; font-weight: 650; color: @TEXT@; }
     QLabel#headline { font-size: 23px; font-weight: 750; color: @TEXT@; }
+    QLabel#overviewHeadline { font-size: 28px; font-weight: 750; color: @TEXT@; }
+    QLabel#overviewSummary { font-size: 16px; font-weight: 650; color: @TEXT@; }
+    QLabel#overviewConditionText { font-size: 15px; color: @TEXT@; }
+    QFrame#overviewCondition { background: @RAISED@; border: 1px solid @DIVIDER@;
+        border-radius: 10px; }
+    QPushButton#overviewAction { background: transparent; color: @FOCUS@;
+        border: 1px solid @DIVIDER@; border-radius: 8px; text-align: left;
+        padding: 7px 12px; font-size: 13px; font-weight: 600; }
+    QPushButton#overviewAction:hover { background: @RAISED@; }
+    QPushButton#overviewAction:focus { border: 1px solid @FOCUS@; }
     QLabel#navCount { font-size: 11px; color: @MUTED@; }
     QPushButton { background: @RAISED@; color: @TEXT@;
         border: 1px solid @CONTROL_BORDER@; border-radius: 8px;
