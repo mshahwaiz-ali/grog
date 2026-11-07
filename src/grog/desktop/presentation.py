@@ -166,3 +166,8 @@ def filter_bar(active: int, total: int) -> str:
 def dialog_section(title: str) -> str:
     """Section title for forms and dialogs."""
     return title
+
+
+def key_value_list(pairs: list[tuple[str, str]]) -> str:
+    """Key-value list for detail panels."""
+    return "\n".join(f"{k}: {v}" for k, v in pairs)
