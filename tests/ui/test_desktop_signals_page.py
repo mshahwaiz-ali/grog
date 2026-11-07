@@ -459,3 +459,106 @@ def test_unavailable_engine_marks_selected_detail_stale_until_next_frame(app) ->
         assert page.detail_text() == detail
     finally:
         finish(app, window)
+
+# ------------------------------------------------------------------ U2-B readable clocks and source evidence
+
+
+def test_u2_time_zone_switch_preserves_selection_plan_and_audit_utc(app) -> None:
+    from grog.desktop.presentation import view_time_text
+    from grog.desktop.signals_page import TIME_ROLE
+
+    s, sid = at_ready()
+    window = open_window(app, lambda _r: s)
+    try:
+        window.show_page(1)
+        page = window.signals_page
+        assert page.select_key(sid)
+        page.set_time_zone("PKT")
+        settle(app)
+        row = window.frame.signals.find(sid)
+        issued_column = CURRENT_COLUMNS.index("Issued (UTC)")
+        issued_ms = dict(row.display_times)[issued_column]
+        original = row.cells[issued_column]
+        item = page.models[Section.CURRENT].item(0, issued_column)
+        assert item.text() == view_time_text(issued_ms, "PKT")
+        assert item.data(TIME_ROLE) == issued_ms
+        assert original in item.toolTip()
+        assert page.models[Section.CURRENT].horizontalHeaderItem(issued_column).text() == (
+            "Issued (PKT)"
+        )
+        assert "Issued: " in page.detail_times.text()
+        assert "PKT" in page.detail_times.text()
+        assert "READY" in page.detail_summary.text() and "simulation" in page.detail_summary.text()
+        assert original in page.detail_text()
+
+        before = (s.cursor, window.frame.transport.processed, page.selected_key)
+        window.preferences.set_time_zone("UTC")
+        settle(app)
+        assert page.models[Section.CURRENT].item(0, issued_column).text() == view_time_text(
+            issued_ms, "UTC"
+        )
+        assert page.models[Section.CURRENT].horizontalHeaderItem(issued_column).text() == (
+            "Issued (UTC)"
+        )
+        assert "UTC" in page.detail_times.text()
+        assert original in page.detail_text()
+        assert (s.cursor, window.frame.transport.processed, page.selected_key) == before
+        window.preferences.set_time_zone("PKT")
+        settle(app)
+        assert "PKT" in page.detail_times.text()
+        assert (s.cursor, window.frame.transport.processed, page.selected_key) == before
+    finally:
+        finish(app, window)
+
+
+def test_u2_signals_search_accepts_visible_zone_and_original_utc(app) -> None:
+    s, sid = at_ready()
+    window = open_window(app, lambda _r: s)
+    try:
+        window.show_page(1)
+        page = window.signals_page
+        page.set_time_zone("PKT")
+        assert page.select_key(sid)
+        original = page.row_for(sid).cells[CURRENT_COLUMNS.index("Issued (UTC)")]
+        page.search.setText("PKT")
+        settle(app)
+        assert sid in keys_in(page, Section.CURRENT)
+        page.search.setText(original[:10])
+        settle(app)
+        assert sid in keys_in(page, Section.CURRENT)
+        page.search.clear()
+        window.preferences.set_time_zone("UTC")
+        settle(app)
+        assert page.time_zone == "UTC"
+        assert page.selected_key == sid
+    finally:
+        finish(app, window)
+
+
+def test_u2_history_time_sort_uses_source_milliseconds_across_zone_changes(app) -> None:
+    from grog.desktop.signals_model import HISTORY_COLUMNS
+    from grog.desktop.signals_page import TIME_ROLE
+
+    s, _sid = at_ready(2)
+    window = open_window(app, lambda _r: s)
+    try:
+        window.show_page(1)
+        page = window.signals_page
+        assert len(window.frame.signals.history) >= 2
+        table = page.tables[Section.HISTORY]
+        time_column = HISTORY_COLUMNS.index("Time (UTC)")
+        table.sortByColumn(time_column, Qt.SortOrder.AscendingOrder)
+        settle(app)
+        proxy = page.proxies[Section.HISTORY]
+        ms = [proxy.index(i, time_column).data(TIME_ROLE) for i in range(proxy.rowCount())]
+        assert all(isinstance(v, int) for v in ms)
+        assert ms == sorted(ms)
+        page.set_time_zone("UTC")
+        settle(app)
+        after = [proxy.index(i, time_column).data(TIME_ROLE) for i in range(proxy.rowCount())]
+        assert after == ms
+        assert "Time (UTC)" == page.models[Section.HISTORY].horizontalHeaderItem(
+            time_column
+        ).text()
+    finally:
+        finish(app, window)

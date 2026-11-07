@@ -316,3 +316,54 @@ def test_gui29_history_labels_actual_event_kinds_without_fabricated_records() ->
         other = build_signals_facts(snap, (relabelled,), {}, [], "n")
         (row,) = [r for r in other.history if r.kind != "SIGNAL"]
         assert row.kind == kind.value and row.detail.title == f"EVENT {kind.value}"
+
+# ------------------------------------------------------------------ U2-B presentation metadata
+
+
+def test_u2_source_typed_clocks_and_summaries_preserve_exact_signal_facts() -> None:
+    from grog.desktop.signals_model import CURRENT_COLUMNS, DEVELOPING_COLUMNS
+
+    s = session()
+    while not s.snapshot().forming:
+        assert s.step()
+    candidate = s.snapshot().forming[0]
+    forming_row = _facts(s).find(candidate.candidate_id)
+    assert forming_row.display_times == (
+        (DEVELOPING_COLUMNS.index("Detected (UTC)"), candidate.first_detected_ms),
+    )
+    assert forming_row.detail.time_fields[0] == ("Detected", candidate.first_detected_ms)
+    assert forming_row.detail.summary == forming_row.detail.notes[0]
+    assert "No confirmed trade signal" in forming_row.detail.summary
+
+    sid = step_until(s, SignalEventKind.READY_ISSUED)
+    row = _facts(s).find(sid)
+    source = next(v.record for v in s.snapshot().signals if v.record.signal_id == sid)
+    assert row.display_times == (
+        (CURRENT_COLUMNS.index("Issued (UTC)"), source.first_ready_ms),
+        (CURRENT_COLUMNS.index("Expiry (UTC)"), source.expiry_ms),
+    )
+    assert row.detail.time_fields == (
+        ("Issued", source.first_ready_ms),
+        ("Expiry", source.expiry_ms),
+    )
+    assert "in simulation" in row.detail.summary
+    assert "no broker fill is implied" in row.detail.summary
+    assert row.cells[CURRENT_COLUMNS.index("Issued (UTC)")] == utc_ms_text(source.first_ready_ms)
+    assert row.cells[CURRENT_COLUMNS.index("Expiry (UTC)")] == utc_ms_text(source.expiry_ms)
+    assert _field(row, "Signal ID") == sid
+
+
+def test_u2_unreadable_journal_summary_fails_closed_without_changing_plan() -> None:
+    s = session()
+    sid = step_until(s, SignalEventKind.READY_ISSUED)
+    good = _facts(s).find(sid)
+    unverified = build_overview_frame(
+        s, tag=TAG, overlay=None, positions=None, tracker=TouchTracker(), journal_note="x"
+    ).signals.find(sid)
+    assert unverified.detail.summary.startswith("Local journal unavailable")
+    assert not any(a.enabled for a in unverified.detail.actions)
+    assert _field(unverified, "E0 = ASK (entry side)") == _field(
+        good, "E0 = ASK (entry side)"
+    ) if good.side == "BUY" else _field(unverified, "E0 = BID (entry side)") == _field(
+        good, "E0 = BID (entry side)"
+    )
