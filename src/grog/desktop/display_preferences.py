@@ -49,9 +49,7 @@ class DisplayPreferences(QObject):
         raw_appearance = self._settings.value("appearance", "Dark")
         raw_zone = self._settings.value("time_zone", "PKT")
         good_store = self._settings.status() == QSettings.Status.NoError
-        self.appearance = (
-            raw_appearance if good_store and raw_appearance in APPEARANCES else "Dark"
-        )
+        self.appearance = raw_appearance if good_store and raw_appearance in APPEARANCES else "Dark"
         self.time_zone = raw_zone if good_store and raw_zone in TIME_ZONES else "PKT"
         self._store_note = ""
         if not good_store:

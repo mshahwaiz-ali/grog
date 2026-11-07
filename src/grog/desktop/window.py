@@ -45,9 +45,9 @@ from grog.desktop.manual_controller import ManualController
 from grog.desktop.presentation import view_time_text
 from grog.desktop.records_pages import JournalPage, PositionsPage
 from grog.desktop.replay_worker import ReplayWorker
+from grog.desktop.settings_page import SettingsPage
 from grog.desktop.signals_model import ActionFacts
 from grog.desktop.signals_page import SignalsPage
-from grog.desktop.settings_page import SettingsPage
 from grog.desktop.theme import SPACE, Card, Metric, label, pill, set_tone
 from grog.replay.session import Playback
 

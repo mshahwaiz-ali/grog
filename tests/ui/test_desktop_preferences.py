@@ -80,9 +80,7 @@ def test_manual_overrides_restart_and_time_zone_persist(app, tmp_path) -> None:
     prefs.set_appearance("Light")
     prefs.set_time_zone("UTC")
     assert path.is_file()
-    assert (prefs.appearance, prefs.effective_theme, prefs.time_zone) == (
-        "Light", "Light", "UTC"
-    )
+    assert (prefs.appearance, prefs.effective_theme, prefs.time_zone) == ("Light", "Light", "UTC")
     reopened = DisplayPreferences(_store(path))
     assert (reopened.appearance, reopened.time_zone) == ("Light", "UTC")
     assert reopened.note == ""
