@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QBoxLayout,
     QComboBox,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLineEdit,
@@ -30,6 +31,7 @@ from PySide6.QtWidgets import (
 
 from grog.desktop.frames import EngineRow, MarkFacts
 from grog.desktop.journal_model import JournalMode, JournalSnapshot
+from grog.desktop.presentation import utc_ms_text, view_time_text
 from grog.desktop.records_model import (
     ALL,
     JOURNAL_PAGE_COLUMNS,
@@ -201,20 +203,21 @@ class PositionsPage(QWidget):
             self.events,
         ):
             self.detail.body.addWidget(w)
-        actions = QHBoxLayout()
+        # Two-column action grid remains usable at the minimum viewport width.
+        actions = QGridLayout()
+        actions.setSpacing(SPACE[2])
         self.buttons: dict[str, QPushButton] = {}
-        for kind, text, tip in (
+        for index, (kind, text, tip) in enumerate((
             ("partial", "Partial close…", "Record a partial close you made at your broker (p)"),
             ("close", "Close…", "Record the full close of the remaining quantity (x)"),
             ("modify", "Modify stop/target…", "Record a stop/target change at your broker (m)"),
             ("confirm", "Confirm still open…", "Record that you verified it open at the broker"),
-        ):
+        )):
             b = QPushButton(text)
             b.setToolTip(tip)
             b.clicked.connect(lambda _c=False, k=kind: self._emit(k))
-            actions.addWidget(b)
+            actions.addWidget(b, index // 2, index % 2)
             self.buttons[kind] = b
-        actions.addStretch()
         self.detail.body.addLayout(actions)
         self.action_reason = label("", "meta", wrap=True)
         self.detail.body.addWidget(self.action_reason)
@@ -391,6 +394,7 @@ class JournalPage(QWidget):
 
     def __init__(self) -> None:
         super().__init__()
+        self.time_zone = "PKT"
         self._gate: Gate = lambda: "Local journal not connected — read-only."
         self.snapshot: JournalSnapshot | None = None
         self._operator: tuple[JournalEntry, ...] = ()
@@ -414,6 +418,11 @@ class JournalPage(QWidget):
         )
         self.mode_text = label("", "meta", wrap=True)
         outer.addWidget(self.mode_text)
+        self.chronology = label(
+            "Waiting for the first journal event…", "overviewSummary", wrap=True, select=True
+        )
+        self.chronology.setAccessibleName("Most recent matching journal event")
+        outer.addWidget(self.chronology)
         f1 = QHBoxLayout()
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search IDs, reasons, notes, mode…")
@@ -458,7 +467,12 @@ class JournalPage(QWidget):
 
         self.content = QBoxLayout(QBoxLayout.Direction.TopToBottom)
         self.content.setSpacing(SPACE[3])
-        self.table, self.model = _table(JOURNAL_PAGE_COLUMNS, "Journal table")
+        self.table, self.model = _table(
+            ("WHEN (PKT)", *JOURNAL_PAGE_COLUMNS[1:]), "Journal table"
+        )
+        # Secondary exact clocks/versions remain in the model and complete audit detail.
+        for col in (1, 9, 10):
+            self.table.setColumnHidden(col, True)
         self.table.selectionModel().currentRowChanged.connect(lambda *_a: self._on_select())
         self.count = label("", "meta", wrap=True)
         left = QVBoxLayout()
@@ -466,6 +480,13 @@ class JournalPage(QWidget):
         left.addWidget(self.table, 1)
         self.content.addLayout(left, 3)
         self.detail = Card("Selected record")
+        self.detail_headline = label(
+            "Select an event for the full audit record.", "overviewSummary", wrap=True
+        )
+        self.detail_source = label("", "body", wrap=True, select=True)
+        self.detail_clock = label("", "meta", wrap=True, select=True)
+        for widget in (self.detail_headline, self.detail_source, self.detail_clock):
+            self.detail.body.addWidget(widget)
         self.detail_text_label = label(
             "Select a row to see the full record.", "body", wrap=True, select=True
         )
@@ -488,6 +509,15 @@ class JournalPage(QWidget):
         why = gate()
         self.off_plan_button.setEnabled(why is None)
         self.off_plan_button.setToolTip(why or "Record a trade you made yourself (n)")
+
+    def set_time_zone(self, zone: str) -> None:
+        """Change display clocks only; event ordering and audit UTC never change."""
+        if zone not in ("PKT", "UTC"):
+            raise ValueError(f"Unsupported display zone: {zone!r}")
+        if zone != self.time_zone:
+            self.time_zone = zone
+            self.model.setHeaderData(0, Qt.Orientation.Horizontal, f"WHEN ({zone})")
+            self._render()
 
     def set_layout_mode(self, mode: str) -> None:
         self.content.setDirection(QBoxLayout.Direction.TopToBottom)
@@ -548,14 +578,23 @@ class JournalPage(QWidget):
         self.range_error.setText(error)
         action = self.action.currentText()
         side = self.side.currentText()
-        matched = filter_entries(
-            entries,
-            stream=self.stream.currentText(),
-            text=self.search.text(),
-            action="" if action == "All actions" else action,
-            side="" if side == "All sides" else side,
-            from_ms=lo,
-            to_ms=hi,
+        if lo is not None and hi is not None and lo > hi:
+            error = f"{error}; " if error else ""
+            error += "From UTC must be earlier than or equal to To UTC."
+            self.range_error.setText(error)
+        # Invalid input must never silently broaden the search by dropping a bound.
+        matched = (
+            []
+            if error
+            else filter_entries(
+                entries,
+                stream=self.stream.currentText(),
+                text=self.search.text(),
+                action="" if action == "All actions" else action,
+                side="" if side == "All sides" else side,
+                from_ms=lo,
+                to_ms=hi,
+            )
         )
         self.shown = matched[:JOURNAL_ROW_LIMIT]
         more = len(matched) - len(self.shown)
@@ -565,7 +604,38 @@ class JournalPage(QWidget):
             if entries
             else "No journal events yet."
         )
-        _fill(self.table, self.model, [(e.key, e.cells) for e in self.shown], self.selected_key)
+        if error:
+            self.chronology.setText("Correct the UTC time range to view matching events.")
+            set_tone(self.chronology, "error")
+        elif matched:
+            latest = matched[0]
+            provenance = (
+                "saved local operator record"
+                if latest.producer == "OPERATOR"
+                else "reconstructed SIM ENGINE observation"
+            )
+            self.chronology.setText(
+                f"Latest matching: {latest.action.replace('_', ' ').title()} · "
+                f"{view_time_text(latest.time_ms, self.time_zone, clock='event')} · "
+                f"{provenance}. No broker execution is implied."
+            )
+            set_tone(self.chronology, "neutral")
+        else:
+            self.chronology.setText("No journal events match the current filters.")
+            set_tone(self.chronology, "info")
+        _fill(
+            self.table,
+            self.model,
+            [
+                (e.key, (view_time_text(e.time_ms, self.time_zone), *e.cells[1:]))
+                for e in self.shown
+            ],
+            self.selected_key,
+        )
+        for row, entry in enumerate(self.shown):
+            self.model.item(row, 0).setToolTip(
+                f"Original event UTC: {utc_ms_text(entry.time_ms)}"
+            )
         self._render_detail()
 
     def _on_select(self) -> None:
@@ -575,10 +645,29 @@ class JournalPage(QWidget):
     def _render_detail(self) -> None:
         entry = next((e for e in self._operator + self._engine if e.key == self.selected_key), None)
         if entry is None:
+            self.detail_headline.setText("Select an event for the full audit record.")
+            self.detail_source.setText("")
+            self.detail_clock.setText("")
             self.detail_text_label.setText(
                 "Select a row to see the full record."
                 if self.selected_key is None
                 else f"{self.selected_key} is not in the current records."
             )
             return
+        side = f" · {entry.side}" if entry.side in ("BUY", "SELL") else ""
+        self.detail_headline.setText(entry.action.replace("_", " ").title() + side)
+        self.detail_source.setText(
+            "Operator · saved in the local journal, not broker-synced"
+            if entry.producer == "OPERATOR"
+            else "SIM ENGINE · reconstructed replay event, not a trade or stored fill"
+        )
+        set_tone(self.detail_source, "neutral" if entry.producer == "OPERATOR" else "info")
+        recorded = (
+            f" · {view_time_text(entry.recorded_ms, self.time_zone, clock='recorded')}"
+            if entry.recorded_ms is not None
+            else ""
+        )
+        self.detail_clock.setText(
+            view_time_text(entry.time_ms, self.time_zone, clock="event") + recorded
+        )
         self.detail_text_label.setText("\n".join(entry.detail))
