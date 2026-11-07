@@ -196,3 +196,8 @@ def status_pill(text: str, tone: str = "info") -> str:
 def responsive_hint(mode: str) -> str:
     """Responsive layout hint."""
     return {"wide": "Full layout", "medium": "Compact", "narrow": "Stacked"}.get(mode, mode)
+
+
+def keyboard_hint(keys: str, action: str) -> str:
+    """Keyboard help entry."""
+    return f"{keys} — {action}"
