@@ -1,6 +1,6 @@
 """Gold desktop design system: tokenized Dark/Light/System themes, typography and primitives.
 
-Follows docs/desktop-visual-redesign.md §3. U1 complete; U2 shell/Overview/Signals next. Dark is premium charcoal/graphite (no navy).
+Follows docs/desktop-visual-redesign.md §3. U1 complete. U2 shell/Overview/Signals in progress. Dark is premium charcoal/graphite (no navy).
 Light is clean warm-white. System follows OS when available. Preferences persist separately
 from source selection and journal.
 """
