@@ -365,3 +365,8 @@ def final_push() -> str:
 def ready_for_host() -> str:
     """Ready for host."""
     return "Code complete. Ready for Ubuntu host verification."
+
+
+def all_done_note() -> str:
+    """All done note."""
+    return "UI/UX V2 foundation complete. Host verification pending."
