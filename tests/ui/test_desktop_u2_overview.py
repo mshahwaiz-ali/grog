@@ -11,7 +11,6 @@ pytest.importorskip("PySide6.QtWidgets")
 
 from PySide6.QtCore import QPoint  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
-
 from test_desktop_d03 import (  # noqa: E402
     at_ready,
     decisions,
