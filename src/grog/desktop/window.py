@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
+from PySide6.QtCore import QObject, QSettings, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtGui import QCloseEvent, QKeySequence, QResizeEvent, QShortcut
 from PySide6.QtWidgets import (
     QBoxLayout,
@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 
 from grog.desktop import theme
 from grog.desktop.diagnostics_page import DiagnosticsPage
+from grog.desktop.display_preferences import DisplayPreferences
 from grog.desktop.frames import (
     REPLAY_LABELS,
     ModeLabels,
@@ -41,10 +42,12 @@ from grog.desktop.frames import (
 from grog.desktop.help_dialog import HelpDialog
 from grog.desktop.loading import LoadRequest
 from grog.desktop.manual_controller import ManualController
+from grog.desktop.presentation import view_time_text
 from grog.desktop.records_pages import JournalPage, PositionsPage
 from grog.desktop.replay_worker import ReplayWorker
 from grog.desktop.signals_model import ActionFacts
 from grog.desktop.signals_page import SignalsPage
+from grog.desktop.settings_page import SettingsPage
 from grog.desktop.theme import SPACE, Card, Metric, label, pill, set_tone
 from grog.replay.session import Playback
 
@@ -101,6 +104,7 @@ class GoldWindow(QMainWindow):
         worker: QObject | None = None,
         journal_worker: QObject | None = None,
         on_startup_failure: Callable[[int, str], None] | None = None,
+        ui_settings: QSettings | None = None,
     ) -> None:
         super().__init__()
         self._labels: ModeLabels = REPLAY_LABELS
@@ -126,11 +130,14 @@ class GoldWindow(QMainWindow):
         self.last_ack: PauseAck | None = None
         self._layout_mode = ""
 
+        self.preferences = DisplayPreferences(settings=ui_settings, parent=self)
+        theme.activate(self.preferences.effective_theme)
         self.setWindowTitle("Gold — XAUUSD Decision Workstation")
         self.setMinimumSize(MIN_WIDTH, MIN_HEIGHT)
         self.resize(1366, 768)
         self.setStyleSheet(theme.STYLESHEET)
         self._build()
+        self.preferences.changed.connect(self._on_preferences_changed)
         self._apply_status(None)
 
         self.worker = worker if worker is not None else ReplayWorker()
@@ -208,6 +215,11 @@ class GoldWindow(QMainWindow):
             holder.setWidgetResizable(True)
             holder.setWidget(page)
             self.pages.addWidget(holder)
+        self.settings_page = SettingsPage(self.preferences)
+        settings_holder = QScrollArea()
+        settings_holder.setWidgetResizable(True)
+        settings_holder.setWidget(self.settings_page)
+        self.pages.addWidget(settings_holder)
         column.addWidget(self.pages, 1)
         column.addWidget(self._build_toolbar())
         outer.addLayout(column, 1)
@@ -249,6 +261,12 @@ class GoldWindow(QMainWindow):
         self.later_note.setContentsMargins(SPACE[1], SPACE[2], 0, 0)
         side.addWidget(self.later_note)
         side.addStretch()
+        self.settings_button = QPushButton("Settings")
+        self.settings_button.setObjectName("nav")
+        self.settings_button.setAccessibleName("Settings view")
+        self.settings_button.setToolTip("Appearance and time display preferences")
+        self.settings_button.clicked.connect(self.show_settings)
+        side.addWidget(self.settings_button)
         self.safety_foot = label("Manual decisions only\nNo broker orders", "meta", wrap=True)
         side.addWidget(self.safety_foot)
         return self.sidebar
@@ -346,10 +364,7 @@ class GoldWindow(QMainWindow):
         self.m15 = Metric("15 min · structure", caption="Buy / sell context")
         self.m5 = Metric("5 min · trigger", caption="Setup state")
         for m in (self.h1, self.m15, self.m5):
-            m.setStyleSheet(
-                f"QFrame#metric {{ background: {theme.RAISED}; border: 1px solid "
-                f"{theme.DIVIDER}; border-radius: 10px; }}"
-            )
+            m.setProperty("grogRaised", "true")
             self.context_row.addWidget(m, 1)
         self.structure.body.addLayout(self.context_row)
         self.context_note = label("", "meta", wrap=True)
@@ -473,15 +488,55 @@ class GoldWindow(QMainWindow):
     # ================================================================ pages
 
     def show_page(self, index: int) -> None:
-        """Switch the visible page; never touches replay state or the journal."""
+        """Switch one of the five numbered trading pages; no replay mutation."""
         if PAGES[index][1] is not None:
             return
         self.pages.setCurrentIndex(index)
-        for i, button in enumerate(self.nav):
-            if PAGES[i][1] is None:
-                button.setObjectName("navActive" if i == index else "nav")
+        self._sync_navigation()
+
+    def show_settings(self) -> None:
+        """Settings is an unnumbered utility view, not a sixth trading screen."""
+        self.pages.setCurrentIndex(len(PAGES))
+        self._sync_navigation()
+
+    def _sync_navigation(self) -> None:
+        active = self.pages.currentIndex()
+        for index, button in enumerate(self.nav):
+            if PAGES[index][1] is None:
+                button.setObjectName("navActive" if index == active else "nav")
                 button.style().unpolish(button)
                 button.style().polish(button)
+        self.settings_button.setObjectName("navActive" if active == len(PAGES) else "nav")
+        self.settings_button.style().unpolish(self.settings_button)
+        self.settings_button.style().polish(self.settings_button)
+
+    @Slot()
+    def _on_preferences_changed(self) -> None:
+        """Purely visual repaint; never asks replay/journal workers for new data."""
+        theme.activate(self.preferences.effective_theme)
+        theme.apply_to(self)
+        if isinstance(self.frame, OverviewFrame):
+            self._update_time_display(self.frame)
+
+    def _update_time_display(self, frame: OverviewFrame) -> None:
+        """Render named replay/provider/receipt clocks; exact UTC remains in tooltip."""
+        zone = self.preferences.time_zone
+        virtual_ms = frame.clock.virtual_ms if frame.clock is not None else None
+        self.clock_text.setText(view_time_text(virtual_ms, zone, clock="replay"))
+        quote = frame.quote
+        age = (
+            "UNKNOWN"
+            if frame.diagnostics.quote_age_ms is None
+            else f"{frame.diagnostics.quote_age_ms:,} ms"
+        )
+        self.quote_meta.setText(
+            f"{view_time_text(quote.provider_ms, zone, clock='provider')}  ·  "
+            f"{view_time_text(quote.received_ms, zone, clock='received')}  ·  "
+            f"Quote age {age}\\n{frame.labels.price_caveat}."
+        )
+        self.quote_meta.setToolTip(
+            f"Provider UTC {quote.provider_utc}\\nReceived UTC {quote.received_utc}"
+        )
 
     @property
     def page_index(self) -> int:
@@ -705,7 +760,7 @@ class GoldWindow(QMainWindow):
         self.source_text.setToolTip(
             "Batch SHA-256: " + ", ".join(d.batch_sha256s) + f"\nConfig hash: {d.config_hash}"
         )
-        self.clock_text.setText(f"{f.labels.clock_caption}  {q.received_utc}")
+        self._update_time_display(f)
 
         self.banner.setVisible(f.banner is not None)
         if f.banner is not None:
@@ -726,12 +781,6 @@ class GoldWindow(QMainWindow):
         self.bid.value.setText(q.bid_text)
         self.ask.value.setText(q.ask_text)
         self.spread.value.setText(q.spread_text)
-        age = "UNKNOWN" if d.quote_age_ms is None else f"{d.quote_age_ms:,} ms"
-        self.quote_meta.setText(
-            f"Provider time {q.provider_utc}  ·  Received {q.received_utc}  ·  Quote age {age}"
-            f"\n{f.labels.price_caveat}."
-        )
-
         self.h1.value.setText(o.h1)
         self.m15.value.setText(o.m15)
         self.m5.value.setText(o.m5)
