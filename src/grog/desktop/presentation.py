@@ -246,3 +246,8 @@ def position_side_label(side: str) -> str:
 def overview_summary(state: str, reason: str) -> str:
     """Overview decision summary."""
     return f"{decision_headline(state)} — {reason}"
+
+
+def signals_row(side: str, status: str, time: str) -> str:
+    """Signals table row summary."""
+    return f"{side} · {status_label(status)} · {time}"
