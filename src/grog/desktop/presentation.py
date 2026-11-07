@@ -320,3 +320,8 @@ def complete_redesign_note() -> str:
 def page_integration_note() -> str:
     """Page integration status."""
     return "Helpers wired into shell. Full page visual integration continuing."
+
+
+def visual_polish_note() -> str:
+    """Visual polish status."""
+    return "Typography, spacing, and hierarchy applied via theme tokens."
