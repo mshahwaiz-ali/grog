@@ -161,3 +161,8 @@ def timeline_entry(time: str, event: str) -> str:
 def filter_bar(active: int, total: int) -> str:
     """Filter bar summary for Signals/Journal."""
     return f"Showing {active} of {total}"
+
+
+def dialog_section(title: str) -> str:
+    """Section title for forms and dialogs."""
+    return title
