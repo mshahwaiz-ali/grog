@@ -321,6 +321,22 @@ def _inside(widget, outer) -> bool:
     return outer.rect().contains(QRect(top_left, widget.size()))
 
 
+def _scroll_geometry(field, area) -> str:
+    """Describe failed containment without relaxing the GUI-56 visibility gate."""
+    from PySide6.QtCore import QPoint, QRect
+
+    viewport = area.viewport()
+    field_rect = QRect(field.mapTo(viewport, QPoint(0, 0)), field.size())
+    hbar, vbar = area.horizontalScrollBar(), area.verticalScrollBar()
+    content = area.widget()
+    return (
+        f"field={field_rect.getRect()} viewport={viewport.rect().getRect()} "
+        f"content={content.width()}x{content.height()} "
+        f"hscroll={hbar.value()}/{hbar.maximum()} "
+        f"vscroll={vbar.value()}/{vbar.maximum()}"
+    )
+
+
 EXPECTED_FORMS = [  # (kind, has an explicit acknowledgement box); off-plan = ENTRY + ack
     ("entry", "ENTRY", False),
     ("skip", "SKIP", False),
@@ -373,7 +389,11 @@ def test_gui56_every_manual_form_and_help_real_geometry(app, tmp_path, size, mod
             for field in (fields[-1], fields[0]):  # really reachable by scrolling
                 area.ensureWidgetVisible(field)
                 settle(app)
-                assert field.isVisible() and _inside(field, viewport), (kind, field)
+                assert field.isVisible() and _inside(field, viewport), (
+                    kind,
+                    field.objectName(),
+                    _scroll_geometry(field, area),
+                )
             region = dialog.preview_scroll  # fixed-height preview region, always visible
             assert region.isVisible() and _inside(region, dialog), kind
             assert region.height() >= 4 * dialog.preview.fontMetrics().lineSpacing(), kind

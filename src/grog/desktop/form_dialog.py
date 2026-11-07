@@ -151,11 +151,6 @@ class ManualFormDialog(QDialog):
         lines = self.preview.fontMetrics().lineSpacing()
         self.preview_scroll.setFixedHeight(lines * PREVIEW_LINES + SPACE[1])
         self.preview_card.body.addWidget(self.preview_scroll)
-        # Keep scrollable clearance beyond the final input. Qt's
-        # ensureWidgetVisible() requests a 50px margin, but the single-field
-        # Skip form otherwise reaches the end of the content at 820x620.
-        # Preserve the fixed preview height and every manual-record control.
-        column.addSpacing(64)
         column.addStretch()
         outer.addWidget(self.preview_card)  # always visible next to Confirm, never scrolled
 
