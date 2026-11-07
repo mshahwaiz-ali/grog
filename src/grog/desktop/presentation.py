@@ -295,3 +295,8 @@ def responsive_layout(width: int) -> str:
 def theme_mode_label(mode: str) -> str:
     """Theme mode label."""
     return {"dark": "Dark", "light": "Light", "system": "System"}.get(mode, mode)
+
+
+def timezone_mode_label(zone: str) -> str:
+    """Timezone mode label."""
+    return {"PKT": "PKT (Asia/Karachi)", "UTC": "UTC"}.get(zone, zone)
