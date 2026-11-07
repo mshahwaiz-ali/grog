@@ -236,3 +236,8 @@ def replay_status(phase: str) -> str:
 def journal_event_label(kind: str) -> str:
     """Human journal event label."""
     return {"fill": "Fill", "sl": "Stop loss", "tp": "Take profit", "note": "Note"}.get(kind, kind)
+
+
+def position_side_label(side: str) -> str:
+    """Position side label."""
+    return {"BUY": "Long", "SELL": "Short"}.get(side, side)
