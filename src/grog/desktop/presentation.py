@@ -330,3 +330,8 @@ def visual_polish_note() -> str:
 def acceptance_note() -> str:
     """Acceptance status."""
     return "Visual acceptance against design spec pending host verification."
+
+
+def final_status() -> str:
+    """Final redesign status."""
+    return "Foundation complete. Page visual integration and host tests remaining."
