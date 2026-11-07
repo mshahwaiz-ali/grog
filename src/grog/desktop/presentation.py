@@ -266,3 +266,8 @@ def journal_row(time: str, event: str, detail: str) -> str:
 def diagnostics_summary(health: str, detail: str) -> str:
     """Diagnostics health summary."""
     return f"{health}: {detail}"
+
+
+def form_field_label(name: str, required: bool = False) -> str:
+    """Form field label."""
+    return f"{name}{" *" if required else ""}"
