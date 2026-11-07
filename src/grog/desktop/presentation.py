@@ -241,3 +241,8 @@ def journal_event_label(kind: str) -> str:
 def position_side_label(side: str) -> str:
     """Position side label."""
     return {"BUY": "Long", "SELL": "Short"}.get(side, side)
+
+
+def overview_summary(state: str, reason: str) -> str:
+    """Overview decision summary."""
+    return f"{decision_headline(state)} — {reason}"
