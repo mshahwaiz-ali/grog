@@ -305,3 +305,8 @@ def timezone_mode_label(zone: str) -> str:
 def settings_section(title: str) -> str:
     """Settings section title."""
     return title
+
+
+def audit_detail(label: str, value: str) -> str:
+    """Audit detail row."""
+    return f"{label}: {value}"
