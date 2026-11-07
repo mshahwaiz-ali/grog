@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from grog.desktop import theme
+from grog.desktop.diagnostics_page import DiagnosticsPage
 from grog.desktop.frames import (
     REPLAY_LABELS,
     ModeLabels,
@@ -37,6 +38,7 @@ from grog.desktop.frames import (
     Phase,
     StatusFrame,
 )
+from grog.desktop.help_dialog import HelpDialog
 from grog.desktop.loading import LoadRequest
 from grog.desktop.manual_controller import ManualController
 from grog.desktop.records_pages import JournalPage, PositionsPage
@@ -50,12 +52,26 @@ WIDE = 1440  # docs/02 §16.1 width contract (logical px of the window)
 MEDIUM = 1100
 MIN_WIDTH, MIN_HEIGHT = 820, 620
 
+# Exactly the bindings installed in GoldWindow._install_shortcuts (a test enforces it).
+SHORTCUT_HELP = (
+    ("1 … 5", "Overview · Signals · Positions · Journal · Diagnostics"),
+    ("Space", "Play / pause the replay"),
+    (".", "Step one quote (when paused)"),
+    ("+ / = / -", "Faster / slower replay pace"),
+    ("R", "Refresh: re-read the journal, never moves the replay"),
+    ("E / S", "Signals: record entry / skip for the selected READY signal"),
+    ("P / X / M", "Positions: partial close / close / modify stop-target of the selection"),
+    ("N", "Positions or Journal: record an external OFF_PLAN fill"),
+    ("? / F1", "This help"),
+    ("Q", "Quit (refused while a form is open)"),
+)
+
 PAGES = (
     ("Overview", None),
     ("Signals", None),
     ("Positions", None),
     ("Journal", None),
-    ("Diagnostics", "D04"),
+    ("Diagnostics", None),
 )
 
 TONE_FOR_HEALTH = {"FRESH": "ok", "UNKNOWN": "warning", "STALE": "warning", "DEGRADED": "warning"}
@@ -183,10 +199,11 @@ class GoldWindow(QMainWindow):
         self.signals_scroll.setWidget(self.signals_page)
         self.positions_page = PositionsPage()
         self.journal_page = JournalPage()
+        self.diagnostics_page = DiagnosticsPage()
         self.pages = QStackedWidget()
         self.pages.addWidget(self.scroll)
         self.pages.addWidget(self.signals_scroll)
-        for page in (self.positions_page, self.journal_page):
+        for page in (self.positions_page, self.journal_page, self.diagnostics_page):
             holder = QScrollArea()
             holder.setWidgetResizable(True)
             holder.setWidget(page)
@@ -225,8 +242,7 @@ class GoldWindow(QMainWindow):
             self.nav.append(button)
             self.nav_counts.append(count)
         self.later_note = label(
-            "Diagnostics arrives in a later phase (D04). Manual records are local journal "
-            "entries only.",
+            "Manual records are local journal entries only. Press ? for keyboard help.",
             "meta",
             wrap=True,
         )
@@ -419,7 +435,11 @@ class GoldWindow(QMainWindow):
 
     def _install_shortcuts(self) -> None:
         self.shortcuts: list[QShortcut] = []
+        self.help_dialog: HelpDialog | None = None
         for key, action in (
+            ("5", lambda: self.show_page(4)),
+            ("?", self.show_help),
+            ("F1", self.show_help),
             ("Space", self.toggle_play),
             (".", self.step_once),
             ("+", self.faster_requested.emit),
@@ -441,6 +461,14 @@ class GoldWindow(QMainWindow):
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.activated.connect(action)
             self.shortcuts.append(shortcut)
+
+    def show_help(self) -> HelpDialog:
+        """Keyboard help (``?`` / F1) generated from SHORTCUT_HELP; Esc or Close returns."""
+        if self.help_dialog is None:
+            self.help_dialog = HelpDialog(SHORTCUT_HELP, self)
+        self.help_dialog.open()
+        self.help_dialog.close_button.setFocus()
+        return self.help_dialog
 
     # ================================================================ pages
 
@@ -477,6 +505,7 @@ class GoldWindow(QMainWindow):
             self.manual.forget_snapshot()
             self.positions_page.apply_snapshot(None)
             self.journal_page.apply_snapshot(None)
+            self.diagnostics_page.apply_journal(None)  # never the previous source's journal
         self.load_requested.emit(request, self._generation)
         return self._generation
 
@@ -655,6 +684,10 @@ class GoldWindow(QMainWindow):
         self.signals_page.show_unavailable(
             "Signals unavailable — " + ("source fault" if fault else "loading source")
         )
+        if fault:
+            self.diagnostics_page.mark_stale(f"{title}: {detail}", last)
+        else:
+            self.diagnostics_page.apply(None)
 
     def _apply_overview(self, f: OverviewFrame) -> None:
         o, q, t, d, p = f.overview, f.quote, f.transport, f.diagnostics, f.positions
@@ -756,6 +789,7 @@ class GoldWindow(QMainWindow):
         self.progress.setText(self._progress_text(t))
         self.play.setText("Pause" if playing else "Play")
         self.signals_page.apply(f.signals)
+        self.diagnostics_page.apply(f.diag)
         self.positions_page.apply_marks(f.marks)
         self.journal_page.apply_engine(f.engine_rows, (f.tag.source_id, f.tag.generation))
         snap = self.manual.snapshot if self.manual is not None else None
@@ -814,6 +848,7 @@ class GoldWindow(QMainWindow):
         self.signals_page.set_layout_mode(mode)
         self.positions_page.set_layout_mode(mode)
         self.journal_page.set_layout_mode(mode)
+        self.diagnostics_page.set_layout_mode(mode)
         self.context_row.setDirection(vertical if mode == "narrow" else horizontal)
         if mode == "narrow":
             self.strip_bottom.addWidget(self.clock_text)
@@ -908,6 +943,7 @@ class GoldWindow(QMainWindow):
     def _on_journal_snapshot(self, snap) -> None:
         self.positions_page.apply_snapshot(snap)
         self.journal_page.apply_snapshot(snap)
+        self.diagnostics_page.apply_journal(snap)
         self._sync_controls()
 
     def _frame_current(self) -> bool:

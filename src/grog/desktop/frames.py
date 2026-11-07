@@ -19,6 +19,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from grog.desktop.diagnostics_model import source_diagnostics
 from grog.desktop.overview_model import OverviewState, from_snapshot
 from grog.desktop.presentation import price_text, utc_ms_text
 from grog.desktop.signals_model import SignalsFacts, build_signals_facts
@@ -253,6 +254,7 @@ class OverviewFrame:
     signals: SignalsFacts  # D02 Signals page rows/details from the same snapshot
     marks: tuple[MarkFacts, ...] = ()  # D03: one per recorded open position
     engine_rows: tuple[EngineRow, ...] = ()  # D03 Journal: every session engine event
+    diag: object | None = None  # D04 diagnostics_model.DiagnosticsFacts (owner-built)
     clock: ClockFacts | None = None
 
 
@@ -527,6 +529,7 @@ def build_overview_frame(
         signals=build_signals_facts(snap, events, overlay, positions, journal_note),
         marks=mark_facts(snap, positions, tracker),
         engine_rows=engine if engine is not None else engine_rows(events, _version(session)),
+        diag=source_diagnostics(snap, strategy_version=_version(session), cursor=session.cursor),
         clock=ClockFacts(
             virtual_ms=snap.virtual_time_ms,
             playback=snap.playback,

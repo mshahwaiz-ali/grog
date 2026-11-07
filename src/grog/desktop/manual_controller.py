@@ -320,8 +320,26 @@ class ManualController(QObject):
             return
         self._submit(dialog, None)
 
+    def _not_submitted(self, dialog: ManualFormDialog) -> None:
+        res = CommandResult(
+            0,
+            dialog.spec.kind,
+            dialog.action_id,
+            False,
+            False,
+            "SHUTTING_DOWN",
+            "NOT SAVED — SHUTTING_DOWN: Grog closed before this record was submitted; "
+            "nothing was written.",
+            dialog.spec.position_id,
+        )
+        self.results.append(res)
+        self.notice.emit(res.message)
+
     def _submit(self, dialog: ManualFormDialog, fresh: SignalCheck | None) -> None:
         spec = dialog.spec
+        if self._stopping:
+            self._not_submitted(dialog)
+            return
         parsed = spec.parse(dialog.values())
         if parsed.errors:
             dialog.show_not_saved("INVALID_INPUT", "; ".join(parsed.errors.values()))
@@ -410,6 +428,12 @@ class ManualController(QObject):
         if self._stopping:
             return
         self._stopping = True
+        # A Save still waiting for its signal re-check was never submitted: record that
+        # truthfully (nothing written) instead of letting it vanish with the window.
+        for token, pending in list(self._pending.items()):
+            if pending.purpose == "save" and pending.dialog is not None:
+                del self._pending[token]
+                self._not_submitted(pending.dialog)
         self._shutdown_to_owner.emit()
 
     @Slot()

@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLineEdit,
     QPushButton,
@@ -31,6 +32,8 @@ from grog.desktop.journal_model import CommandResult
 from grog.desktop.manual_forms import ACK, SIDE, FormSpec
 from grog.desktop.theme import SPACE, Card, label, set_tone
 from grog.journal.positions import new_action_id
+
+PREVIEW_LINES = 7  # fixed preview region height (lines); longer previews scroll inside
 
 TONE = {"error": "error", "caution": "warning", "gold": "ready", "ok": "ok", "muted": "info"}
 
@@ -130,7 +133,24 @@ class ManualFormDialog(QDialog):
         self.preview_card = Card("Preview and safety checks (computed, nothing saved yet)")
         self.preview = label("", "body", wrap=True, select=True)
         self.preview.setAccessibleName("Preview")
-        self.preview_card.body.addWidget(self.preview)
+        # D04: a FIXED-height preview region. The preview's length changes with every
+        # keystroke/checkbox (e.g. an error line vs the full computed preview); letting
+        # the card grow shrank the scrolling field area under the cursor and pushed the
+        # control just clicked out of view (layout jump measured at 820x620, any scale).
+        # Longer previews scroll inside this region instead.
+        self.preview_scroll = QScrollArea()
+        self.preview_scroll.setObjectName("previewArea")
+        self.preview_scroll.setWidgetResizable(True)
+        self.preview_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.preview_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.preview_scroll.setStyleSheet(
+            "QScrollArea#previewArea, #previewArea > QWidget > QWidget { background: transparent; }"
+        )
+        self.preview_scroll.setWidget(self.preview)
+        self.preview.ensurePolished()
+        lines = self.preview.fontMetrics().lineSpacing()
+        self.preview_scroll.setFixedHeight(lines * PREVIEW_LINES + SPACE[1])
+        self.preview_card.body.addWidget(self.preview_scroll)
         column.addStretch()
         outer.addWidget(self.preview_card)  # always visible next to Confirm, never scrolled
 

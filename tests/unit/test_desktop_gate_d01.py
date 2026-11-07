@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import io
+import re
 from decimal import Decimal
 from pathlib import Path
 
@@ -117,9 +118,13 @@ def test_gui19_ready_levels_are_exact_engine_decimals_and_r_fees_not_fabricated(
         assert format(value, ",f") in text
     # The Overview has no R-multiple or fee field (they belong to signal detail/journal);
     # no Overview text claims one. The D02 Signals detail states fees/net R as UNKNOWN.
-    overview_only = dataclasses.replace(frame, signals=None)
+    # (D04: the Diagnostics facts ride on the frame too; they are checked separately below
+    # with word boundaries because R0 diagnostics legitimately say "feed".)
+    overview_only = dataclasses.replace(frame, signals=None, diag=None)
     lowered = " ".join(_strings(overview_only)).lower()
     assert "fee" not in lowered and "r-multiple" not in lowered and " 1r" not in lowered
+    diag = frame.diag.text().lower()
+    assert not re.search(r"\bfees?\b|r-multiple|\b1r\b|net r", diag)
     (row,) = frame.signals.current
     fees = [v for _k, v in row.detail.fields if "fee" in v.lower()]
     assert fees == ["UNKNOWN — net R/fees not confirmed"]
