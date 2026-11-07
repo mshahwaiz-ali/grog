@@ -171,3 +171,8 @@ def dialog_section(title: str) -> str:
 def key_value_list(pairs: list[tuple[str, str]]) -> str:
     """Key-value list for detail panels."""
     return "\n".join(f"{k}: {v}" for k, v in pairs)
+
+
+def page_heading(title: str, purpose: str = "") -> str:
+    """Page heading with optional purpose."""
+    return title if not purpose else f"{title}\n{purpose}"
