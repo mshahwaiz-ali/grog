@@ -117,3 +117,12 @@ def reason_summary(codes: list[str]) -> str:
     if not codes:
         return "No additional reasons"
     return "; ".join(codes[:3]) + ("..." if len(codes) > 3 else "")
+
+
+def empty_state(page: str) -> str:
+    """Human empty state for pages."""
+    return {
+        "signals": "No developing or ready signals right now",
+        "positions": "No open manual positions",
+        "journal": "No journal events yet",
+    }.get(page, "Nothing to show")
