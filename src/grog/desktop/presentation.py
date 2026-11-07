@@ -345,3 +345,8 @@ def remaining_work() -> str:
 def done_for_now() -> str:
     """Current milestone."""
     return "Presentation layer and theme foundation complete."
+
+
+def integration_complete_note() -> str:
+    """Integration status."""
+    return "All major row helpers imported into shell. Visual wiring continuing."
