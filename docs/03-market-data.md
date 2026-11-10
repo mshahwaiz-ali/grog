@@ -1,6 +1,6 @@
 # Market Data, Time Availability, Economic Events and Sessions
 
-**Topic owner:** Canonical feed and time-data contract. Updated 2026-10-31. **Status:** A live price source is essential to Grog's approved workflow; provider, latency limits, fees and calendar source remain OPEN.
+**Topic owner:** Canonical feed and time-data contract. Updated 2026-11-11. **Status:** A read-only MetaQuotes-Demo reference terminal/exporter has been observed on the user's Ubuntu machine, but the continuous T/L stream, historical DST offsets, freshness/cost policies and LIVE desktop remain unqualified. See §11 for actual evidence. Fee/calendar/real execution venue decisions remain OPEN.
 
 ## 1. Feed boundary
 
@@ -42,11 +42,11 @@ Spot gold/CFD is substantially OTC. **Broker tick volume is not aggregate global
 
 Actual spread/cost gates, price bands and signal TTL live in [06 — Signals](06-signals-and-scoring.md); contract-based SL/TP, position P/L and partials live in [07 — Risk & Monitoring](07-risk-and-monitoring.md). Data provider and risk-event policies are tracked in [11 — Decisions](11-decisions.md).
 
-**Decision 2026-10-31:** MT5 is the preferred **reference-feed adapter**, but **no actual demo server or live feed is connected**. The eventual manual execution broker is not required for offline data/indicator development. No backtest has been executed.
+**Historical decision 2026-10-31:** MT5 became the preferred **reference-feed adapter**; no demo server was connected at that time. **2026-11-11 update:** The owner has since installed and used MetaQuotes-Demo in a read-only test, but a qualified continuous live stream into the desktop remains pending (§11). The eventual manual execution broker is not required for offline development. No verified performance backtest has been completed.
 
 ## 7. Provider research and first-choice decision — 2026-10-31
 
-**Status: MT5 reference-feed integration DIRECTION APPROVED (2026-10-31); a concrete broker demo server/source is not yet connected; no software or feed installed.** Grog remains a local, manual-only XAUUSD decision program. An external price source is necessary; this does **not** authorize an AI/LLM API, placing orders, or adding broker-account management.
+**Historical status 2026-10-31:** MT5 reference-feed integration direction approved; no software or demo source was installed *at that date*. **2026-11-11:** The local read-only MetaQuotes-Demo exporter/clock-probe was run, but live readiness is still unqualified (§11). Grog remains a local, manual-only XAUUSD decision program. An external price source is necessary; this does **not** authorize an AI/LLM API, placing orders, or adding broker-account management.
 
 | Candidate | Actual documented access | Advantages | Risks and decision |
 | --- | --- | --- | --- |
