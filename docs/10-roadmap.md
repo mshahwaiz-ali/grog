@@ -1,7 +1,7 @@
 # Grok Build Roadmap — Exact Milestones, Tests and Handoffs
 
 **Updated:** 2026-11-07  
-**Status:** R0 (M00–M08) **IMPLEMENTED and acceptance-audited** (verdict CONDITIONAL, see [14](14-r0-acceptance-audit.md) §5); M09 is BLOCKED on external permission and M10 is data/evidence-gated (plans in §9 and §10 below). **real broker connectivity, live trade-risk limits, performance thresholds and profitability cannot be finalized without actual data**. Implementation status is tracked factually in Section 8 below (implemented is not the same as validated).
+**Status:** R0 (M00–M08) **IMPLEMENTED and acceptance-audited** (verdict CONDITIONAL, see [14](14-r0-acceptance-audit.md) §5); M09-B local read-only MetaQuotes-Demo permission is now granted (2026-11-11) but live stream/clock/policy/Qt commissioning is INCOMPLETE; M10 remains data/evidence-gated (plans in §9 and §10 below). **real broker connectivity, live trade-risk limits, performance thresholds and profitability cannot be finalized without actual data**. Implementation status is tracked factually in Section 8 below (implemented is not the same as validated).
 
 **One rule:** Grok is the **external implementation bot**. Grog's running software contains **NO agent/LLM/autonomous broker execution**. Use `main` only, direct Git commits, local tests, no GitHub Actions. Work solely in Grog repo and test directories; no production systems.
 
@@ -186,7 +186,7 @@ External operations (Wine/MT5 installation, demo credentials, downloading propri
 | R0 acceptance | ACCEPTED — CONDITIONAL | `50ea97d`…`8c97dec` (see [14](14-r0-acceptance-audit.md) §4) | audit opened at `dca9ee3` (439 tests, 12 findings F-01..F-12); all 12 fixed; 510 tests, ruff clean; operator journey + error-path acceptance tests; conditions in [14](14-r0-acceptance-audit.md) §5 |
 | M09-A | IMPLEMENTED (offline) | `a88fd3f`, `d2709fe`, `f945500`, `be3479c`, `c712b18` | adapter, session, CLI, uncompiled exporter source; REF-01..12 ([08 §15.5](08-validation.md)); no MT5/broker/network used |
 | M09-H | IMPLEMENTED (offline) | `ddbd506`, `4df393f`, `14916ec`, `c56e18d`, `8a52beb`, `ccf99be`, `4f53840`, `7981928`, `1539514`, `2f4f7de`, `fe43454` | integrity hardening H1–H4 + UI-R1: REF-13..24 ([08 §15.6](08-validation.md)); exporter source v0.2 still never compiled/run; time basis, future-skew tolerance and fault recovery stay OPEN and block actionability; no MT5/broker/network used |
-| M09-B | BLOCKED — external permission | — | read-only MT5 demo install/connection needs explicit owner approval |
+| M09-B | PARTIAL native evidence — not yet accepted | Owner-observed Ubuntu/Wine MT5 demo session + clock probe on 2026-11-11 | Demo terminal/exporter ran; a prior G/4022 gap persists; no verified T/L live ticks or qualified time/policy/Qt integration. LWX §14 owns remaining steps |
 | M10 | NOT STARTED — data/evidence-gated | — | needs real permitted BID/ASK history and a forward-paper protocol |
 
 ## 9. M09 plan — read-only MT5 reference feed
@@ -202,9 +202,9 @@ External operations (Wine/MT5 installation, demo credentials, downloading propri
 - **H3 recovery/bounded ingestion** — streaming reader, throttled commits, cursor lock, `CURSOR_CORRUPT`, missing/truncated/replaced files, RECONSTRUCTED warm-up, startup fence.
 - **H4 offline verification** — scratch repros ported as acceptance tests, producer-byte fixture, RSS ceiling, UI-R1 display fix.
 
-**M09-B — BLOCKED until the owner grants every permission below:** compile/run the exporter, measure thresholds, wire the reference session into the workstation views, run the acceptance list.
+**M09-B — authorized local read-only demo access, qualification still BLOCKED:** The owner installed Wine/MT5 and ran a read-only exporter/clock probe on Ubuntu (2026-11-08..11). This does not itself authorize READY, infer fills, or complete live desktop wiring; see §14.
 
-**Explicit external permissions required from the owner (none granted yet):**
+**Original external permissions checklist (historical, updated 2026-11-11):** Items 1–4 were granted/observed locally using MetaQuotes-Demo; items 5–6 remain unresolved evidence/approval gates. Never collect MT5 credentials through Grog.
 
 1. Install Wine and the MetaTrader 5 terminal on a named Ubuntu machine (not production servers, not the ERP host).
 2. Open/use one named **demo** account on one named broker/server; credentials typed by the owner into the terminal locally, never committed, never given to Grok/Grog.
@@ -217,7 +217,7 @@ External operations (Wine/MT5 installation, demo credentials, downloading propri
 
 **Ubuntu compatibility checks (before relying on data):** terminal starts and reconnects under Wine; exporter compiles with zero warnings about trade functions; files appear in the Linux path with complete lines; `TimeTradeServer() − TimeGMT()` offset matches the broker's published server time; behavior across weekend close, demo-server disconnect, terminal restart and DST change observed; CPU/RAM acceptable beside the TUI.
 
-**M09-B acceptance:** `grog reference-status` shows `LIVE` with real heartbeats; killing the terminal → `OFFLINE` within the heartbeat threshold with no new tick; disconnect → `DISCONNECTED`; weekend → `MARKET_CLOSED`; restart Grog/terminal → no lost or duplicated tick (cursor/dedup counters); catch-up produces no actionable READY; header reads `REFERENCE · INDICATIVE`; R0 replay outputs unchanged; source scan clean. Otherwise status stays **BLOCKED: demo access/install authorization missing**.
+**M09-B acceptance:** `grog reference-status` shows `LIVE` with real heartbeats; killing the terminal → `OFFLINE` within the heartbeat threshold with no new tick; disconnect → `DISCONNECTED`; weekend → `MARKET_CLOSED`; restart Grog/terminal → no lost or duplicated tick (cursor/dedup counters); catch-up produces no actionable READY; header reads `REFERENCE · INDICATIVE`; R0 replay outputs unchanged; source scan clean. Otherwise status stays **BLOCKED: live reference readiness, time-basis, source integrity or policy qualification incomplete**.
 
 ## 10. M10 prerequisites — historical data and forward-paper evaluation (nothing claimed)
 
