@@ -17,3 +17,9 @@
 - Operational: visible reasons for WAIT/NO TRADE, recoverable restart, zero unacknowledged active-trade confusion.
 ## Trade-offs
 More filtering may lower trade count; fewer filters may increase false signals. Evaluate empirically rather than promising a fixed trade frequency or win rate.
+
+## One-click daily workflow — approved 2026-11-11
+
+The **primary user journey** is now: launch the Gold desktop with one command (ultimately 'gold') → Grog brings up its already-onboarded read-only MT5 reference source automatically → display truthful data/health and objective XAUUSD BUY/SELL/NO TRADE calculations (with complete entry, SL/TP, expiry, validation and reasons) → user may **select a signal to watch** → Grog continuously observes price, entry proximity, expiry, thesis invalidation and feed faults, with in-app alerts. No day-to-day MetaEditor/script/terminal operation. One-time permission/onboarding may be required for MT5 account login and initial setup; ordinary starts must not. No feed or unqualified source yields DATA UNAVAILABLE / NO TRADE, never a fabricated signal.
+
+Watching a proposal is distinct from confirming that the user **actually filled an order**. The manual fill/position journal remains a separate optional workflow and all broker execution stays outside Grog. Auto-starting **read-only market-data infrastructure** does not authorize auto trading or bypass existing fail-closed data/policy checks. Continue to validate the empirical predictive edge rather than claiming a profitable signal engine. See [02 §17](02-workflows-and-ux.md#17-daily-one-click-live-workflow--2026-11-11) and [11 §18](11-decisions.md#18-one-click-live-reference-workstation--owner-direction-2026-11-11).
