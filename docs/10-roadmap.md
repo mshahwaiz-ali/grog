@@ -300,3 +300,50 @@ Report **baseline SHA → phase commit SHA**, changed files and purpose, test co
 | **U5** | Full parity, final screenshots, source/Decimal/UTC and journal invariants, owner review package | UXV2-18 + all Qt-enabled GUI-01..62, R0 acceptance/integration, Ruff check/format, exact pass/fail/skip and clean tree report. No gold alias cutover. |
 
 **Reporting:** One narrowly scoped tested commit/report per phase on the existing `main`, only after checking uncommitted local edits. Include baseline and result SHAs, changed paths, reproduced issues and tests, real GNOME screenshots, precise outcomes/skips, unchanged risk/journal/source/trading invariants, known gaps and next gate. Stop when any phase gate fails. Do not run GitHub Actions, install MT5/Wine, connect brokers or change the `gold` alias. Errors the owner supplies later require separate reproduction and authorization; do not guess them during U1.
+
+## 14. LWX implementation — one-click LIVE workstation
+
+**Owner direction 2026-11-11:** Resume Grog around the daily user product: single-command XAUUSD LIVE analyst with a local, supervised **read-only** MT5 feed, truthful BUY/SELL/NO TRADE plans and an optional **Watch setup** action. Do not rebuild engine R0, auto-trade, create another GUI, silently correct historical DST, or conflate watch with operator journal. The prior M09-A/H implementation is a foundation; the user already installed Wine/MT5 and manually tested exported data and the clock. M09-B reference-connected workstation work is authorized **within** decision D-018's read-only scope, but no live/real-money trade execution, policy guesses or gold alias cutover are authorized.
+
+**Current as-built preflight (check again before coding):** GitHub main had f8d71b8 (GrogClockProbe added) when this handoff was written; normal desktop launcher opens REPLAY only; ReferenceSession is not wired into the Qt pages; Settings._validate_mode_policy rejects REFERENCE_LIVE; reference-status is read-only CLI; the FullUAT old source has recorded G/4022 and current server+02 observation, but zero verified continuous T/L. U1 Settings exists; U2–U5 visual tasks remain separate and must not block the functioning daily path. Do not rely on this SHA or acceptance figures without current checkout and native test reproduction.
+
+### LWX-0 — Audit and baseline (no functional changes)
+
+- Read AGENTS, 00-index, 01/02/03/06/07/08/09/10/11, relevant M09 parser/session, desktop launcher/main/worker/frame models and existing tests. Verify real current git main, clean local working tree, existing alias, executable discovery and installed Wine/MT5. Do not overwrite user changes.
+- Reproduce focused existing reference, desktop, replay and journal tests plus Ruff; preserve exact baseline. Record observed current-clock probe evidence, old G/4022 source fault, current time-basis unknown and unknown thresholds. Identify complete source/Watch IDs and reuse validated risk plan and Qt owner-thread patterns.
+- **Gate:** an implementation checklist maps each LWX requirement to a concrete module and test, with no missing ownership or guessed broker/market policies.
+
+### LWX-1 — Local process supervisor and first-run setup (no trade engine modifications)
+
+- Add validated, nonsecret XDG LIVE profile and concise first-run UI (approved Wine prefix/MT5 terminal, source, account/server XAUUSD evidence). Reuse existing PySide6 launcher without changing current REPLAY output or gold alias.
+- Add smallest testable supervisor: exact process identity, optional controlled launch of known read-only demo terminal, detect already-running instance without modifying it, bounded recovery, UI status and clean shutdown. Reuse persisted EA/profile restoration first; automatically reattach/recompile neither in everyday use. Setup may require **one** manual MT5 login/consent only when genuinely missing.
+- **Verify:** LWX-01..08, especially no modifying unowned EAs, no shell, no secrets, no double MT5 instance. Native Wine start/stop only against user-approved demo.
+
+### LWX-2 — Qualified source and continuous reference reader (no READY promotion yet)
+
+- Use a dedicated collision-free source ID for live startup, **not** contaminated mt5full20261108. Preserve all existing historical files and bookmarks. Do not assume 2-day warm-up; measure S1 H1/M15/M5 required pre-roll. Keep exporter read-only; compare its installed source/version to GitHub before any one-time install.
+- Repair verified ingestion defects only: bounded tail polling with persistent session, complete M/T/H/B/E/G/Z audit, correct restart/fencing, source-specific time provenance, present-UTC server-time mapping, honest DST/offset uncertainty, current trade-session status; no silent repairs or deleting G.
+- Log first genuine live T/L and compute observed ages/lag/spread/heartbeat distributions, then propose source-specific safe limits. Until approvals/verification, retain TIME_BASIS_UNVERIFIED, FUTURE_SKEW_TOLERANCE_UNSET and other existing blockers; show **OBSERVING / BLOCKED**, not tradable.
+- **Verify:** LWX-09..19; real demo session with a tick, a gap/error, disconnect, terminal restart and stale quote; fixture shows no actionable READY on B/backlog.
+
+### LWX-3 — LIVE Qt analysis / decision view
+
+- Add dedicated LiveWorker on QThread over a persistent ReferenceSession and Qt-neutral detached frame models. Wire startup, source/feed health and actual engine H1/M15/M5/Developing/blocked/READY decisions to the existing Overview/Signals/Diagnostics. Preserve exact Decimal BID/ASK, original signal plan and UTC provenance; REPLAY remains optional. Do not invent signals if S1 outputs none.
+- Keep the window responsive during initial catch-up and "no quote" intervals. Expose one clear headline: NO TRADE, DEVELOPING, READY · REFERENCE INDICATIVE, or why DATA UNAVAILABLE / BLOCKED. Never stamp "LIVE" on heartbeat-only updates.
+- **Verify:** source/mode generation guards, causal engine parity, no omitted events under coalescing, LWX-13..19/28..30 and previous GUI regression.
+
+### LWX-4 — One selected proposal watcher (separate from journal)
+
+- Qt-neutral one-watch reducer with immutable plan/source IDs, frozen levels, versioned atomic XDG persistence, idempotent state transitions and on-screen alerts. Selection ≠ execution. Uses actual quote sides from 07 §13; statuses for touching, invalidation, expiration, unavailable. No guessed near-band threshold. Restore UNVERIFIED pending fresh confirmed source.
+- Preserve all operator PositionJournal APIs/SQLite threads, manual entry save-time checks and reconciliation. Never turn watched/TP-touched signal into an open position, a fill, or R profit.
+- **Verify:** LWX-20..27, corrupted watch file safe failure, crash/relaunch, repeated ticks, source switch, stale feed, broker-unknown case.
+
+### LWX-5 — Native commissioning and optional command cutover
+
+- Execute complete 08 §22 acceptance suite on owner's Ubuntu/Wine demo, then R0 replay/journal/UI parity and targeted U2–U5 legibility QA. Include positive and negative screenshots/logs (no credentials), audit the exact exporter and app for prohibited trade execution, CPU/RAM, and a usable market-closed/offline state. Report PASS/FAIL/BLOCKED for every gate, rather than hiding unresolved policies behind a nice UI.
+- User should have to perform **only final one-click acceptance**, not daily MetaEditor/script checks. First-run MT5 login may still need one human action. A user-facing single command is the only operational interface after success.
+- **Owner-controlled cutover:** Leave existing gold alias/launcher untouched during LWX-0..5. After independent PASS and explicit sign-off, change the alias once with simple rollback and keep an explicit REPLAY command; never delete the working fallback.
+
+### Grok implementation directive (use without inventing more scope)
+
+Start at LWX-0 and complete LWX-1, LWX-2, LWX-3, LWX-4, LWX-5 **in this order**. After each bounded verified phase, commit on main, run relevant tests/ruff, report exact commit SHA, changes, evidence and unresolved blockers. If an external/native MT5 step cannot be performed in your execution environment, test a fake/demo fixture locally, state precisely what native check remains, and continue independent modules—do not claim fully working LIVE or demand repeated manual terminal traces from the owner. Preserve no trading, manual-journal isolation and all existing fail-closed policy gates. Do not change production or unrelated repositories. Do not ask the owner to pick numeric broker-dependent thresholds; derive measurement reports and present explicit decisions for approval. The one-click experience is an integration goal, not license to fabricate readiness or performance.
