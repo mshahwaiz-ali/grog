@@ -184,6 +184,8 @@ The eventual broker is **NOT required** for `REPLAY` or for researching price st
 
 ### 5.1 M09 read-only MT5 reference adapter — implementation contract
 
+**2026-11-11 status update:** The original 2026-10-31 paragraphs below describe the *then-offline* adapter baseline. The owner has since compiled/running-exported on the local MetaQuotes-Demo installation and verified a current server-time tick convention; time-basis history, G/4022 gap, actual T/L stream, source-specific policies and Qt LIVE integration remain open. Current implementation contract is §14, data evidence [03 §11](03-market-data.md#11-november-2026-mt5-time-and-source-integrity-evidence-operator-observed-2026-11-11).
+
 Smallest design that satisfies [03 §8](03-market-data.md) without touching the pure engine. Status: **offline Python side implemented (M09-A) and integrity-hardened (M09-H, H1–H4, 2026-10-31); MQL5 exporter source revised but still uncompiled and untested in MT5; no terminal, Wine, broker account or network connection used** ([10 §9](10-roadmap.md)). Every statement below about MT5 runtime behavior is the documented intent of the source, **not observed behavior** — real byte output, tick-time convention, offsets, session tables and history depth are UNVERIFIED until M09-B.
 
 ```text
