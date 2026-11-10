@@ -693,6 +693,8 @@ These `UXV2-` checks **add** to, never replace, GUI-01..62 in §20 and every exi
 
 ## 22. Live one-click workstation acceptance — LWX
 
+**Latest scope change 2026-11-11:** Watch-specific LWX-20..27 cases below are **SUPERSEDED for the primary app**. New Trade Finder-only tests TF-A01..14 in [Trade-First Redesign](trade-first-redesign.md#7-focused-acceptance-contract-new-primary-trade-finder) and phase [10 §15](10-roadmap.md#15-tf--trade-finder-only-implementation-supersedes-watch-workflow) are current. Retain LWX data/supervisor safety tests where applicable; do not build monitoring to satisfy an obsolete matrix.
+
 **Purpose / status:** New owner-approved implementation acceptance contract (2026-11-11), **NOT yet implemented or run**. These cases exercise automatic local read-only MT5/Wine startup, a genuine reference feed, the existing S1 pipeline in LIVE, and one selected **watch-only** proposal. Always use deterministic fake clocks/fixture records for exact behavior and separate **native Ubuntu + authorized MetaQuotes-Demo** tests for real platform claims. Never conflate a fixture with a validated live trade recommendation. Preserve previous R0, M09, Qt, manual journal and U0–U5 tests.
 
 ### 22.1 Launch, configuration and process ownership
