@@ -1,5 +1,7 @@
 # Grog Documentation Index — Canonical Specifications
 
+**Latest 2026-11-11 product decision:** [Trade-First Redesign](trade-first-redesign.md) — **no watch/position monitoring in the new daily application**. Supersedes previous watch-first one-click handoff, while preserving older tested software and all safety gates.
+
 **Updated:** 2026-11-11 · **Project stage:** R0 offline research + five-page Qt desktop implemented; owner-tested Ubuntu/Wine MT5 demo exporter and read-only clock probe show actual broker-server tick timestamps, but a prior G/4022 source gap, missing verified T/L live stream, historical DST uncertainty and unset real-data policies still block live readiness. **One-click LIVE workstation approved as a direction and implementation scope**, not yet built or independently accepted. See [11 §18](11-decisions.md#18-one-click-live-reference-workstation--owner-direction-2026-11-11) and [10 §14](10-roadmap.md#14-lwx-implementation--one-click-live-workstation).
 
 ## How to read and change these documents
