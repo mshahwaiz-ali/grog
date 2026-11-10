@@ -49,3 +49,14 @@ The canonical requirements are in [03 — Market Data](03-market-data.md), [07 �
 - Python `sqlite3` transaction and connection behavior: https://docs.python.org/3/library/sqlite3.html
 
 These references justify implementation choices, **not** future trading profitability. Prefer officially maintained tool documentation and test installed version-specific APIs. They do not authorize creating a web service, running any GitHub Actions, placing broker orders or adding feature bloat.
+
+## MetaTrader 5 startup lifecycle — official platform evidence checked 2026-11-11
+
+- **MQL5 Program Running — Expert Advisors are restored at terminal start if attached to a chart before shutdown; also load on chart template/profile/account changes:** https://www.mql5.com/en/docs/runtime/running
+- **MetaTrader 5 Help — Templates and Profiles; chart templates preserve EAs and the user can save a dedicated profile:** https://www.metatrader5.com/en/terminal/help/charts_advanced/templates_profiles
+- **MetaTrader 5 Help — Advanced Platform Start; documented [StartUp] Expert/Symbol/Period/ExpertParameters controls (do not overwrite unowned terminal config):** https://www.metatrader5.com/en/terminal/help/start_advanced/start
+- **MetaTrader 5 Help — Services: chart-independent background programs that can autostart with the terminal after prior explicit launch; an alternative to an EA, not a mandatory rewrite:** https://www.metatrader5.com/en/terminal/help/algotrading/autotrading
+- **MetaTrader 5 Help — Disabling Allow Auto Trading prohibits EA/script broker trading but does not shut down all analytic program execution:** https://www.metatrader5.com/en/terminal/help/startworking/settings
+
+Engineering interpretation: Reuse one dedicated, explicitly onboarded **read-only EA/profile** first and demonstrate persistence on the owner's Wine installation. Consider a service or startup INI only if this is insufficient; never launch two producers, auto-enable trade permissions or assume installation-independent GUI automation. Official product behavior does not prove the user's exact version/profile will restart correctly without native verification.
+
