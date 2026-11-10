@@ -3,6 +3,7 @@
 **XAUUSD Gold scalping research and manual trading decision-support software.**
 
 **State (2026-11-11):** The offline R0 research pipeline and five-page Qt replay desktop exist. The owner has operated a **read-only MT5 MetaQuotes-Demo reference exporter and clock probe** on Ubuntu/Wine; the current server +02:00 tick convention has supporting evidence. However the exporter history includes a G/4022 gap, no accepted continuous live T/L stream has been demonstrated, historical DST alignment and source-specific safety policies remain unresolved, and the native desktop is **not yet a one-click live analyst**. No action-ready signals, real broker fills or profitable strategy are claimed. **New owner-approved work:** [one-click LIVE workstation LWX-0..5](docs/10-roadmap.md#14-lwx-implementation--one-click-live-workstation) with a watch-only selected setup. The existing gold alias and no-trading boundary remain unchanged.
+
 **Repository:** private; default branch `main`.  
 **Last update:** 2026-11-11.
 
