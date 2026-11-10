@@ -690,3 +690,60 @@ These `UXV2-` checks **add** to, never replace, GUI-01..62 in §20 and every exi
 | UXV2-18 | End-to-end replay+manual record parity to existing R0, Qt enabled and optional-Qt absent | Exact engine/position/journal/source outputs unchanged; all tests/ruff pass (no hidden skips); visible paired Dark/Light screenshots and System runtime evidence, owner review; `gold` alias unmodified |
 
 **Evidence:** screenshots or annotated visible captures must record screen state, viewport logical size, scaling and effective theme; tests must record exact pass/fail/skip and run provenance. A screenshot alone cannot validate database integrity, price math or LIVE readiness. The errors owner promised to provide later are **not** silently assumed fixed by this design milestone.
+
+## 22. Live one-click workstation acceptance — LWX
+
+**Purpose / status:** New owner-approved implementation acceptance contract (2026-11-11), **NOT yet implemented or run**. These cases exercise automatic local read-only MT5/Wine startup, a genuine reference feed, the existing S1 pipeline in LIVE, and one selected **watch-only** proposal. Always use deterministic fake clocks/fixture records for exact behavior and separate **native Ubuntu + authorized MetaQuotes-Demo** tests for real platform claims. Never conflate a fixture with a validated live trade recommendation. Preserve previous R0, M09, Qt, manual journal and U0–U5 tests.
+
+### 22.1 Launch, configuration and process ownership
+
+| Test | Input / action | Expected evidence |
+| --- | --- | --- |
+| LWX-01 | Clean profile, launch from unrelated cwd; no MT5 present | Qt shows SETUP REQUIRED promptly; concise one-time discovery/permission UI; no automatic account login, files changed, broker network or synthetic LIVE fallback |
+| LWX-02 | Existing authorized Wine prefix, terminal and complete onboarding profile | One command opens LIVE overview, starts backend without MetaEditor/scripts/terminal commands, and keeps UI responsive during initial catch-up |
+| LWX-03 | Reopen with remembered settings after orderly quit | No setup prompt, no duplicate EA install/history reset/second exporter; same validated source/provenance |
+| LWX-04 | Terminal already running with user-owned EA/chart or other MT5 process | Correct exact-prefix instance recognized; no kill, duplicate spawn, chart EA overwrite, trading toggle or account switch |
+| LWX-05 | MT5 executable missing/moved; unexpected Wine path, spaces in Program Files, inaccessible Common Files, missing permissions | Explicit diagnostic and safe repair guide, no shell injection, sudo or unrelated filesystem writes |
+| LWX-06 | Start fails, disconnects or exits unexpectedly repeatedly | Bounded retries with backoff, no restart storm, no duplicate/orphan owned child; honest OFFLINE/RECOVERING and safe window exit |
+| LWX-07 | Quit Gold while it owns MT5; quit when terminal was externally started | Only Grog-owned process may be stopped under explicitly chosen behavior; never blanket wineserver kill; external process untouched; cursor lock and worker released |
+| LWX-08 | Inspect Grog config/logs, subprocess argv, changed local paths | No passwords/tokens/account credentials, no broker trading options enabled, no production/unrelated repo changes, no account orders |
+
+### 22.2 Feed, clock, catch-up and signal eligibility
+
+| Test | Input / action | Expected evidence |
+| --- | --- | --- |
+| LWX-09 | Fresh valid v1 reference fixture and current-offset probe evidence | Exact Decimal bid/ask and current tick/server clock mapping reproduced with ms precision; provider vs received timestamps distinct |
+| LWX-10 | October 19 versus October 27 history crossing hypothetical DST offset | Historical timezone UNKNOWN unless independently verified; no silent one-hour rewrite; OFFSET_ASSUMED/UNVERIFIED blocks READY |
+| LWX-11 | Replay real source with G/4022 gap in older same-ID session plus later clean session | Integrity fault remains latched; no clean-green LIVE; no auto-clear, file deletion, cursor reset or false recovery |
+| LWX-12 | New dedicated ID collides with existing filename, watermark, cursor or producer | Refuse with reason; old data unchanged; no duplicate producer or side-by-side same-source exporter |
+| LWX-13 | Fresh source catches up across market closure, millions of B ticks, then new L ticks | All valid ticks causally consumed once, no UI freeze or arbitrary lost events; startup and B backlog never actionable; show CATCHING UP then accurate observed status |
+| LWX-14 | Connected H/OPEN every 1 sec but no T/L for 90+ minutes; weekend; server session UNKNOWN | Shows stale/closed/unknown as appropriate; no actionable proposal and no false freshness; no threshold guessed from test fixture |
+| LWX-15 | Stop/restart terminal, reconnect, partial line, file rotation, source mismatch, changed offset | Explicit stale/disconnect/integrity states, bounded cursor/restart behavior; no lost or duplicated underlying tick; no unsafe automatic fault clear |
+| LWX-16 | No live policy config; known config with unit-tested bounded measured thresholds | Missing values remain named blockers. Approved source-bound thresholds unlock only the tested gates; historical fixture policy never silently reused |
+| LWX-17 | Current fresh tick mode L, complete verified source metadata and healthy policies, deterministic fixture S1 trigger | READY derived only from same existing engine and eligible quote; exact entry/SL/TP/expiry, side and source match replay; no invented ranking/performance |
+| LWX-18 | Developing, no setup, market closed, insufficient H1 warm-up, cost unknown, engine output none | Differentiated NOT READY/NO TRADE/DATA UNAVAILABLE/UNVERIFIED with precise reasons; never force a BUY/SELL |
+| LWX-19 | Open signal expires during no-tick interval; time jumps/clock skew/future tick | Expiry and stale state recompute on timer; no false current READY, zero backward time travel or future-leaked higher-timeframe candles |
+
+### 22.3 Select-to-watch, UI and position isolation
+
+| Test | Input / action | Expected evidence |
+| --- | --- | --- |
+| LWX-20 | Select one unexpired, eligible plan from live Signals | One persisted watch with immutable ID/plan, source, version, selection UTC; **no manual journal ENTRY, broker order or position** |
+| LWX-21 | Select another, stop watching, exit/reopen app | Explicit replacement/stop, atomic durable update, no duplicate/ghost watch; restore UNVERIFIED until fresh matching source conditions |
+| LWX-22 | BUY ASK reaches entry band, SELL BID reaches entry band | ENTRY BAND TOUCHED observation with correct side, exact quote time; never assume execution or position P/L |
+| LWX-23 | BUY BID reaches stop/target; SELL ASK reaches stop/target while watch only | Observation only; no automatic close, success claim, TP/SL filled status or fabricated R/P&L |
+| LWX-24 | Two same-ms ticks, repeated quote, reconnect backfill, repaint, restart | One causal event input per accepted tick; idempotent watch alerts per state transition; no repeated historic touch alert |
+| LWX-25 | Stale/faulted feed, source change, mismatched strategy version or expired plan | MONITORING UNAVAILABLE / INVALIDATED / EXPIRED, no reassuring false health; frozen plan retained read-only |
+| LWX-26 | "Near entry" threshold missing | Price/entry distance shown exact; NEAR ENTRY disabled as policy unknown; no arbitrary distance value |
+| LWX-27 | User records actual fill via preexisting manual journal | Existing validation/idempotency/reconciliation executes unchanged; watch does not trigger this; OPERATOR actual trade distinct from REFERENCE observation |
+| LWX-28 | Switch between LIVE and REPLAY with saved selection, theme and PKT/UTC | Replay uses virtual clock and SIMULATED label; live uses wall clock/REFERENCE; no stale frames mixed and no source journal contamination |
+| LWX-29 | Missing source or broker metadata, invalid prices, 2+ READY fixture proposals | Exact safe rendering and full audit detail; no broker-verified fills, made-up score, automatic selection or missing side ambiguity |
+| LWX-30 | Responsive window at 820x620, 1366x768, 1920x1080, dark/light/system, 100–200% scaling | Daily decision and watch readable; safety banners always visible; diagnostics advanced; no need to expose MT5 UI during normal session |
+
+### 22.4 End-to-end evidence, gating and cutover
+
+**Mandatory local checks after each phase:** focused unit/integration/Qt tests; actual exact pass/skip/fail counts; ruff check and format; an existing R0 replay and journal parity check. No GitHub Actions. Native test with owner-authorized MetaQuotes-Demo only when the platform can be accessed; on isolated CI/test machines replace it with a fake process/exporter, and label the limitation.
+
+**Native workflow demonstration:** launch one command from a clean user terminal, first-run only once, close/relaunch Gold and MT5, demonstrate that H heartbeats by themselves never make LIVE, prove fresh T/L price arrival on the same source and a status transition when ticks stop, show deterministic fixture proposal and watch without journal writes, then inspect actual reference output as qualified/blocked honestly. Record CPU/RAM/size and source integrity for long catch-up; do not assert resource limits without measurements. Run failure injection for gap, DST, startup lock, bad cursor, stale feed, two instances, Wine crash and replay/selected watch restore.
+
+**Promotion rule:** A functional and visually accepted desktop may be called **ONE-CLICK REFERENCE CONNECTED** only after native test evidence shows the launch and feed lifecycle. It cannot be called **ACTIONABLE SIGNAL READY** until *every* source, timestamp, broker-metadata, health, risk and event policy blocker is independently resolved and approved; and cannot be called **PROFITABLE / VALIDATED** without the M10 out-of-sample and paper protocol. The existing gold alias is never modified until the owner signs off the native tests and separately authorizes the cutover.
