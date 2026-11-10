@@ -1,7 +1,7 @@
 # Grog — Instructions for Grok and Other External Coding Assistants
 
 **Project:** private `mshahwaiz-ali/grog` | **Branch:** `main` only | **Working language:** English  
-**State:** R0 (M00–M08) implemented and acceptance-audited ([docs/14](docs/14-r0-acceptance-audit.md)); M09 offline adapter work only within the limits of [docs/10 §9](docs/10-roadmap.md) — installing/connecting MT5, Wine, broker accounts or data sources requires separate explicit owner permission. This file guides the external coding assistant; Grog itself is **NOT** an AI agent.
+**State (2026-11-11):** R0 implemented/conditionally audited; M09 reference adapter offline parts exist; the owner independently granted and performed local Wine/MT5 MetaQuotes-Demo read-only commissioning, but continuous live T/L feed, data/policy qualification and Qt connection are NOT accepted. D-018 authorizes one-click, local, read-only supervision of that existing demo after one-time onboarding. See [docs/10 §14](docs/10-roadmap.md#14-lwx-implementation--one-click-live-workstation). This file guides the external coding assistant; Grog itself is **NOT** an AI agent.
 
 ## Mission — unchangeable without explicit user approval
 
@@ -17,7 +17,7 @@ Build a lightweight, high-quality local Python workstation (existing terminal pl
 ## Native desktop modernization — approved 2026-11-07
 
 - The owner approved a **local PySide6/Qt Widgets desktop frontend**, not a web dashboard; see docs/11 D-014, docs/02 §15, docs/09 §12 and docs/10 §11.
-- Keep Textual and the current `gold` launcher until feature parity, user acceptance and full regression tests. No change to strategies, live MT5 permissions or broker execution.
+- Keep Textual and the current `gold` launcher until feature parity, user acceptance and full regression tests. New *read-only local MT5 demo* permissions are specifically limited by D-018. Never change strategy rules, trading permission or broker execution.
 - GUI reads existing replay snapshots and validates all manual records through the existing PositionJournal. Do not duplicate domain calculations, import Qt into the engine, or cross SQLite thread ownership.
 - D00 is bounded to documentation, pure decimal-preserving display helpers and an **isolated Qt probe**. Do not claim a working trading GUI or fabricate a `uv.lock` update before package resolution. (Historical D00 boundary: D00–D04 are now committed; current status in docs/10 §11.)
 
@@ -55,7 +55,7 @@ This explicitly authorizes the **non-trading, local, offline M00–M08 implement
 - **M06** deterministic replay and research reports.
 - **M07** Textual UI with five screens and source fidelity; no fake confidence/price or broker orders.
 - **M08** local manual-position record (including explicitly OFF_PLAN user-recorded trades), partial/modify/close forms and restart reconciliation.
-- **M09** separate read-only MT5 demo adapter is **not included in the Start instruction**: user permission required to install/connect Wine/MT5/demo service.
+- **M09** was excluded from the original R0 Start instruction. A separate 2026-11-11 owner direction now authorizes integrating the **existing read-only MetaQuotes-Demo** under D-018, with no live-account orders, credential handling, unapproved policies, data deletion or production access.
 - **M10** independent research validation requires real historical/forward data and cannot be claimed complete based on synthetic tests.
 
 If external live feed is not connected, **continue offline safely**. Broker choice is NOT a blocker for M00–M08. Never use a broker account's credentials without explicit permission.
@@ -118,3 +118,9 @@ Inspect the actual current branch, working tree and APIs before any implementati
 **Primary design document:** [docs/desktop-visual-redesign.md](docs/desktop-visual-redesign.md), especially its owner-approved §§3–10 and single Grok prompt in §13. Functional behavior remains canonical in [docs/02 §16](docs/02-workflows-and-ux.md), architecture in [docs/09 §13](docs/09-architecture.md), acceptance in [docs/08 §§20–21](docs/08-validation.md), phase ordering in [docs/10 §13](docs/10-roadmap.md), authorization boundaries in [docs/11 D-015](docs/11-decisions.md).
 
 **Implementation order:** U0 (baseline read-only audit) → U1 (themes/presentation/settings) → U2 (shell/Overview/Signals) → U3 (Positions/Journal/forms) → U4 (Diagnostics/chooser/help/responsiveness) → U5 (full Qt/R0/visual/keyboard/fault acceptance), with a narrow tested commit/report per phase. Confirm local HEAD and dirty files before touching anything. **Do not rewrite D00–D05, alter the `gold` alias, install MT5, connect a broker, add trading automation, change SQLite journal schemas, precision or strategy**, or fix unrelated errors before the owner supplies them. No GitHub Actions.
+
+## New active owner priority — one-click LIVE workstation (2026-11-11)
+
+**Before building more visual-only U2–U5 changes, implement the daily product flow in docs/10 §14, following D-016..019 in docs/11.** Read functional UX docs/02 §17, source/time docs/03 §11, risk watch docs/07 §13, architecture docs/09 §14 and tests docs/08 §22. Keep unchanged R0 engine and the journal. The one-click desktop auto-manages the previously onboarded read-only MT5 dependency; not the broker. The new Watch setup action MUST NOT create an actual trade or journal ENTRY. **Old documentation that says M09-B was never authorized describes the historical 2026-10-31 baseline, not today's approved read-only demo scope.** No executable LIVE signals until real T/L source, verified time basis, no latched faults, completed warm-up and source-specific approved safety policies. Do not force setups, assume a broker fill or report profit.
+
+Follow LWX-0..LWX-5 in order. Run focused tests per phase, keep GitHub main, no GitHub Actions; owner should not be asked to routinely run MT5 scripts/probes. If native Wine cannot be exercised in your environment, implement and test independent components with simulated subprocess/reference fixtures and label the native test BLOCKED. Do not modify the existing gold alias without separate final sign-off. This newer directive supersedes only older *read-only MT5 demo access restrictions*; every no-trading and data-integrity safeguard remains active.
