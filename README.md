@@ -2,9 +2,9 @@
 
 **XAUUSD Gold scalping research and manual trading decision-support software.**
 
-**State:** offline release **R0 (M00–M08) implemented and acceptance-audited** ([docs/14](docs/14-r0-acceptance-audit.md)): strict BID/ASK CSV import, causal bars and feed health, no-lookahead analysis, the research-only S1 v0.2 detector, SIMULATED signal eligibility, deterministic replay with evidence reports, and the Textual workstation with a local manual journal (entry, skip, partial/close, stop/target modify, unlinked external fills, restart reconciliation). Grog places **no orders**, has **no live data feed** yet (the M09-A/H read-only MT5 reference adapter is implemented offline but has never connected to MT5 or a broker; M09-B demo connection awaits explicit owner approval and M10 market validation has not started), and **no strategy edge, live-data readiness, broker-verified fill or profitability is claimed**. OPEN thresholds (quote age, first-quote delay, spread, costs, contract) default to unset, so the default config issues no READY.\
+**State (2026-11-11):** The offline R0 research pipeline and five-page Qt replay desktop exist. The owner has operated a **read-only MT5 MetaQuotes-Demo reference exporter and clock probe** on Ubuntu/Wine; the current server +02:00 tick convention has supporting evidence. However the exporter history includes a G/4022 gap, no accepted continuous live T/L stream has been demonstrated, historical DST alignment and source-specific safety policies remain unresolved, and the native desktop is **not yet a one-click live analyst**. No action-ready signals, real broker fills or profitable strategy are claimed. **New owner-approved work:** [one-click LIVE workstation LWX-0..5](docs/10-roadmap.md#14-lwx-implementation--one-click-live-workstation) with a watch-only selected setup. The existing gold alias and no-trading boundary remain unchanged.
 **Repository:** private; default branch `main`.  
-**Last update:** 2026-11-07.
+**Last update:** 2026-11-11.
 
 ## Product mission
 
@@ -23,11 +23,11 @@ Grog is **rule-based software**, not GPT/Claude/LLM, an AI agent, an auto-trader
 7. Monitor bid/ask, thesis changes, stop/TP proximity and position status; journal actions/results, with restart reconciliation and no automatic broker execution.
 8. Replay realistic historical tick data and validate the smallest strategy/indicator combination that shows robust **net** performance, rather than chasing win-rate claims.
 
-Proposed strategies/indicator periods have **not** been tested; an attractive quality score is **not** a win probability. Phase 18 specifies evidence-first signals and tests. **MT5 is now the preferred reference-price adapter**, regardless of the eventual execution broker. First build broker-neutral offline BID/ASK parsing, causal MTF analysis and replay; then connect an MT5 demo data source when separately approved. The actual broker/server and live feed are not selected or installed. Numerical ranking remains experimental.
+Proposed strategies/indicator periods have **not** been tested; an attractive quality score is **not** a win probability. Phase 18 specifies evidence-first signals and tests. **MT5 is now the preferred reference-price adapter**, regardless of the eventual execution broker. First build broker-neutral offline BID/ASK parsing, causal MTF analysis and replay; then connect an MT5 demo data source when separately approved. A MetaQuotes-Demo broker/server now exists locally for reference-feed development, but daily Grog LIVE integration is unqualified. Numerical ranking remains experimental.
 
 ## Desktop GUI — D00–D05 implemented
 
-**Current approved next work (2026-11-07):** [Complete Desktop UI/UX V2](docs/desktop-visual-redesign.md) — owner approved matched charcoal **Dark**, warm-white **Light**, OS-following **System** Settings plus PKT/UTC display-only preferences. Grok owns the U0–U5 implementation handoff in [docs/10 §13](docs/10-roadmap.md). This approval does not change engine, journal, MT5 access or the `gold` alias. Design docs are committed; GUI V2 is **not** implemented yet.
+**Previously approved visual work (2026-11-07), now secondary to one-click LIVE integration:** [Complete Desktop UI/UX V2](docs/desktop-visual-redesign.md) — owner approved matched charcoal **Dark**, warm-white **Light**, OS-following **System** Settings plus PKT/UTC display-only preferences. Grok owns the U0–U5 implementation handoff in [docs/10 §13](docs/10-roadmap.md). This approval does not change engine, journal, MT5 access or the `gold` alias. Design docs are committed; GUI V2 is **not** implemented yet.
 
 A **native Qt Widgets desktop frontend** is approved; D01–D04 (Overview, Signals, Positions/Journal with local manual records, Diagnostics) are implemented and natively QA'd, D05 (one-command launcher, source chooser, Textual parity) passed native QA on 2026-11-07 (full Tab cycle automated only); the `gold` alias cutover is **not** done or authorized.
 The Textual TUI (`grog ui`) is unchanged and stays the fallback. This repository does not modify the
@@ -107,7 +107,7 @@ not be treated as durable journal storage; do not silently migrate or overwrite 
 
 ## M09-A — read-only MT5 reference feed (offline parts only)
 
-The broker-neutral adapter for a future read-only MT5 demo/reference feed exists and is tested on recorded-format **FIXTURE** files only ([docs/09 §5.1](docs/09-architecture.md)). `mql5/GrogReferenceExporter.mq5` is authored but **has never been compiled or run in MT5**. No terminal, Wine, broker account, credentials or network connection has been used.
+The broker-neutral adapter was first implemented and fixture-tested offline ([docs/09 §5.1](docs/09-architecture.md)). On 2026-11-08..11 the owner also compiled and ran an exporter and clock probe on their local MetaQuotes-Demo terminal. The owner-supplied smaller historical source passed read-only parsing, but a different full-history source has a recorded G/4022 gap and no observed live-mode ticks. **Neither the regular desktop nor grog reference-status is an accepted continuous LIVE workstation yet**. See [docs/03 §11](docs/03-market-data.md#11-november-2026-mt5-time-and-source-integrity-evidence-operator-observed-2026-11-11).
 
 ```bash
 uv run grog reference-status                       # NOT_CONFIGURED without a [reference] config
@@ -116,7 +116,7 @@ uv run grog reference-status --config my.toml      # read-only status of exporte
 
 ## Working on Grog
 
-Agent/developer entrypoint: [AGENTS.md](AGENTS.md), then [docs/00-index.md](docs/00-index.md), [docs/11-decisions.md](docs/11-decisions.md), [docs/09-architecture.md](docs/09-architecture.md) and [docs/10-roadmap.md](docs/10-roadmap.md). Next milestones (M09 read-only MT5 reference feed, M10 historical-data and forward-paper evaluation) need explicit external permissions listed in [docs/10](docs/10-roadmap.md); nothing beyond R0 is authorized by default.
+Agent/developer entrypoint: [AGENTS.md](AGENTS.md), then [docs/00-index.md](docs/00-index.md), [docs/11-decisions.md](docs/11-decisions.md), [docs/09-architecture.md](docs/09-architecture.md) and [docs/10-roadmap.md](docs/10-roadmap.md). The 2026-11-11 owner direction now authorizes *local read-only demo* integration into the one-click desktop under D-018, while live READY qualification, historical time mapping, M10 performance claims and actual order execution remain restricted. Implement [LWX phases](docs/10-roadmap.md#14-lwx-implementation--one-click-live-workstation).
 
 ## Active documentation — single source of truth
 
@@ -155,3 +155,9 @@ Start with [docs/00-index.md](docs/00-index.md) for the full canonical topic map
 The implementation specification for **all five native desktop screens** was consolidated into the existing canonical documents (the screens have since been built in D01–D04): [full UX/actions](docs/02-workflows-and-ux.md#16-complete-native-workstation-interaction-specification--d00d05-handoff-2026-11-07), [data flow and thread ownership](docs/09-architecture.md#13-desktop-implementation-ports-concurrency-and-state-ownership--d00d05-handoff-2026-11-07), [functional and visual verification](docs/08-validation.md#20-complete-native-desktop-acceptance-matrix-and-verification-protocol-2026-11-07), [D00–D05 staged implementation](docs/10-roadmap.md#12-desktop-implementation-order-verification-gates-and-grok-handoff--2026-11-07) and [scope/approvals](docs/11-decisions.md#16-desktop-workstation-handoff-scope-and-unresolved-gaps--2026-11-07). Follow [AGENTS.md](AGENTS.md); phase status and evidence are in [docs/10 §11](docs/10-roadmap.md).
 
 **Current state (2026-11-07):** D00–D04 are committed on main (D04 at `3dd0299`): Overview, Signals, Positions/Journal with local manual records, and Diagnostics. D05 (launcher, source chooser, Textual parity) passed native QA on 2026-11-07. Qt is the optional locked `desktop` extra (PySide6-Essentials 6.11.3 in `pyproject.toml`/`uv.lock`); the VS Code-terminal GNOME settings issue remains a known limitation (docs/10 §11). `grog ui` remains the Textual fallback; this repository does not change the `gold` alias, and cutover needs the owner's separate explicit sign-off. No MT5/broker activation (M09-B blocked on owner approval, M10 not started).
+
+## New primary product work — one-click LIVE XAUUSD workstation (approved direction, 2026-11-11)
+
+Open the Gold desktop once; after one-time onboarding it should bring up the local read-only MT5 demo reference in the background, automatically analyze XAUUSD, show **BUY / SELL / NO TRADE** with valid plan and reasons, and optionally **Watch setup** (tracking only, never an executed trade). Market-data faults show BLOCKED/STALE instead of fictitious trades. No daily MetaEditor/scripts, no broker orders, no forced signals, no guessed thresholds. This workflow is **not yet implemented**.
+
+Grok/code handoff: [AGENTS.md](AGENTS.md) → [11 §18 approvals](docs/11-decisions.md#18-one-click-live-reference-workstation--owner-direction-2026-11-11) → [10 §14 LWX-0..5](docs/10-roadmap.md#14-lwx-implementation--one-click-live-workstation) → [02 §17 UX](docs/02-workflows-and-ux.md#17-daily-one-click-live-workflow--2026-11-11), [09 §14 architecture](docs/09-architecture.md#14-one-click-live-workstation-integration--2026-11-11), [08 §22 tests](docs/08-validation.md#22-live-one-click-workstation-acceptance--lwx). The saved local gold alias stays untouched pending independent native acceptance and explicit cutover approval.
