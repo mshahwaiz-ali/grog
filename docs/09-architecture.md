@@ -474,3 +474,55 @@ This is a **desktop consumer** of existing domain ports. Do not:
 - assume on-disk files or DB are always writable, or change `gold` before D05 full QA and the owner's explicit signoff.
 
 Visual correctness is a required acceptance gate **in addition to**, not instead of, domain/replay parity, no-lookahead evidence, journal concurrency tests, source-fidelity display, restart recovery and dependency smoke tests. Test IDs: [08 §20](08-validation.md). Phase/commit definitions: [10 §12](10-roadmap.md).
+
+## 14. One-click LIVE workstation integration — 2026-11-11
+
+**Architecture objective:** The existing native Qt desktop becomes a one-command, LIVE read-only **reference** XAUUSD analyst without replacing the strategy engine, importing Qt into domain logic, adding broker order APIs or rebuilding the validated replay/journal paths. The authoritative UX is [02 §17](02-workflows-and-ux.md#17-daily-one-click-live-workflow--2026-11-11), source/time is [03 §11](03-market-data.md#11-november-2026-mt5-time-and-source-integrity-evidence-operator-observed-2026-11-11), watch semantics are [07 §13](07-risk-and-monitoring.md#13-selected-setup-watch--not-an-executed-position-approved-2026-11-11) and tests are [08 §22](08-validation.md#22-live-one-click-workstation-acceptance--lwx). This is an implementation specification, NOT an implemented release.
+
+### 14.1 Reuse existing module ownership
+
+| Current code | Keep intact | New bounded integration |
+| --- | --- | --- |
+| scripts/gold-desktop.sh + desktop/launcher.py | Existing REPLAY path and saved source choice | Add explicit LIVE onboarding/profile; default LIVE **after** successful onboarding. Preserve REPLAY explicit selection and current gold alias until signed off |
+| desktop/main.py + window.py | Native Qt five pages, theme/time display, journal worker | Use a single detached-frame provider per mode; show LIVE startup/status immediately and keep replay controls only in replay |
+| desktop/replay_worker.py | Causal replay ownership; no Qt in domain | Add a separate LIVE QObject worker on QThread, timer-driven, owning a persistent ReferenceSession |
+| live/session.py + adapters/mt5_reference | ReferenceReader, strict raw parser, Decimal sides, cursor/lock/startup fence, S1ResearchPipeline | Publish exact immutable LIVE snapshots and watch transition events; source/time qualification and bounded incremental ingestion |
+| desktop/journal_worker.py + journal/positions.py | Sole SQLite writer, manual fill and restart reconciliation | No writes for Watch setup; only actual user-confirmed trades go to PositionJournal |
+
+Small proposed new units: desktop/live_supervisor.py (Wine/MT5 lifecycle), desktop/live_profile.py (validated nonsecret XDG config), desktop/live_worker.py (ReferenceSession and detached view frames), live/watch.py (Qt-neutral one-watch state machine). Exact names are optional: inspect current owners before introducing classes. Do NOT add a generalized broker framework, daemon fleet, web API or speculative signals.
+
+### 14.2 First-run and local MT5 lifecycle
+
+**Observed environment example, not portable constants:** Ubuntu 26.04, WineHQ Staging /opt/wine-staging/bin/wine, WINEPREFIX under the home directory as .mt5, a terminal64.exe inside the prefix's Program Files/MetaTrader 5 and a user-scoped Common/Files/grog exporter directory. Discover actual installation paths safely; do not hardcode a person's username or assume a terminal was installed in that exact location. The one-time setup inspects current demo server, XAUUSD availability, local exporter producer/ID/version and file permissions. Ask **once** for permission to supervise this local data source. Save only validated non-secret paths and expected source under an app-owned XDG config file (atomic replace, permission 0600), separate from source chooser, Qt display preferences and journal DB. Grog never requests or stores MT5 login/passwords.
+
+**Normal start:** show window immediately in CONNECTING/SETUP REQUIRED; launch a worker without blocking GUI. Detect an already running terminal for the exact approved Wine prefix and executable; if found, observe without spawning a duplicate. If absent, launch only the approved binary as an argv subprocess/QProcess with WINEPREFIX set and track exact process identity (PID/start time/prefix). No shell interpolation, sudo, global environment changes, trading toggles, full-prefix wineserver kill, or termination of user-owned processes. Bounded retries/backoff; terminal existence alone never means feed LIVE. On Grog exit release owned cursor/worker resources; leave any unrelated existing MT5 process untouched. Optionally allow the user to leave a Grog-started terminal running with clear ownership; no persistent daemon when Grog is closed.
+
+**Exporter launch:** first reuse the user's verified **non-trading read-only EA** attached once to a dedicated XAUUSD profile/chart, which MetaTrader documents as restorable at terminal start. Verify that it actually resumes after Wine restart. One-time installation/compilation if missing must be explicitly consented, version- and checksum-checked, non-overwriting, tested and diagnosable. Do **not** reattach or run MetaEditor every day or enable Algo Trading. Official MT5 documents chart-restored EAs and chart-independent, autostarting Services; explore a dedicated service or documented Startup INI only if the stable EA/profile path does not meet acceptance, with separate compatibility tests rather than implementing two producers at once. One exporter per unique source; no duplicate producer or accidental multi-chart attachment.
+
+### 14.3 Source integrity, readiness and historical DST
+
+The prior source ID mt5full20261108 is **contaminated by a recorded gap**; a later clean-looking part with the same ID does not repair it. Preserve its history, cursor, watermark and operator journal; a new collision-free, dedicated live source needs separate provenance and sufficient truthful warm-up. Never silently clear a G, OFFSET_CHANGED, PARTIAL_LINE or cursor fault; never auto-delete/rewrite exports. The user's current-tick clock probe supports SERVER_CLOCK_CANDIDATE at +02:00 for November 11 only; older Oct 19 time mapping remains unverified across DST. Do not hardcode Europe/Helsinki or subtract a current offset from all old history as if verified. Require source-scoped time-basis evidence valid for each historical interval; if unavailable, show BLOCKED / INSUFFICIENT_HISTORY, not a READY.
+
+Existing Settings._validate_mode_policy rejects REFERENCE_LIVE even with some populated fields; the UI live option and clock trust remain unimplemented by design. Do not flip that guard without source-scoped config, test and measured values. Explicit blockers include quote age, first-quote-after-close delay, heartbeat age, future skew, spread/cost in R, event blackout rules, max-account-risk, execution fidelity, source symbol precision/contract metadata and source/gap/time integrity. **Never reuse synthetic fixture thresholds for a real demo feed.** It is permissible to display research proposals as BLOCKED/INDICATIVE while READY actionability is unavailable; it is not permissible to label them EXECUTABLE or imply profitable edge. READY remains gated by actual live-mode T/L price updates plus freshness, complete warm-up, valid signal/expiry and no integrity or policy blockers. Connected H/OPEN is insufficient.
+
+### 14.4 Dataflow and UI responsiveness
+
+    Gold desktop LIVE → fast visible Qt window → supervised local Wine/MT5
+        → persisted read-only XAUUSD exporter → append-only .grogref files
+        → ReferenceReader + ReferenceSession on dedicated LiveWorker QThread
+        → unchanged S1ResearchPipeline (causal bars, features, signals, risk)
+        → immutable Qt-neutral LIVE frames (source, generation, sequence, fidelity,
+          exact BID/ASK and times, feed health, H1/M15/M5, reasons, blocked/READY)
+        → Qt Overview / Signals / Diagnostics (PAINT coalescing only)
+        → optional one-watch state machine → on-screen state-change alerts
+        [actual operator-reported broker fill separately → journal worker]
+
+Source IDs, frame generations and monotonic sequence prevent old snapshots painting after source/mode changes; lossless Decimal and full-precision UTC remain in details. Process **every** accepted tick causally; coalesce ONLY display (target 4 Hz), not engine inputs. First poll backlog/history and rehydrated cursor data are never actionable; startup fence persists. A persistent session and bounded batch/time budget avoid rescanning gigabytes or blocking the GUI every paint. Verify whether current ReferenceSession.poll processes arbitrarily large tail in one call; add a bounded continuation mechanism without skipping/reordering source events if native testing proves necessary. Health timer evaluates freshness when ticks stop; do not mislabel still-connected 1-Hz heartbeats as healthy prices.
+
+### 14.5 Watch-only state and durability
+
+V1 supports **one watched proposal** to minimize complexity. Freeze source ID, full signal ID, strategy/version, original plan fields, expiry, selection time, unique watch ID and explicit operator action. Store an atomic and versioned local watch snapshot/event log under app XDG state, **separate from SQLite PositionJournal**, with one owner, fsync/replace, strict decoding, idempotent alert transition IDs and an honest corrupt-file error. No broker API, no position, no fill, no P/L and no journal ENTRY on Watch. Restart restores as UNVERIFIED; rebind only to a matching, unexpired signal after validating new source/health; do not replay historical touching as a new alert. State transitions (watching, price-in-band, expired, invalidated, unavailable, stopped) depend on source BID/ASK and approved policy. A missing "near entry" threshold disables proximity labels, not core monitoring; price touch is **never** a fill. Data fault/stale/offline forces monitoring unavailable. Existing manual position journal remains the only route for actual reported broker execution, with restart reconciliation unchanged.
+
+### 14.6 Security and acceptance
+
+No OrderSend/CTrade/position-modifying MQL5 calls, no credential handling, no enabling MT5 automated trading, no account switching, no production server access, no crash-restart storm. Test with fake clocks/processes and deterministic fixture exporters before native Ubuntu/Wine; run existing replay/Qt/journal regression and Ruff before any alias changes. A green status must require true live T/L ticks and verified time/policy/source evidence; a benchmark from an unknown feed or unvalidated S1 must not be presented as a profitable trading recommendation.
