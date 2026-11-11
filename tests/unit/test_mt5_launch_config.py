@@ -16,6 +16,14 @@ from grog.desktop.mt5_launch_config import (
 )
 
 
+def _tree_snapshot(root: Path) -> dict[str, bytes | None]:
+    """Include directories and file contents, not just the directory's initial entries."""
+    return {
+        str(path.relative_to(root)): path.read_bytes() if path.is_file() else None
+        for path in root.rglob("*")
+    }
+
+
 def _settings(source_id: str = "mt5tf20261111"):
     files = render_reference_launch_files(source_id)
     parser = configparser.ConfigParser()
@@ -66,19 +74,21 @@ def test_render_is_deterministic_and_does_not_touch_current_directory(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
+    before = _tree_snapshot(tmp_path)
     a = render_reference_launch_files("mt5tf20261111")
     b = render_reference_launch_files("mt5tf20261111")
     assert a == b
-    assert list(tmp_path.iterdir()) == []
+    assert _tree_snapshot(tmp_path) == before
 
 
 def test_cli_prints_preview_but_does_not_write_files(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
     monkeypatch.chdir(tmp_path)
+    before = _tree_snapshot(tmp_path)
     assert main(["--source-id", "mt5tf20261111"]) == 0
     out = capsys.readouterr().out
     assert "PREVIEW ONLY" in out and "NO FILES WRITTEN" in out
     assert "AllowLiveTrading=0" in out
     assert "InpSourceId=mt5tf20261111" in out
-    assert list(tmp_path.iterdir()) == []
+    assert _tree_snapshot(tmp_path) == before
