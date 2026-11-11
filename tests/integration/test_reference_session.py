@@ -55,6 +55,28 @@ def test_link_states_are_evaluated_on_the_timer_without_new_ticks(tmp_path: Path
     assert s.poll().link is LinkStatus.CATCHING_UP
 
 
+def test_fresh_open_heartbeats_without_ticks_keep_trading_blocked(tmp_path: Path) -> None:
+    """Connected, OPEN and advancing H records do not freshen stale BID/ASK prices."""
+    clock = StepClock(T0 + 100)
+    w = Writer(tmp_path)
+    w.tick(T0, "4000.00", "4000.20")
+    w.hb(T0)
+    s = session(tmp_path, clock)
+    first = s.poll()
+    assert first.link is LinkStatus.LIVE
+    assert first.feed is not None and first.feed.status is FeedStatus.FRESH
+
+    for age_ms in (65_000, 66_000):
+        clock.now = T0 + age_ms
+        w.hb(clock.now, connected=1, session="OPEN")
+        current = s.poll()
+        assert current.link is LinkStatus.LIVE  # Terminal connectivity only.
+        assert current.feed is not None and current.feed.status is FeedStatus.STALE
+        assert "FEED_STALE" in current.blockers
+        assert current.actionable == ()
+    s.shutdown()
+
+
 def test_unset_heartbeat_threshold_is_unknown_never_live(tmp_path: Path) -> None:
     clock = StepClock(T0 + 100)
     w = Writer(tmp_path)
