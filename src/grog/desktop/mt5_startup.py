@@ -88,7 +88,9 @@ def plan_mt5_startup(
     if not allow_local_launch:
         return StartupPlan(StartupState.PERMISSION_REQUIRED, ("LOCAL_MT5_LAUNCH_NOT_APPROVED",))
     if not dedicated_read_only_profile_verified:
-        return StartupPlan(StartupState.PROFILE_UNVERIFIED, ("DEDICATED_READ_ONLY_PROFILE_UNVERIFIED",))
+        return StartupPlan(
+            StartupState.PROFILE_UNVERIFIED, ("DEDICATED_READ_ONLY_PROFILE_UNVERIFIED",)
+        )
     # Return command as argv, never a shell string. No global environment changed.
     # A later launcher MUST re-inventory under a lock just before using this plan.
     return StartupPlan(
