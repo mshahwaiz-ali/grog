@@ -30,6 +30,34 @@ def test_connected_open_heartbeats_only_are_not_live_ticks(tmp_path: Path) -> No
     assert writer.path.read_bytes() == before
 
 
+def test_heartbeat_reported_utc_age_uses_its_own_offset(tmp_path: Path) -> None:
+    writer = Writer(tmp_path)
+    writer.hb(T0 + 1000, connected=1, session="OPEN")
+    result = probe_exporter_tail(tmp_path, SRC)
+    assert result.reported_heartbeat_utc_ms == T0 + 1000
+    assert result.reported_heartbeat_age_ms(T0 + 5000) == 4000
+    assert result.estimated_live_tick_age_ms(T0 + 5000) is None
+    assert not result.feed_verified
+
+
+def test_negative_heartbeat_age_is_not_clamped_to_fresh(tmp_path: Path) -> None:
+    writer = Writer(tmp_path)
+    writer.hb(T0 + 10_000)
+    result = probe_exporter_tail(tmp_path, SRC)
+    assert result.reported_heartbeat_age_ms(T0) == -10_000
+    assert not result.feed_verified
+
+
+def test_live_record_age_is_estimate_not_time_certification(tmp_path: Path) -> None:
+    writer = Writer(tmp_path)
+    writer.tick(T0, "4000.00", "4000.20")
+    writer.hb(T0 + 1000)
+    result = probe_exporter_tail(tmp_path, SRC)
+    assert result.estimated_live_tick_age_ms(T0 + 5000) == 5000
+    assert result.state is TailState.LIVE_TICK_IN_TAIL
+    assert not result.feed_verified
+
+
 def test_backfill_is_never_counted_as_live(tmp_path: Path) -> None:
     writer = Writer(tmp_path)
     writer.tick(T0, "4000.00", "4000.20", mode="B")
