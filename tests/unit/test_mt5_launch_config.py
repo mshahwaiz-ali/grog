@@ -54,6 +54,14 @@ def test_only_approved_reference_expert_and_xauusd_chart() -> None:
     assert "Common" not in config  # no credentials or account override
 
 
+def test_preset_file_bytes_use_unicode_bom_and_crlf() -> None:
+    """MT5 presets are Unicode text; never write the printable preview as UTF-8."""
+    files, _ = _settings("mt5tf20261111")
+    assert files.preset_bytes.startswith(b"\xff\xfe")
+    assert files.preset_bytes.decode("utf-16") == files.preset_text
+    assert files.preset_bytes.decode("utf-16") == "InpSourceId=mt5tf20261111\r\n"
+
+
 def test_fresh_source_id_is_in_preset_not_hardcoded_old_source() -> None:
     files, _ = _settings("mt5tf20261111")
     assert files.preset_text == "InpSourceId=mt5tf20261111\r\n"
