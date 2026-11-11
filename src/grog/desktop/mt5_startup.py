@@ -10,7 +10,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from enum import StrEnum
-from pathlib import Path
 
 from grog.desktop.mt5_discovery import LocalMT5
 from grog.desktop.mt5_process import ProcessInventory, ProcessState
