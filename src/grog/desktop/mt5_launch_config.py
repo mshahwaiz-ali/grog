@@ -27,6 +27,15 @@ class ReferenceLaunchFiles:
     config_text: str
     preset_text: str
 
+    @property
+    def preset_bytes(self) -> bytes:
+        """Unicode LE with BOM for a future MQL5/Presets .set file.
+
+        Rendering bytes is not permission to install the file. MT5 must still
+        confirm that it loaded these inputs for the dedicated source.
+        """
+        return b"\xff\xfe" + self.preset_text.encode("utf-16-le")
+
 
 def render_reference_launch_files(source_id: str) -> ReferenceLaunchFiles:
     """Build a startup config and source-specific .set preset without side effects.
@@ -62,7 +71,8 @@ def render_reference_launch_files(source_id: str) -> ReferenceLaunchFiles:
     )
     config_text = "\r\n".join(lines) + "\r\n"
     # MQL5 string inputs in .set files use Name=Value. This is an unexecuted
-    # preview; terminal acceptance of the preset must be checked after setup.
+    # preview; future installation must use preset_bytes (UTF-16LE with BOM).
+    # Terminal acceptance of the preset must still be checked after setup.
     preset_text = f"InpSourceId={source_id}\r\n"
     return ReferenceLaunchFiles(
         source_id,
