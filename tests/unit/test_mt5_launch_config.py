@@ -81,9 +81,7 @@ def test_render_is_deterministic_and_does_not_touch_current_directory(
     assert _tree_snapshot(tmp_path) == before
 
 
-def test_cli_prints_preview_but_does_not_write_files(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
+def test_cli_prints_preview_but_does_not_write_files(tmp_path: Path, monkeypatch, capsys) -> None:
     monkeypatch.chdir(tmp_path)
     before = _tree_snapshot(tmp_path)
     assert main(["--source-id", "mt5tf20261111"]) == 0
