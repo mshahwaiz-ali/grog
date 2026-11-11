@@ -44,7 +44,9 @@ def test_permission_alone_does_not_bypass_profile_check(tmp_path: Path) -> None:
 def test_verified_profile_and_permission_produce_argv_only(tmp_path: Path) -> None:
     local = _installed(tmp_path)
     p = plan_mt5_startup(
-        local, _inventory(), allow_local_launch=True,
+        local,
+        _inventory(),
+        allow_local_launch=True,
         dedicated_read_only_profile_verified=True,
     )
     assert p.state is StartupState.READY_TO_START and p.may_start
@@ -73,7 +75,9 @@ def test_already_running_reused_even_without_launch_consent(tmp_path: Path) -> N
 def test_ambiguous_or_inconsistent_processes_never_start(tmp_path: Path, inventory) -> None:
     local = _installed(tmp_path)
     p = plan_mt5_startup(
-        local, inventory, allow_local_launch=True,
+        local,
+        inventory,
+        allow_local_launch=True,
         dedicated_read_only_profile_verified=True,
     )
     assert p.state is StartupState.PROCESS_AMBIGUOUS
@@ -90,8 +94,12 @@ def test_other_prefix_does_not_get_taken_over(tmp_path: Path) -> None:
 def test_stale_discovery_rechecked(tmp_path: Path) -> None:
     local = _installed(tmp_path)
     local.terminal.unlink()
-    p = plan_mt5_startup(local, _inventory(), allow_local_launch=True,
-                         dedicated_read_only_profile_verified=True)
+    p = plan_mt5_startup(
+        local,
+        _inventory(),
+        allow_local_launch=True,
+        dedicated_read_only_profile_verified=True,
+    )
     assert p.state is StartupState.SETUP_REQUIRED
     assert "TERMINAL_NOT_FOUND" in p.reasons and not p.may_start
 
@@ -108,6 +116,10 @@ def test_missing_wine_binary_blocks_and_never_falls_back(tmp_path: Path) -> None
 def test_no_file_mutation_during_planning(tmp_path: Path) -> None:
     local = _installed(tmp_path)
     originals = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
-    plan_mt5_startup(local, _inventory(), allow_local_launch=True,
-                     dedicated_read_only_profile_verified=True)
+    plan_mt5_startup(
+        local,
+        _inventory(),
+        allow_local_launch=True,
+        dedicated_read_only_profile_verified=True,
+    )
     assert {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == originals
