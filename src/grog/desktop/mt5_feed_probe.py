@@ -129,9 +129,17 @@ def probe_exporter_tail(
     else:
         state = TailState.NO_COMPLETE_RECORDS
     return TailProbe(
-        source_id, selected, state, len(data), heartbeat_count,
-        live_tick_count, backfill_tick_count, malformed_count,
-        last_heartbeat, last_live_tick, last_gap,
+        source_id,
+        selected,
+        state,
+        len(data),
+        heartbeat_count,
+        live_tick_count,
+        backfill_tick_count,
+        malformed_count,
+        last_heartbeat,
+        last_live_tick,
+        last_gap,
     )
 
 
