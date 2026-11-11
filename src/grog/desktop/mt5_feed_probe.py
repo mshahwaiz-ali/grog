@@ -204,7 +204,9 @@ def main(argv: list[str] | None = None) -> int:
         except (ValueError, OverflowError, OSError):
             utc_text = "INVALID_REPORTED_TIMESTAMP"
         print("LAST HEARTBEAT UTC (reported offset only):", utc_text)
-        print("HEARTBEAT AGE SECONDS (provisional):", result.reported_heartbeat_age_ms(now_ms) // 1000)
+        heartbeat_age = result.reported_heartbeat_age_ms(now_ms)
+        assert heartbeat_age is not None
+        print("HEARTBEAT AGE SECONDS (provisional):", heartbeat_age // 1000)
     tick_age = result.estimated_live_tick_age_ms(now_ms)
     if tick_age is not None:
         print("LAST LIVE TICK AGE SECONDS (offset estimate):", tick_age // 1000)
