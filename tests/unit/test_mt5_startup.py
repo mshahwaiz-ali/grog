@@ -121,8 +121,9 @@ def test_stale_discovery_rechecked(tmp_path: Path) -> None:
 def test_missing_wine_binary_blocks_and_never_falls_back(tmp_path: Path) -> None:
     local = _installed(tmp_path)
     local.wine_binary.unlink()
-    p = plan_mt5_startup(local, _inventory(), allow_local_launch=True,
-                         dedicated_read_only_profile_verified=True)
+    p = plan_mt5_startup(
+        local, _inventory(), allow_local_launch=True, dedicated_read_only_profile_verified=True
+    )
     assert p.state is StartupState.SETUP_REQUIRED
     assert "WINE_NOT_FOUND" in p.reasons and not p.may_start
 
