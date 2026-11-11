@@ -22,6 +22,7 @@ class StartupState(StrEnum):
     REUSE_EXISTING = "REUSE_EXISTING"
     PERMISSION_REQUIRED = "PERMISSION_REQUIRED"
     PROFILE_UNVERIFIED = "PROFILE_UNVERIFIED"
+    DATA_MODE_UNVERIFIED = "DATA_MODE_UNVERIFIED"
     READY_TO_START = "READY_TO_START"
 
 
@@ -63,12 +64,14 @@ def plan_mt5_startup(
     *,
     allow_local_launch: bool = False,
     dedicated_read_only_profile_verified: bool = False,
+    portable_mode_verified: bool = False,
 ) -> StartupPlan:
     """Decide next step without I/O other than local file existence checks.
 
     No actual process launch occurs here. An explicit permission alone is insufficient:
-    a dedicated non-trading MT5 profile must also be verified before allowing a
-    future launcher to start a terminal (existing profiles may contain trading EAs).
+    a dedicated non-trading MT5 profile and the portable data-directory mode must
+    also be verified before allowing a future launcher to start a terminal.
+    Without /portable, Wine MT5 can use a different roaming data root.
     """
     missing = _missing(local)
     if missing:
@@ -91,11 +94,14 @@ def plan_mt5_startup(
         return StartupPlan(
             StartupState.PROFILE_UNVERIFIED, ("DEDICATED_READ_ONLY_PROFILE_UNVERIFIED",)
         )
+    if not portable_mode_verified:
+        return StartupPlan(StartupState.DATA_MODE_UNVERIFIED, ("PORTABLE_DATA_ROOT_UNVERIFIED",))
     # Return command as argv, never a shell string. No global environment changed.
-    # A later launcher MUST re-inventory under a lock just before using this plan.
+    # A later launcher MUST verify its dedicated config and preset, then re-inventory
+    # under a lock just before using any command. This alone is NOT a runnable launch.
     return StartupPlan(
         StartupState.READY_TO_START,
         ("LAUNCH_PREFLIGHT_ONLY",),
-        (str(local.wine_binary), str(local.terminal)),
+        (str(local.wine_binary), str(local.terminal), "/portable"),
         (("WINEPREFIX", str(local.prefix)),),
     )
