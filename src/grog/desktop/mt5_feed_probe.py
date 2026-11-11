@@ -9,9 +9,9 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from time import time_ns
 from enum import StrEnum
 from pathlib import Path
+from time import time_ns
 
 from grog.adapters.mt5_reference.format import (
     FILE_NAME,
@@ -200,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
     hb_utc_ms = result.reported_heartbeat_utc_ms
     if hb_utc_ms is not None:
         try:
-            utc_text = datetime.fromtimestamp(hb_utc_ms / 1000, tz=UTC).isoformat()
+            utc_text = datetime.fromtimestamp(hb_utc_ms // 1000, tz=UTC).isoformat()
         except (ValueError, OverflowError, OSError):
             utc_text = "INVALID_REPORTED_TIMESTAMP"
         print("LAST HEARTBEAT UTC (reported offset only):", utc_text)
