@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from time import time_ns
 from enum import StrEnum
 from pathlib import Path
 
@@ -51,6 +53,29 @@ class TailProbe:
     @property
     def feed_verified(self) -> bool:
         return False  # Never elevate a bounded diagnostic to an actionable market feed.
+
+    @property
+    def reported_heartbeat_utc_ms(self) -> int | None:
+        """Per-record offset is useful for diagnostics, not trusted time certification."""
+        hb = self.last_heartbeat
+        return None if hb is None else hb.server_time_msc - hb.server_offset_s * 1000
+
+    def reported_heartbeat_age_ms(self, now_utc_ms: int) -> int | None:
+        """Can be negative on clock/offset faults. Never clamp to a fresh-looking zero."""
+        utc_ms = self.reported_heartbeat_utc_ms
+        return None if utc_ms is None else now_utc_ms - utc_ms
+
+    def estimated_live_tick_age_ms(self, now_utc_ms: int) -> int | None:
+        """Provisional: assumes the last tick used the last heartbeat's offset.
+
+        Historical offset transitions may invalidate the inference; never use this
+        estimate to qualify REFERENCE_LIVE or issue a trade.
+        """
+        hb = self.last_heartbeat
+        tick = self.last_live_tick
+        if hb is None or tick is None:
+            return None
+        return now_utc_ms - (tick.time_msc - hb.server_offset_s * 1000)
 
 
 def probe_exporter_tail(
@@ -171,9 +196,25 @@ def main(argv: list[str] | None = None) -> int:
     tick = result.last_live_tick
     if tick is not None:
         print("LAST LIVE RECORD:", tick.time_msc, tick.bid, tick.ask)
+    now_ms = time_ns() // 1_000_000
+    hb_utc_ms = result.reported_heartbeat_utc_ms
+    if hb_utc_ms is not None:
+        try:
+            utc_text = datetime.fromtimestamp(hb_utc_ms / 1000, tz=UTC).isoformat()
+        except (ValueError, OverflowError, OSError):
+            utc_text = "INVALID_REPORTED_TIMESTAMP"
+        print("LAST HEARTBEAT UTC (reported offset only):", utc_text)
+        print("HEARTBEAT AGE SECONDS (provisional):", result.reported_heartbeat_age_ms(now_ms) // 1000)
+    tick_age = result.estimated_live_tick_age_ms(now_ms)
+    if tick_age is not None:
+        print("LAST LIVE TICK AGE SECONDS (offset estimate):", tick_age // 1000)
+    if (result.reported_heartbeat_age_ms(now_ms) or 0) < 0 or (
+        tick_age is not None and tick_age < 0
+    ):
+        print("CLOCK WARNING: a source timestamp appears to be in the future.")
     if result.last_gap is not None:
         print("RECENT GAP:", result.last_gap.error)
-    print("NOT VERIFIED: a tail cannot establish UTC time, entire-file integrity or live READY.")
+    print("NOT VERIFIED: offset/DST, full-file integrity and live trade readiness remain OPEN.")
     return 0
 
 
