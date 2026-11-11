@@ -41,7 +41,7 @@ def test_permission_alone_does_not_bypass_profile_check(tmp_path: Path) -> None:
     assert not p.may_start and not p.argv
 
 
-def test_verified_profile_and_permission_produce_argv_only(tmp_path: Path) -> None:
+def test_missing_portable_data_root_verification_blocks_launch(tmp_path: Path) -> None:
     local = _installed(tmp_path)
     p = plan_mt5_startup(
         local,
@@ -49,8 +49,22 @@ def test_verified_profile_and_permission_produce_argv_only(tmp_path: Path) -> No
         allow_local_launch=True,
         dedicated_read_only_profile_verified=True,
     )
+    assert p.state is StartupState.DATA_MODE_UNVERIFIED
+    assert p.reasons == ("PORTABLE_DATA_ROOT_UNVERIFIED",)
+    assert not p.may_start and not p.argv
+
+
+def test_verified_profile_and_portable_mode_produce_argv_only(tmp_path: Path) -> None:
+    local = _installed(tmp_path)
+    p = plan_mt5_startup(
+        local,
+        _inventory(),
+        allow_local_launch=True,
+        dedicated_read_only_profile_verified=True,
+        portable_mode_verified=True,
+    )
     assert p.state is StartupState.READY_TO_START and p.may_start
-    assert p.argv == (str(local.wine_binary), str(local.terminal))
+    assert p.argv == (str(local.wine_binary), str(local.terminal), "/portable")
     assert p.environment == (("WINEPREFIX", str(local.prefix)),)
     assert not hasattr(p, "process")
 
